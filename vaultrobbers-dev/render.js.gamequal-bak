@@ -1,0 +1,362 @@
+'use strict';
+/*
+ * Vault Robbers — SECURE TRANSPORT: per-game frame rendering (Skill Engine v4).
+ * Turns a built challenge's answer-bearing `pixels`/`secret` into opaque media the browser can only PERCEIVE:
+ *   renderFrame(gameKey, built, i) -> PNG Buffer (the answer content for frame/round i), or null when done.
+ *   renderAudio(gameKey, built)    -> WAV Buffer (rhythm beats), or null.
+ * Layout is derived from `data` (counts/dims) with the SAME formulas the client uses, so the client can
+ * overlay its interactive hit-zones exactly over the served image. The ANSWER (which tile/shade/cell/number/
+ * shape/arc) exists only in these pixels — never in any JSON the client receives.
+ */
+const { Canvas, greenL } = require('./pnggen.js');
+const SZ = 300;                                   // logical render size; client scales its canvas to match
+const BG = [16, 14, 11], ACC = [255, 210, 74], WHITE = [234, 255, 243], GOLD = [255, 210, 74];   // V2: target/safe indicators unified to GOLD to match the How-It-Works look (was green). RED stays = genuine danger only.
+const TAU = Math.PI * 2;
+
+// shared layout helpers (client mirrors these)
+const gridDims = (n) => { const cols = Math.ceil(Math.sqrt(n)); return { cols, rows: Math.ceil(n / cols) }; };
+
+// ── REACTION-frame shared layout (Jake 2026-09-13): 300-space geometry MIRRORED EXACTLY by the client presenters (rxGridLayout300 /
+//    rxPadLayout300 in skillgames-remote.js) so a tap lands on the served pixel it points at. The image is drawn full-bleed into the
+//    client play area; the client maps a client-space tap back into this 300-space and reads the same cell/pad index.
+const rxGridLayout = (cols, rows) => { const padX = 24, top = 40, bot = 30; const gw = SZ - padX * 2, gh = SZ - top - bot; const cellW = gw / cols, cellH = gh / rows;
+  return { cellW, cellH, r: Math.min(cellW, cellH) * 0.36, cx: (i) => padX + (i % cols) * cellW + cellW / 2, cy: (i) => top + Math.floor(i / cols) * cellH + cellH / 2 }; };
+const rxPadLayout = (pads) => { const marginX = 20, ph = 64, y = SZ - 104; const pw = (SZ - marginX * 2) / pads; return { pw: pw - 8, ph, y, x: (i) => marginX + i * pw + 4 }; };
+// RXPAL as RGB triples (mirrors the client hex palette ['#ff5a3c','#3dff8f','#7fd0ff','#ffd24a','#c874ff'])
+const RXPAL = [[255, 90, 60], [61, 255, 143], [127, 208, 255], [255, 210, 74], [200, 116, 255]];
+const tol_solid = (rgb) => Array.isArray(rgb) ? rgb : rgb;   // pads are opaque
+// colour-call family colours (mirror client CC_HUE + _ccColor shade darkening)
+const CC_HUE = [[255, 90, 60], [61, 255, 143], [127, 208, 255], [255, 210, 74], [200, 116, 255]];
+const ccColor = (hue, shade) => { const base = CC_HUE[((hue % CC_HUE.length) + CC_HUE.length) % CC_HUE.length]; const m = 1 - Math.max(0, Math.min(1, shade)) * 0.72; return [Math.round(base[0] * m), Math.round(base[1] * m), Math.round(base[2] * m)]; };
+// odd-signal glyph drawer in 300-space (mirrors client _rxGlyph shape set; filled polygons via scanline)
+function rxGlyph(c, cx, cy, R, shape, rot, col) {
+  cx = cx | 0; cy = cy | 0; R = R | 0; const rr = ((rot % 4) + 4) % 4;
+  // rotate a point (x,y) about origin by rr quarter-turns, then translate to (cx,cy)
+  const rp = (x, y) => { let X = x, Y = y; for (let q = 0; q < rr; q++) { const nx = -Y, ny = X; X = nx; Y = ny; } return [cx + X, cy + Y]; };
+  const poly = (pts) => fillPoly(c, pts.map(p => rp(p[0], p[1])), col);
+  switch (((shape % 6) + 6) % 6) {
+    case 0: poly([[0, -R], [R, R], [-R, R]]); break;                                   // triangle
+    case 1: poly([[-R * 0.82, -R * 0.82], [R * 0.82, -R * 0.82], [R * 0.82, R * 0.82], [-R * 0.82, R * 0.82]]); break;   // square
+    case 2: { if (rr % 2 === 0) c.circle(cx, cy, (R * 0.9) | 0, col); else c.circle(cx, cy, (R * 0.9) | 0, col); break; }   // circle (rotation-invariant)
+    case 3: { const p = []; for (let k = 0; k < 5; k++) { const a = -Math.PI / 2 + k * TAU / 5; p.push([Math.cos(a) * R, Math.sin(a) * R]); } poly(p); break; }   // pentagon
+    case 4: poly([[0, -R], [R, 0], [0, R], [-R, 0]]); break;                            // diamond
+    default: poly([[-R, -R * 0.5], [R, -R * 0.5], [0, R]]); break;                      // wedge
+  }
+}
+// generic convex/simple polygon scanline fill for the glyph frame
+function fillPoly(c, pts, col) {
+  let minY = Infinity, maxY = -Infinity; for (const p of pts) { if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1]; }
+  minY = Math.floor(minY); maxY = Math.ceil(maxY);
+  for (let y = minY; y <= maxY; y++) { const xs = [];
+    for (let i = 0; i < pts.length; i++) { const a = pts[i], b2 = pts[(i + 1) % pts.length]; const y0 = a[1], y1 = b2[1];
+      if ((y0 <= y && y1 > y) || (y1 <= y && y0 > y)) { const t = (y - y0) / (y1 - y0); xs.push(a[0] + t * (b2[0] - a[0])); } }
+    xs.sort((p, q) => p - q); for (let k = 0; k + 1 < xs.length; k += 2) { const x0 = Math.round(xs[k]), x1 = Math.round(xs[k + 1]); for (let x = x0; x <= x1; x++) c.set(x, y, col); } }
+}
+
+// 10 distinct shapes for lineup, from pnggen primitives + colour
+function shape(c, idx, cx, cy, r, colOverride) {
+  const col = colOverride || GOLD;
+  if (c.soft) c.soft(cx, cy, (r + 8) | 0, [255, 190, 70], 0.22);   // warm glow behind the glyph → depth
+  switch (idx % 10) {
+    case 0: c.circle(cx, cy, r, col); break;
+    case 1: c.fillRect(cx - r, cy - r, r * 2, r * 2, col); break;
+    case 2: c.triangle(cx, cy, r, col); break;
+    case 3: { for (let y = -r; y <= r; y++) { const wd = r - Math.abs(y); c.fillRect(cx - wd, cy + y, wd * 2, 1, col); } break; } // diamond
+    case 4: c.ring(cx, cy, r, Math.max(3, r * 0.32) | 0, col); break;
+    case 5: { const bh = Math.max(2, r * 0.3) | 0; c.fillRect(cx - r, cy - r, r * 2, bh, col); c.fillRect(cx - r, (cy - bh / 2) | 0, r * 2, bh, col); c.fillRect(cx - r, cy + r - bh, r * 2, bh, col); break; } // stacked bars (neutral — replaced the cross; no religious symbols in the glyph set)
+    case 6: { for (let k = 0; k < 6; k++) { const a = k / 6 * TAU; c.circle(cx + Math.cos(a) * r * 0.6 | 0, cy + Math.sin(a) * r * 0.6 | 0, Math.max(2, r * 0.28) | 0, col); } break; } // hex-dots
+    case 7: c.circle(cx, cy, (r * 0.6) | 0, col); break;
+    case 8: c.arcBand(cx, cy, r, Math.max(4, r * 0.5) | 0, -0.5, 1.7, col); break; // wedge
+    default: { c.fillRect(cx - r * 0.25, cy - r, r * 0.5, r, col); c.fillRect(cx - r, cy, r * 0.5, r, col); break; } // bolt-ish
+  }
+}
+
+// directional arrow glyph in 300-space (dir: 0=up 1=right 2=down 3=left) — a filled shaft + head, drawn via fillPoly so it reads at a glance.
+function arrow(c, cx, cy, R, dir, col) {
+  cx = cx | 0; cy = cy | 0; R = R | 0; col = col || GOLD; const d = ((dir % 4) + 4) % 4;
+  // base points for an UP arrow, then rotate d quarter-turns clockwise to the requested heading
+  const base = [[0, -R], [R * 0.66, -R * 0.1], [R * 0.28, -R * 0.1], [R * 0.28, R], [-R * 0.28, R], [-R * 0.28, -R * 0.1], [-R * 0.66, -R * 0.1]];
+  const rp = (x, y) => { let X = x, Y = y; for (let q = 0; q < d; q++) { const nx = -Y, ny = X; X = nx; Y = ny; } return [cx + X, cy + Y]; };
+  fillPoly(c, base.map(p => rp(p[0], p[1])), col);
+}
+
+function banner(c) { c.fillRect(0, 0, SZ, 2, ACC); }
+
+function renderFrame(gameKey, b, i) {
+  i = i | 0; const c = new Canvas(SZ, SZ, BG); banner(c);
+  // NERVE gauge render path removed 2026-09-12 (Nerve game permanently deleted).
+  if (gameKey === 'oddone') {
+    if (i >= b.secret.odd.length) return null;
+    const { cols, rows } = gridDims(b.data.tiles); const pad = 14, cw = (SZ - pad * 2) / cols, ch = (SZ - pad * 2) / rows;
+    for (let t = 0; t < b.data.tiles; t++) { const cx = pad + (t % cols) * cw + cw / 2, cy = pad + Math.floor(t / cols) * ch + ch / 2; const rad = Math.min(cw, ch) * 0.4; const L = (t === b.secret.odd[i]) ? (0.46 + 0.1 + b.data.salience * 0.3) : 0.46; c.fillRect((cx - rad) | 0, (cy - rad) | 0, (rad * 2) | 0, (rad * 2) | 0, greenL(L)); }
+    return c.png();
+  }
+  if (gameKey === 'shade') { if (i >= b.secret.targets.length) return null; c.fillRect(90, 100, 120, 100, greenL(b.secret.targets[i])); return c.png(); }
+  // ── SKILL V3 anti-cheat targets (Jake 2026-09-11): the RANDOM target for these 6 skill games lives ONLY here (was leaking in
+  //    `data`). Transparent one-shot PNG; the presenter overlays it via skMap (300-space -> centered square) and draws the moving
+  //    dial/marker from data motion. Geometry mirrors each presenter EXACTLY so the human sees the target in the same place.
+  if (gameKey === 'voltage') {   // Surge Match: vertical gauge, target LINE at bot - target*gaugeH (mode skmatch)
+    if (i > 0) return null; const t = new Canvas(SZ, SZ); const gw = 60, gx = (SZ / 2 - gw / 2) | 0, top = 60, bot = 240, gh = bot - top; const ty = (bot - b.pixels.target * gh) | 0;
+    t.fillRect(gx - 12, ty - 1, gw + 24, 2, [255, 210, 74, 235]);                 // target line
+    return t.png();
+  }
+  if (gameKey === 'spatial') {
+    if (i >= b.secret.cells.length) return null; const side = Math.sqrt(b.data.grid) | 0; const pad = 30, cell = (SZ - pad * 2) / side; const lit = b.secret.cells[i];
+    for (let g = 0; g < b.data.grid; g++) { const x = pad + (g % side) * cell, y = pad + Math.floor(g / side) * cell; c.fillRect((x + 3) | 0, (y + 3) | 0, (cell - 6) | 0, (cell - 6) | 0, g === lit ? ACC : [34, 32, 28]); }
+    return c.png();
+  }
+  if (gameKey === 'combo') { if (i > 0) return null; const nums = b.pixels.nums; const scale = 8; let x = (SZ - nums.length * 4 * scale) / 2 | 0; for (const n of nums) { x = c.number(n, x + 4, 130, scale, WHITE) + 8; } return c.png(); }
+  if (gameKey === 'lineup' || gameKey === 'reverse') { if (i >= b.secret.seq.length) return null; shape(c, b.secret.seq[i], SZ / 2 | 0, SZ / 2 | 0, 70); return c.png(); }
+  if (gameKey === 'safecombo') { if (i >= b.secret.seq.length) return null; const num = b.secret.seq[i], sc = 26, wpx = String(num).length * 4 * sc; c.number(num, (SZ / 2 - wpx / 2) | 0, (SZ / 2 - 65) | 0, sc, WHITE); return c.png(); }
+  if (gameKey === 'colorlock') { if (i >= b.secret.seq.length) return null; const CL = [[61, 255, 143], [54, 208, 224], [255, 210, 74], [255, 122, 89], [185, 140, 255], [255, 90, 140]]; const col = CL[b.secret.seq[i] % CL.length]; c.fillRect(66, 84, 168, 132, col); c.ring(SZ / 2 | 0, SZ / 2 | 0, 92, 4, [8, 14, 10]); return c.png(); }
+  if (gameKey === 'bearing') { if (i >= b.secret.seq.length) return null; const dir = b.secret.seq[i], cx = SZ / 2 | 0, cy = SZ / 2 | 0, off = 78; const pts = [[cx, cy - off], [cx + off, cy], [cx, cy + off], [cx - off, cy]]; c.ring(cx, cy, 12, 3, [78, 72, 56]); const p = pts[dir % 4]; c.circle(p[0], p[1], 30, ACC); return c.png(); }
+  if (gameKey === 'denoms') { if (i >= b.secret.seq.length) return null; const v = b.secret.seq[i], sc = 16, wpx = String(v).length * 4 * sc; c.number(v, (SZ / 2 - wpx / 2) | 0, (SZ / 2 - 40) | 0, sc, [255, 210, 74]); return c.png(); }
+  if (gameKey === 'glyphset') { if (i > 0) return null; const set = b.pixels.set, cols = Math.ceil(Math.sqrt(set.length)), rows = Math.ceil(set.length / cols), pad = 44, cw = (SZ - pad * 2) / cols, ch = (SZ - pad * 2) / rows; for (let j = 0; j < set.length; j++) { const gx = pad + (j % cols) * cw + cw / 2, gy = pad + Math.floor(j / cols) * ch + ch / 2; shape(c, set[j], gx | 0, gy | 0, Math.min(cw, ch) * 0.3 | 0); } return c.png(); }
+  if (gameKey === 'pendulum' || gameKey === 'slider') { const y = (SZ / 2) | 0, x0 = 30, x1 = SZ - 30, tw = x1 - x0; c.fillRect(x0, y - 2, tw, 4, [78, 72, 56]); const tx = (x0 + b.pixels.c * tw) | 0, band = Math.max(4, (b.pixels.hw * tw)) | 0; c.fillRect(tx - band, y - 12, band * 2, 24, [255, 210, 74, 70]); c.fillRect(tx - 1, y - 18, 3, 36, WHITE); return c.png(); }
+  if (gameKey === 'crosshair') { const s = SZ - 60, cx = (30 + b.pixels.tx * s) | 0, cy = (30 + b.pixels.ty * s) | 0, band = Math.max(6, b.pixels.tol * s) | 0; c.ring(cx, cy, band, 2, [255, 210, 74]); c.fillRect(cx - band - 10, cy - 1, band * 2 + 20, 2, [78, 72, 56]); c.fillRect(cx - 1, cy - band - 10, 2, band * 2 + 20, [78, 72, 56]); c.circle(cx, cy, 3, WHITE); return c.png(); }
+  if (gameKey === 'orbit') { const cx = SZ / 2 | 0, cy = SZ / 2 | 0, R = 100; c.ring(cx, cy, R, 3, [78, 72, 56]); const a = b.pixels.target, mx = (cx + Math.cos(a) * R) | 0, my = (cy + Math.sin(a) * R) | 0; c.circle(mx, my, 11, ACC); c.circle(cx, cy, 4, WHITE); return c.png(); }
+  if (gameKey === 'align3') { const cx = SZ / 2 | 0, cy = SZ / 2 | 0, radii = [55, 82, 110]; for (let k = 0; k < 3; k++) { const R = radii[k]; c.ring(cx, cy, R, 2, [78, 72, 56]); const a = b.pixels.rings[k].target, mx = (cx + Math.cos(a) * R) | 0, my = (cy + Math.sin(a) * R) | 0; c.circle(mx, my, 8, ACC); } c.circle(cx, cy, 3, WHITE); return c.png(); }
+  if (gameKey === 'pulse') { const cx = SZ / 2 | 0, cy = SZ / 2 | 0, R = (b.pixels.rt * 120) | 0, band = Math.max(3, b.pixels.hw * 120) | 0; c.ring(cx, cy, R, band, [255, 210, 74]); c.circle(cx, cy, 4, WHITE); return c.png(); }
+  if (gameKey === 'ledger') {
+    if (i >= b.pixels.amts.length) return null; const a = b.pixels.amts[i], scale = 9, col = a.sign > 0 ? ACC : [255, 77, 94];
+    const digits = String(a.v), wpx = digits.length * 4 * scale, totalw = 44 + wpx, x0 = ((SZ - totalw) / 2) | 0, cy = (SZ / 2 - 22) | 0;
+    c.fillRect(x0, cy + 16, 28, 7, col); if (a.sign > 0) c.fillRect(x0 + 10, cy + 6, 7, 28, col);   // minus bar; a deposit adds the vertical stroke = plus
+    c.number(a.v, x0 + 44, cy, scale, col);
+    return c.png();
+  }
+  if (gameKey === 'simon') {
+    if (i >= b.secret.seq.length) return null; const pad = b.secret.seq[i];
+    const PADCOL = [[255, 77, 94], [61, 180, 255], [255, 209, 71], [61, 255, 143]];   // client mirrors these 4
+    const g = 10, half = (SZ - g * 3) / 2, ox = g, oy = g;
+    for (let q = 0; q < 4; q++) { const qx = ox + (q % 2) * (half + g), qy = oy + Math.floor(q / 2) * (half + g); const on = q === pad; const col = PADCOL[q]; const cc = on ? col : [(col[0] * 0.28) | 0, (col[1] * 0.28) | 0, (col[2] * 0.28) | 0]; c.fillRect(qx | 0, qy | 0, half | 0, half | 0, cc); if (on) { c.fillRect(qx | 0, qy | 0, half | 0, 3, WHITE); } }
+    return c.png();
+  }
+  if (gameKey === 'pairs') {
+    const cells = b.data.cells; const { cols, rows } = gridDims(cells); const pad = 14, cw = (SZ - pad * 2) / cols, ch = (SZ - pad * 2) / rows;
+    const cc = (idx) => ({ cx: pad + (idx % cols) * cw + cw / 2, cy: pad + Math.floor(idx / cols) * ch + ch / 2, rad: Math.min(cw, ch) * 0.32 });
+    if (i === 0) { for (let t = 0; t < cells; t++) { const p = cc(t); shape(c, b.secret.layout[t], p.cx | 0, p.cy | 0, p.rad | 0); } return c.png(); }
+    const q = b.secret.queries[i - 1]; if (!q) return null; shape(c, q.sym, SZ / 2 | 0, SZ / 2 | 0, 60); return c.png();
+  }
+  if (gameKey === 'nback') { if (i >= b.secret.seq.length) return null; shape(c, b.secret.seq[i], SZ / 2 | 0, SZ / 2 | 0, 70); return c.png(); }
+  if (gameKey === 'countflash') {
+    if (i >= b.secret.seq.length) return null; const gem = b.secret.seq[i] === 1;
+    if (gem) { shape(c, 3, SZ / 2 | 0, SZ / 2 | 0, 62); } else { c.circle(SZ / 2 | 0, SZ / 2 | 0, 58, [255, 77, 94]); c.fillRect(SZ / 2 - 40, SZ / 2 - 7, 80, 14, BG); }
+    return c.png();
+  }
+  if (gameKey === 'whatchanged') {
+    const side = Math.sqrt(b.data.grid) | 0; const scene = i === 0 ? b.secret.sceneA : (i === 1 ? b.secret.sceneB : null); if (!scene) return null;
+    const pad = 20, cw = (SZ - pad * 2) / side; for (let t = 0; t < b.data.grid; t++) { const cx = pad + (t % side) * cw + cw / 2, cy = pad + Math.floor(t / side) * cw + cw / 2; shape(c, scene[t], cx | 0, cy | 0, (cw * 0.32) | 0); }
+    return c.png();
+  }
+  if (gameKey === 'journey') {
+    if (i >= b.secret.cells.length) return null; const side = Math.sqrt(b.data.grid) | 0; const pad = 30, cell = (SZ - pad * 2) / side;
+    for (let g = 0; g < b.data.grid; g++) { const x = pad + (g % side) * cell, y = pad + Math.floor(g / side) * cell; c.fillRect((x + 3) | 0, (y + 3) | 0, (cell - 6) | 0, (cell - 6) | 0, [34, 32, 28]); }
+    for (let k = 0; k <= i; k++) { const idx = b.secret.cells[k]; const x = pad + (idx % side) * cell, y = pad + Math.floor(idx / side) * cell; c.fillRect((x + 3) | 0, (y + 3) | 0, (cell - 6) | 0, (cell - 6) | 0, k === i ? ACC : [40, 120, 80]); }
+    return c.png();
+  }
+  if (gameKey === 'heatmap') {
+    if (i > 0) return null; const side = Math.sqrt(b.data.grid) | 0; const pad = 30, cell = (SZ - pad * 2) / side; const hot = new Set(b.pixels.hot), warm = new Set(b.pixels.warm);
+    for (let gc = 0; gc < b.data.grid; gc++) { const x = pad + (gc % side) * cell, y = pad + Math.floor(gc / side) * cell; const col = hot.has(gc) ? greenL(0.80) : (warm.has(gc) ? greenL(0.44) : [34, 32, 28]); c.fillRect((x + 3) | 0, (y + 3) | 0, (cell - 6) | 0, (cell - 6) | 0, col); }
+    return c.png();
+  }
+  if (gameKey === 'gridrecall') {
+    if (i > 0) return null; const side = Math.sqrt(b.data.grid) | 0; const pad = 30, cell = (SZ - pad * 2) / side; const set = new Set(b.secret.cells);
+    for (let gc = 0; gc < b.data.grid; gc++) { const x = pad + (gc % side) * cell, y = pad + Math.floor(gc / side) * cell; c.fillRect((x + 3) | 0, (y + 3) | 0, (cell - 6) | 0, (cell - 6) | 0, set.has(gc) ? ACC : [34, 32, 28]); }
+    return c.png();
+  }
+  if (gameKey === 'keypad') {
+    if (i >= b.secret.code.length) return null; const t = new Canvas(SZ, SZ); const num = b.secret.code[i], sc = 18, wpx = String(num).length * 4 * sc; t.number(num, (SZ / 2 - wpx / 2) | 0, (SZ / 2 - 45) | 0, sc, WHITE); return t.png();
+  }
+  if (gameKey === 'torque') {   // Torque Wrench: vertical gauge, GREEN BAND at target +/- 0.09 (mode sktorque; band matches presenter's fixed 0.09)
+    if (i > 0) return null; const t = new Canvas(SZ, SZ); const gw = 60, gx = (SZ / 2 - gw / 2) | 0, top = 62, bot = SZ - 68, gh = bot - top; const tg = b.pixels.target, band = 0.09;
+    const y0 = (bot - (tg + band) * gh) | 0, y1 = (bot - (tg - band) * gh) | 0, bh = Math.max(3, y1 - y0);
+    t.fillRect(gx, y0, gw, bh, [127, 232, 106, 72]);                              // green tolerance band fill
+    t.fillRect(gx, y0, gw, 2, [127, 232, 106, 235]); t.fillRect(gx, y0 + bh - 2, gw, 2, [127, 232, 106, 235]);
+    return t.png();
+  }
+  if (gameKey === 'targets') {
+    if (i > 0) return null; const t = new Canvas(SZ, SZ);
+    for (const p of b.secret.pos) { const cx = (p.x * SZ) | 0, cy = (p.y * SZ) | 0, R = 17;
+      t.ring(cx, cy, R + 4, 3, [255, 200, 90, 95]); t.ring(cx, cy, R, 4, [234, 255, 243, 255]);   // glowing lock ring
+      t.circle(cx, cy - 3, 5, [234, 255, 243, 255]); t.fillRect(cx - 2, cy - 2, 4, 10, [234, 255, 243, 255]); }   // keyhole
+    return t.png();
+  }
+  if (gameKey === 'sort') {
+    if (i > 0) return null; const t = new Canvas(SZ, SZ); const N = b.secret.nums.length; const slotW = (SZ - 40) / N;
+    for (let k = 0; k < N; k++) { const cx = 20 + slotW * k + slotW / 2, num = b.secret.nums[k], sc = 6, wpx = String(num).length * 4 * sc; t.number(num, (cx - wpx / 2) | 0, (SZ / 2 - 15) | 0, sc, WHITE); }
+    return t.png();
+  }
+  if (gameKey === 'stopwatch') {   // Detonator Timer: horizontal bar, green MARK at bx + mark*bw (mode sktimer)
+    if (i > 0) return null; const t = new Canvas(SZ, SZ); const bw = 240, bx = (SZ - bw) / 2 | 0, by = (SZ / 2 - 10) | 0; const mx = (bx + b.pixels.mark * bw) | 0;
+    t.fillRect(mx - 2, by - 8, 4, 36, [127, 232, 106, 235]);                      // the precise MARK (answer pixels-only)
+    return t.png();
+  }
+  if (gameKey === 'wirecut') {
+    if (i > 0) return null; const t = new Canvas(SZ, SZ); const c = b.secret.c, w = b.secret.hw; const x0 = (20 + (c - w) * (SZ - 40)) | 0, x1 = (20 + (c + w) * (SZ - 40)) | 0, gw = Math.max(3, x1 - x0); const fy = (SZ / 2) | 0, band = 36;
+    t.fillRect(x0 - 7, fy - band / 2, 7, band, [255, 200, 90, 70]); t.fillRect(x1, fy - band / 2, 7, band, [255, 200, 90, 70]);
+    for (let yy = 0; yy < band; yy++) { const f = 1 - Math.abs(yy / band - 0.5) * 1.4; const L = Math.max(0.4, f); t.fillRect(x0, (fy - band / 2 + yy) | 0, gw, 1, [190 + 65 * L | 0, 150 + 75 * L | 0, 50 + 45 * L | 0, 255]); }
+    t.fillRect(x0, (fy - band / 2) | 0, gw, 2, WHITE); t.fillRect(x0, (fy + band / 2 - 2) | 0, gw, 2, WHITE);
+    return t.png();
+  }
+  if (gameKey === 'beam') {
+    if (i >= b.secret.gaps.length) return null;
+    // TRANSPARENT except the beam itself + the safe-gap box — styled like the original "Beat the Beam": a thin glowing
+    // red laser BROKEN at the gap, with a slim green safe-gap outline. The answer (gap x) lives only in these pixels.
+    const t = new Canvas(SZ, SZ);
+    const gp = b.secret.gaps[i], w = b.secret.w;
+    const x0 = (20 + (gp - w) * (SZ - 40)) | 0, x1 = (20 + (gp + w) * (SZ - 40)) | 0, gw = Math.max(10, x1 - x0);
+    const yC = (SZ / 2) | 0;                 // beam centre line
+    const RED = [255, 77, 94, 235], REDG = [255, 90, 105, 70], GRN = [255, 210, 74, 235], GRNG = [255, 210, 74, 55], WH = WHITE;
+    const lW = Math.max(0, (x0 - 6) - 16), rW = Math.max(0, (SZ - 16) - (x1 + 6));   // beam segments stop short of the gap
+    // red laser: soft glow underlay + crisp core, in two segments (broken at the gap)
+    t.fillRect(16, yC - 4, lW, 8, REDG); t.fillRect(x1 + 6, yC - 4, rW, 8, REDG);
+    t.fillRect(16, yC - 2, lW, 4, RED);  t.fillRect(x1 + 6, yC - 2, rW, 4, RED);
+    // green safe-gap box: soft fill + thin outline (matches the original notch)
+    const gy = yC - 15, gh = 30;
+    t.fillRect(x0, gy, gw, gh, GRNG);
+    t.fillRect(x0, gy, gw, 2, GRN); t.fillRect(x0, gy + gh - 2, gw, 2, GRN);
+    t.fillRect(x0, gy, 2, gh, GRN); t.fillRect(x1 - 2, gy, 2, gh, GRN);
+    t.fillRect(x0, gy, gw, 1, WH);   // bright top edge
+    return t.png();
+  }
+  if (gameKey === 'dial') {   // Safe Dial: green NOTCH dot on the rim at angle `notch` (mode skdial; only the ANGLE matters for grading)
+    if (i > 0) return null; const t = new Canvas(SZ, SZ); const cx = SZ / 2 | 0, cy = SZ / 2 | 0, R = 96, rr = R - 5; const a = b.pixels.notch;
+    const nx = (cx + Math.cos(a) * rr) | 0, ny = (cy + Math.sin(a) * rr) | 0; t.circle(nx, ny, 6, [127, 232, 106, 235]); return t.png();
+  }
+  if (gameKey === 'hotwire') {   // safe-gap glow on the wire (answer = c) — mirrors wirecut
+    if (i > 0) return null; const t = new Canvas(SZ, SZ); const c = b.secret.c, w = b.secret.hw; const x0 = (20 + (c - w) * (SZ - 40)) | 0, x1 = (20 + (c + w) * (SZ - 40)) | 0, gw = Math.max(3, x1 - x0); const fy = (SZ / 2) | 0, band = 40;
+    t.fillRect(x0 - 7, fy - band / 2, 7, band, [255, 200, 90, 70]); t.fillRect(x1, fy - band / 2, 7, band, [255, 200, 90, 70]);
+    for (let yy = 0; yy < band; yy++) { const f = 1 - Math.abs(yy / band - 0.5) * 1.4, L = Math.max(0.4, f); t.fillRect(x0, (fy - band / 2 + yy) | 0, gw, 1, [190 + 65 * L | 0, 150 + 75 * L | 0, 50 + 45 * L | 0, 255]); }
+    t.fillRect(x0, (fy - band / 2) | 0, gw, 2, WHITE); t.fillRect(x0, (fy + band / 2 - 2) | 0, gw, 2, WHITE);
+    return t.png();
+  }
+  if (gameKey === 'sonicrack') {   // hidden target column at peak gaps[i]
+    if (i >= b.secret.gaps.length) return null; const t = new Canvas(SZ, SZ); const gp = b.secret.gaps[i], w = b.secret.w; const x0 = (20 + (gp - w) * (SZ - 40)) | 0, x1 = (20 + (gp + w) * (SZ - 40)) | 0, gw = Math.max(6, x1 - x0); const top = 44, hh = SZ - 88;
+    t.fillRect(x0, top, gw, hh, [255, 210, 74, 40]); t.fillRect(x0, top, 2, hh, [255, 210, 74, 235]); t.fillRect(x1 - 2, top, 2, hh, [255, 210, 74, 235]);
+    t.fillRect((((x0 + x1) / 2) | 0) - 1, top, 2, hh, WHITE);
+    return t.png();
+  }
+  if (gameKey === 'dialcombo') {   // per-round target arc at targets[i]
+    if (i >= b.secret.targets.length) return null; const t = new Canvas(SZ, SZ); const cx = SZ / 2 | 0, cy = SZ / 2 | 0, R = 112; const tg = b.secret.targets[i], aw = b.secret.tol;
+    t.arcBand(cx, cy, R + 7, 22, tg - aw, tg + aw, [255, 200, 90, 80]); t.arcBand(cx, cy, R, 13, tg - aw, tg + aw, [234, 255, 243, 255]); return t.png();
+  }
+  if (gameKey === 'tumbler') {   // Shear Line: green SHEAR LINE across the channel at top + shear*chH (mode skshear)
+    if (i > 0) return null; const t = new Canvas(SZ, SZ); const cw = 66, cx0 = (SZ / 2 - cw / 2) | 0, top = 60, bot = 240, chH = bot - top; const sy = (top + b.pixels.shear * chH) | 0;
+    t.fillRect(cx0 - 12, sy - 1, cw + 24, 2, [127, 232, 106, 235]);               // shear line (answer pixels-only)
+    return t.png();
+  }
+  if (gameKey === 'pulse') {   // Shockwave: gold TARGET RING at radius rT*Rmax (mode skpulse)
+    if (i > 0) return null; const t = new Canvas(SZ, SZ); const cx = SZ / 2 | 0, cy = SZ / 2 | 0, Rmax = 120; const R = (b.pixels.rT * Rmax) | 0;
+    t.ring(cx, cy, Math.max(2, R), 2, [255, 210, 74, 235]);                       // target ring (answer pixels-only)
+    return t.png();
+  }
+  if (gameKey === 'pressureplates') {   // which plates are green (answer) — pixels only; normalized cells match the client grid
+    if (i > 0) return null; const t = new Canvas(SZ, SZ);
+    for (let k = 0; k < 9; k++) { const nx = 0.09 + (k % 3) * 0.30, ny = 0.10 + ((k / 3) | 0) * 0.30; const col = b.secret.isGreen[k] ? [255, 210, 74, 150] : [255, 77, 94, 120];
+      t.fillRect((nx * SZ) | 0, (ny * SZ) | 0, (0.24 * SZ) | 0, (0.24 * SZ) | 0, col); }
+    return t.png();
+  }
+  // ── SEQUENCE anti-leak frames (skill-harden 2026-09-14): safeproc/lockorder used to ship their answer (seq/order) in `data`. Now the
+  //    answer-bearing flash renders HERE (answer lives only in these pixels + secret) and is served ONCE via the /api/mini/v4frame one-shot
+  //    transport. safeproc = the arrow procedure drawn in a single frame; lockorder = the k locks each stamped with its 1..n order badge.
+  if (gameKey === 'safeproc') {
+    if (i > 0) return null; const seq = (b.secret && b.secret.seq) || []; const n = seq.length || 1;
+    // draw the directional procedure as a row of large gold arrows, left->right, exactly what the client's client-drawn pad uses (0=up 1=right 2=down 3=left)
+    const cy = (SZ / 2) | 0; const cw = (SZ - 40) / n; const R = Math.max(14, Math.min(34, (cw * 0.34) | 0));
+    for (let k = 0; k < n; k++) { const cx = (20 + cw * k + cw / 2) | 0; arrow(c, cx, cy, R, seq[k] & 3, GOLD); }
+    return c.png();
+  }
+  if (gameKey === 'lockorder') {
+    if (i > 0) return null; const s = b.secret || {}; const order = s.order || []; const k = s.k || 4;
+    // k locks in a single centered row (mirrors the client's x0/gap layout); the ones in the answer path carry a bright order badge 1..n.
+    const cy = (SZ / 2) | 0; const gap = Math.min((SZ - 40) / k, 84); const x0 = (SZ - gap * (k - 1)) / 2;
+    // For EACH position in the order, stamp its step number (1..n) beside the lock. A lock can appear more than once (badges stack vertically),
+    // so the FULL ordered path is legible in one flash. Digits only (the bitmap font is 0-9), so we draw each step number on its own line.
+    const stepsFor = {}; for (let p = 0; p < order.length; p++) { (stepsFor[order[p]] = stepsFor[order[p]] || []).push(p + 1); }
+    for (let lk = 0; lk < k; lk++) { const cx = (x0 + lk * gap) | 0; const steps = stepsFor[lk] || [];
+      c.circle(cx, cy, 22, steps.length ? ACC : [78, 72, 56]); c.ring(cx, cy, 22, 2, [8, 14, 10]);
+      const sc = 5, gh = 5 * sc + 2, blockH = steps.length * gh, by0 = (cy - blockH / 2) | 0;
+      for (let si = 0; si < steps.length; si++) { const num = steps[si], wpx = String(num).length * 4 * sc; c.number(num, (cx - wpx / 2) | 0, (by0 + si * gh) | 0, sc, [8, 14, 10]); } }
+    return c.png();
+  }
+  // ── REACTION anti-leak frames (Jake 2026-09-13): gonogo/oddsignal/trapdoor/colourcall used to ship the answer in `data`. Now the
+  //    answer-bearing board renders HERE (answer lives only in these pixels + secret) and the client overlays hit-zones on the SAME
+  //    300-space layout (rxGridLayout / rxPadLayout below, mirrored client-side). getFrame time-gates these so they can't be pre-fetched.
+  if (gameKey === 'gonogo') {
+    if (i > 0) return null; const s = b.secret; const cols = s.cols, rows = s.rows, cells = s.cells;
+    const L = rxGridLayout(cols, rows); const goSet = new Set(s.goSet), nearSet = new Set(s.nearSet);
+    const off = (s.nearHueOff != null ? s.nearHueOff : 0.3);
+    const NEAR = [Math.round(61 + 150 * off), Math.round(255 - 70 * off), Math.round(143 - 90 * off)];
+    for (let k = 0; k < cells; k++) { const cx = L.cx(k), cy = L.cy(k), R = L.r; const col = goSet.has(k) ? [61, 255, 143] : (nearSet.has(k) ? NEAR : [255, 90, 60]);
+      c.fillRect((cx - R) | 0, (cy - R) | 0, (R * 2) | 0, (R * 2) | 0, col); }
+    return c.png();
+  }
+  if (gameKey === 'oddsignal') {
+    if (i > 0) return null; const s = b.secret; const cols = s.cols || b.data.cols, rows = s.rows || b.data.rows, cells = s.cells;
+    const L = rxGridLayout(cols, rows);
+    for (let k = 0; k < cells; k++) { const isOdd = k === s.oddIdx; const shade = isOdd ? s.oddShade : s.baseShade; const m = Math.max(0, Math.min(1, shade));
+      const col = [Math.round(80 + 100 * m), Math.round(110 + 90 * m), Math.round(130 + 90 * m)];
+      rxGlyph(c, L.cx(k), L.cy(k), L.r * 0.8, isOdd ? s.oddGlyph : s.baseGlyph, isOdd ? s.oddRot : s.baseRot, col); }
+    return c.png();
+  }
+  if (gameKey === 'trapdoor') {
+    const s = b.secret; if (i < 0 || i >= s.stages.length) return null; const st = s.stages[i]; const pads = st.padCols.length;
+    // target swatch (top) — the colour to match
+    const tcol = RXPAL[st.targetCol % RXPAL.length]; c.fillRect((SZ / 2 - 42) | 0, 60, 84, 40, tol_solid(tcol));
+    // armed pad row (bottom): each pad in its palette colour
+    const L = rxPadLayout(pads); for (let k = 0; k < pads; k++) { c.fillRect(L.x(k) | 0, L.y | 0, L.pw | 0, L.ph | 0, tol_solid(RXPAL[st.padCols[k] % RXPAL.length])); }
+    return c.png();
+  }
+  if (gameKey === 'colourcall') {
+    const s = b.secret; if (i < 0 || i >= s.stages.length) return null; const st = s.stages[i]; const pads = st.padHue.length;
+    // called swatch (top)
+    c.fillRect((SZ / 2 - 48) | 0, 58, 96, 44, ccColor(st.callHue, st.callShade));
+    const L = rxPadLayout(pads); for (let k = 0; k < pads; k++) { c.fillRect(L.x(k) | 0, L.y | 0, L.pw | 0, L.ph | 0, ccColor(st.padHue[k], st.padShade[k])); }
+    return c.png();
+  }
+  // ── PERCEPTION (Jake 2026-09-11): the judged stimulus renders here; the answer (which pile/tile/needle/shade) lives ONLY in
+  //    these pixels. Client mirrors the layout fractions to overlay taps; choose-games read client buttons (image = stimulus).
+  if (gameKey === 'appraise') { if (i > 0) return null; const P = b.pixels.piles, N = P.length, cw = SZ / N, cy = (SZ * 0.72) | 0; for (let p = 0; p < N; p++) { const arr = P[p], cx = cw * (p + 0.5); if (p > 0) c.fillRect((cw * p) | 0, (SZ * 0.5) | 0, 1, (SZ * 0.44) | 0, [80, 74, 56]); for (let k = 0; k < arr.length; k++) { const a = k * 2.399963, rad = 4 + k * 2.6, x = cx + Math.cos(a) * rad, y = cy + Math.sin(a) * rad; c.circle(x | 0, y | 0, arr[k], GOLD); c.ring(x | 0, y | 0, arr[k], 1, [120, 95, 30]); } } return c.png(); }
+  if (gameKey === 'counttake') { if (i > 0) return null; const n = b.pixels.n, cx = SZ / 2, cy = SZ * 0.5; for (let k = 0; k < n; k++) { const a = k * 2.399963, rad = 8 + k * 4.0, x = Math.max(12, Math.min(SZ - 12, cx + Math.cos(a) * rad)), y = Math.max(12, Math.min(SZ - 12, cy + Math.sin(a) * rad)); c.circle(x | 0, y | 0, 7, GOLD); c.ring(x | 0, y | 0, 7, 1, [120, 95, 30]); } return c.png(); }
+  if (gameKey === 'forgery') { if (i > 0) return null; const cols = b.pixels.cols, PAD = 27, cw = (SZ - 2 * PAD) / cols; const jit = +b.pixels.jit || 0; for (let idx = 0; idx < cols * cols; idx++) { const col = idx % cols, row = (idx / cols) | 0, x = PAD + col * cw, y = PAD + row * cw; let L; if (idx === b.pixels.ans) L = b.pixels.oddL; else { const hgh = (((idx * 2654435761) >>> 0) % 1000) / 1000 - 0.5; L = b.pixels.baseL + hgh * 2 * jit; } c.fillRect((x + 3) | 0, (y + 3) | 0, (cw - 6) | 0, (cw - 6) | 0, greenL(L)); } return c.png(); }
+  if (gameKey === 'balance') { if (i > 0) return null; const Y = b.pixels.ys, N = Y.length, cw = SZ / N, beamY = (SZ * 0.5) | 0; c.fillRect(20, beamY, SZ - 40, 3, [150, 140, 100]); for (let p = 0; p < N; p++) { const cx = (cw * (p + 0.5)) | 0, sy = Math.min(286, beamY + 30 + Y[p] * 2.2) | 0; for (let y = beamY; y < sy - 18; y++) c.set(cx, y, [110, 100, 70]); c.fillRect((cx - 22) | 0, (sy - 18) | 0, 44, 36, GOLD); c.ring(cx, sy | 0, 7, 2, [60, 50, 20]); } return c.png(); }
+  if (gameKey === 'sigil') { if (i > 0) return null; shape(c, b.pixels.target, (SZ / 2) | 0, (SZ * 0.28) | 0, 40); c.fillRect(30, (SZ * 0.55) | 0, SZ - 60, 1, [80, 74, 56]); const cols = b.pixels.shapes.length, cw = SZ / cols, cy = (SZ * 0.77) | 0, sz = Math.min(cw * 0.34, 40) | 0; for (let k = 0; k < cols; k++) shape(c, b.pixels.shapes[k], (cw * (k + 0.5)) | 0, cy, sz); return c.png(); }
+  if (gameKey === 'oddglyph') { if (i > 0) return null; const cols = b.pixels.cols, PAD = 27, cw = (SZ - 2 * PAD) / cols, sz = Math.min(cw * 0.32, 34) | 0; for (let idx = 0; idx < cols * cols; idx++) { const col = idx % cols, row = (idx / cols) | 0, cx = PAD + col * cw + cw / 2, cy = PAD + row * cw + cw / 2; shape(c, idx === b.pixels.ans ? b.pixels.odd : b.pixels.common, cx | 0, cy | 0, sz); } return c.png(); }
+  if (gameKey === 'readdial') { if (i > 0) return null; const cx = (SZ / 2) | 0, cy = (SZ * 0.56) | 0, R = 92, rot = +b.pixels.rot || 0, a0 = -Math.PI * 1.25 + rot, span = Math.PI * 1.5; const bins = (b.pixels.bins | 0) || 4; const q = [[61, 255, 143], [54, 208, 224], [255, 210, 74], [255, 122, 89], [124, 116, 255], [255, 138, 200]]; for (let k = 0; k < bins; k++) c.arcBand(cx, cy, R, 16, a0 + span * (k / bins), a0 + span * ((k + 1) / bins), q[k % q.length]); c.ring(cx, cy, R - 16, 2, [80, 74, 56]); const a = a0 + span * (b.pixels.value / 100); for (let t = 0; t < R - 24; t++) { c.set((cx + Math.cos(a) * t) | 0, (cy + Math.sin(a) * t) | 0, WHITE); c.set((cx + Math.cos(a) * t + 1) | 0, (cy + Math.sin(a) * t) | 0, WHITE); } c.circle(cx, cy, 7, WHITE); return c.png(); }
+  if (gameKey === 'peephole') { if (i > 0) return null; const cx = (SZ / 2) | 0, cy = (SZ * 0.30) | 0; const tsz = b.pixels.tsz | 0 || 42; shape(c, b.pixels.target, cx, cy, tsz); const bl = b.pixels.blur; for (let p = 0; p < 3; p++) c.soft(cx, cy, 54, [255, 200, 90], 0.12 * bl + 0.05); c.blendRect(cx - 58, cy - 58, 116, 116, BG, Math.min(0.72, bl * 0.7)); c.fillRect(30, (SZ * 0.55) | 0, SZ - 60, 1, [80, 74, 56]); const cols = b.pixels.opts.length, cw = SZ / cols, oy = (SZ * 0.78) | 0, sz = Math.min(cw * 0.32, 34) | 0; for (let k = 0; k < cols; k++) shape(c, b.pixels.opts[k], (cw * (k + 0.5)) | 0, oy, sz);
+    const onz = +b.pixels.optNoise || 0; if (onz > 0) { const oy0 = (SZ * 0.62) | 0, oy1 = (SZ * 0.94) | 0; for (let yy = oy0; yy < oy1; yy++) for (let xx = 8; xx < SZ - 8; xx++) { const hgh = (((xx * 40503341) ^ (yy * 55589779)) >>> 0) % 1000 / 1000; if (hgh < onz * 0.5) c.set(xx, yy, (((xx + yy) & 1) ? [26, 24, 16] : [180, 160, 96])); } }
+    return c.png(); }
+  if (gameKey === 'shaderank') { if (i > 0) return null; const N = b.pixels.shades.length, cw = SZ / N, y0 = (SZ * 0.6) | 0, hh = (SZ * 0.32) | 0; for (let k = 0; k < N; k++) c.fillRect((cw * k + 6) | 0, y0, (cw - 12) | 0, hh, greenL(b.pixels.shades[k])); return c.png(); }
+  if (gameKey === 'shadowmatch') { if (i > 0) return null; shape(c, b.pixels.target, (SZ / 2) | 0, (SZ * 0.28) | 0, 46, [64, 64, 72]); c.fillRect(30, (SZ * 0.55) | 0, SZ - 60, 1, [80, 74, 56]); const cols = b.pixels.opts.length, cw = SZ / cols, oy = (SZ * 0.78) | 0, sz = Math.min(cw * 0.32, 34) | 0; for (let k = 0; k < cols; k++) shape(c, b.pixels.opts[k], (cw * (k + 0.5)) | 0, oy, sz); return c.png(); }
+  if (gameKey === 'muller') { if (i > 0) return null; const L = b.pixels.lens, FI = b.pixels.fins, N = L.length, PAD = 27, rowH = (SZ - 2 * PAD) / N; const drawL = (len, cy, fin) => { const x0 = (SZ / 2 - len / 2) | 0, x1 = (SZ / 2 + len / 2) | 0; c.fillRect(x0, cy - 2, len | 0, 4, WHITE); const FN = 14, od = (fin === 'out'); const seg = (x, dir, up) => { for (let t = 0; t < FN; t++) { c.set((x + dir * t) | 0, (cy + up * t) | 0, WHITE); c.set((x + dir * t) | 0, (cy + up * t + 1) | 0, WHITE); } }; seg(x0, od ? -1 : 1, -1); seg(x0, od ? -1 : 1, 1); seg(x1, od ? 1 : -1, -1); seg(x1, od ? 1 : -1, 1); }; for (let r2 = 0; r2 < N; r2++) drawL(L[r2], (PAD + r2 * rowH + rowH / 2) | 0, FI[r2]); return c.png(); }
+  if (gameKey === 'ponzo') { if (i > 0) return null; const W = b.pixels.ws, N = W.length, PAD = 27, rowH = (SZ - 2 * PAD) / N, cxc = SZ / 2, topY = SZ * 0.14, botY = SZ * 0.92; for (let y = topY; y <= botY; y++) { const f = (y - topY) / (botY - topY), half = 22 + f * 96; for (const hx of [cxc - half, cxc + half]) { c.set(hx | 0, y | 0, [120, 110, 80]); c.set((hx + 1) | 0, y | 0, [120, 110, 80]); } } for (let r2 = 0; r2 < N; r2++) { const cy = (PAD + r2 * rowH + rowH / 2) | 0; c.fillRect((cxc - W[r2] / 2) | 0, cy - 6, W[r2] | 0, 12, GOLD); } return c.png(); }
+  if (gameKey === 'simcontrast') { if (i > 0) return null; c.fillRect((SZ * 0.5 - 52) | 0, (SZ * 0.12) | 0, 104, 66, [128, 128, 128]); c.fillRect((SZ * 0.5 - 23) | 0, (SZ * 0.14) | 0, 46, 46, greenL(b.pixels.target)); const N = b.pixels.shades.length, cw = SZ / N, y0 = (SZ * 0.58) | 0, hh = (SZ * 0.34) | 0; for (let k = 0; k < N; k++) { const x = cw * k, g = (b.pixels.bgs[k] * 255) | 0; c.fillRect((x + 4) | 0, y0, (cw - 8) | 0, hh, [g, g, g]); const s = Math.min(cw * 0.5, hh * 0.5) | 0; c.fillRect((x + cw / 2 - s / 2) | 0, (y0 + hh / 2 - s / 2) | 0, s, s, greenL(b.pixels.shades[k])); } return c.png(); }
+  if (gameKey === 'camobreak') { if (i > 0) return null; const cols = b.pixels.cols, PAD = 27, cw = (SZ - 2 * PAD) / cols;
+    const pat = b.pixels.pat | 0, freq = (b.pixels.freq | 0) || 2, pal = b.pixels.pal | 0;   // per-play variety (Jake 2026-09-13): stripe angle + width + palette
+    const PALS = [[[200, 175, 90], [58, 50, 28]], [[110, 205, 150], [24, 54, 40]], [[150, 170, 225], [28, 38, 64]], [[215, 140, 150], [56, 30, 36]], [[205, 160, 215], [50, 34, 56]]];
+    const onC = PALS[pal % PALS.length][0], offC = PALS[pal % PALS.length][1];
+    for (let idx = 0; idx < cols * cols; idx++) { const col = idx % cols, row = (idx / cols) | 0, x0 = PAD + col * cw, y0 = PAD + row * cw, off = (idx === b.pixels.ans) ? b.pixels.shift : 0; for (let yy = 0; yy < cw - 6; yy++) for (let xx = 0; xx < cw - 6; xx++) { const coord = pat === 0 ? (xx + yy) : pat === 1 ? (xx - yy + 256) : pat === 2 ? xx : yy; const on = ((((coord + off) >> freq) & 1) === 0); c.set((x0 + 3 + xx) | 0, (y0 + 3 + yy) | 0, on ? onC : offC); } } return c.png(); }
+  if (gameKey === 'figurenoise') { if (i > 0) return null; const cx = (SZ / 2) | 0, cy = (SZ * 0.28) | 0; const tsz = b.pixels.tsz | 0 || 42; shape(c, b.pixels.target, cx, cy, tsz); const nz = b.pixels.noise; for (let yy = (SZ * 0.06) | 0; yy < SZ * 0.5; yy++) for (let xx = (SZ * 0.2) | 0; xx < SZ * 0.8; xx++) { const hgh = (((xx * 73856093) ^ (yy * 19349663)) >>> 0) % 1000 / 1000; if (hgh < nz) c.set(xx, yy, (((xx + yy) & 1) ? [22, 20, 13] : [210, 190, 110])); } c.fillRect(30, (SZ * 0.55) | 0, SZ - 60, 1, [80, 74, 56]); const cols = b.pixels.opts.length, cw = SZ / cols, oy = (SZ * 0.78) | 0, sz = Math.min(cw * 0.32, 34) | 0; for (let k = 0; k < cols; k++) shape(c, b.pixels.opts[k], (cw * (k + 0.5)) | 0, oy, sz);
+    // OPTION NOISE (Jake 2026-09-13): a light speckle over the option row (draw-only; answer is still secret.ans). Uses the same hash field.
+    const onz = +b.pixels.optNoise || 0; if (onz > 0) { const oy0 = (SZ * 0.62) | 0, oy1 = (SZ * 0.94) | 0; for (let yy = oy0; yy < oy1; yy++) for (let xx = 8; xx < SZ - 8; xx++) { const hgh = (((xx * 40503341) ^ (yy * 55589779)) >>> 0) % 1000 / 1000; if (hgh < onz * 0.5) c.set(xx, yy, (((xx + yy) & 1) ? [26, 24, 16] : [180, 160, 96])); } }
+    return c.png(); }
+  return null;
+}
+
+// PCM WAV (mono 8kHz) — rhythm beats. Timing (the answer) exists only as audio onsets.
+function wavFromSamples(samples, rate) {
+  const dl = samples.length * 2, buf = Buffer.alloc(44 + dl);
+  buf.write('RIFF', 0); buf.writeUInt32LE(36 + dl, 4); buf.write('WAVE', 8); buf.write('fmt ', 12); buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20); buf.writeUInt16LE(1, 22); buf.writeUInt32LE(rate, 24); buf.writeUInt32LE(rate * 2, 28); buf.writeUInt16LE(2, 32); buf.writeUInt16LE(16, 34); buf.write('data', 36); buf.writeUInt32LE(dl, 40);
+  for (let i = 0; i < samples.length; i++) buf.writeInt16LE(Math.max(-32767, Math.min(32767, samples[i] | 0)), 44 + i * 2);
+  return buf;
+}
+function renderAudio(gameKey, b) {
+  if (gameKey !== 'rhythm') return null;
+  const rate = 8000, iv = b.secret.iv, total = iv.reduce((a, x) => a + x, 0) + 500, n = Math.ceil(rate * total / 1000), s = new Float64Array(n);
+  const beep = (ms) => { const st = Math.floor(rate * ms / 1000), dur = Math.floor(rate * 0.09); for (let k = 0; k < dur; k++) { const t = k / rate; s[st + k] += Math.sin(TAU * 520 * t) * 9000 * Math.exp(-t * 22); } };
+  let t = 250; beep(t); for (const g of iv) { t += g; beep(t); }
+  const out = new Int16Array(n); for (let k = 0; k < n; k++) out[k] = s[k];
+  return wavFromSamples(out, rate);
+}
+
+module.exports = { renderFrame, renderAudio, SZ, gridDims };

@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vault Standoff, admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Londrina+Solid:wght@400;900&family=Patrick+Hand&display=swap" rel="stylesheet">
+<style>
+/* Vault Robbers heist brand, matched to the live game UI (index.html).
+   Dark vault-steel ops surface with the game's blue, gold and ink marks.
+   Legacy class names (.panel/.card/.v/.k/.pill/.note/.msg/.mono) are preserved
+   so every JS data-binding hook keeps working. */
+:root{
+  --paper:#f3e3ca;--paper2:#eedaba;--tee:#fbfaf6;
+  --blue:#6d84c6;--blue-d:#54699f;--ember:#e07a3c;--gold:#d4af37;--gold-a:#f4e2a6;
+  /* ops surface: deep vault-steel so the metrics stay legible under long sessions */
+  --bg:#12100b;--panel:#1c1812;--panel2:#241f17;--line:#3a3324;--line2:#4a4130;
+  --ink:#f3ead7;--mut:#a8977a;
+  --ok:#5fc184;--warn:#e0a53c;--bad:#e0705a;
+}
+*{box-sizing:border-box}
+body{margin:0;color:var(--ink);
+  font-family:'Patrick Hand',ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.55;
+  background:
+    radial-gradient(1100px 560px at 50% -14%,rgba(109,132,198,.10),transparent 62%),
+    radial-gradient(900px 480px at 50% 120%,rgba(212,175,55,.07),transparent 70%),
+    repeating-linear-gradient(45deg,rgba(243,234,215,.018) 0 2px,transparent 2px 26px),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='.04'/%3E%3C/svg%3E"),
+    var(--bg)}
+h1,h2,h3{font-family:'Londrina Solid',cursive}
+a{color:var(--blue);text-decoration-thickness:2px}
+a:hover{color:var(--gold)}
+.wrap{max-width:1080px;margin:0 auto;padding:22px 18px 60px}
+/* header + wordmark (the robber-mask mark mirrors the game logo) */
+.head{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:20px}
+.brand-logo{display:flex;align-items:center;gap:12px}
+.vr-mask{position:relative;width:40px;height:40px;flex:0 0 auto;border:3px solid var(--ink);border-radius:50%;
+  background:var(--blue);box-shadow:3px 3px 0 var(--ink);animation:bobmini 4.2s ease-in-out infinite}
+.vr-mask:before,.vr-mask:after{content:"";position:absolute;top:13px;width:8px;height:10px;background:var(--tee);border:1.6px solid var(--ink);border-radius:50%}
+.vr-mask:before{left:7px}.vr-mask:after{right:7px}
+@keyframes bobmini{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+.head h1{font-size:30px;margin:0;letter-spacing:1px;line-height:.9;transform:rotate(-1.2deg);
+  animation:signsway 5s ease-in-out infinite;transform-origin:left center}
+@keyframes signsway{0%,100%{transform:rotate(-1.6deg)}50%{transform:rotate(.4deg)}}
+.head .sub{color:var(--mut);font-size:14px;margin-top:3px}
+@media(prefers-reduced-motion:reduce){.vr-mask,.head h1{animation:none}}
+.badge{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border:2.5px solid var(--ink);border-radius:999px;
+  background:var(--panel2);font-size:13px;color:var(--ink);box-shadow:3px 3px 0 var(--ink)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--mut);box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+.dot.on{background:var(--ok);box-shadow:0 0 8px 1px rgba(95,193,132,.7)}
+.dot.off{background:var(--bad);box-shadow:0 0 8px 1px rgba(224,112,90,.6)}
+.panel{background:var(--panel);border:3px solid var(--ink);border-radius:16px;padding:18px;margin-bottom:18px;box-shadow:5px 5px 0 var(--ink)}
+.panel h2{font-family:'Londrina Solid',cursive;font-size:19px;letter-spacing:.6px;color:var(--gold);margin:0 0 14px;text-transform:none}
+.grid{display:grid;gap:12px}
+.cards{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.card{background:var(--panel2);border:2.5px solid var(--ink);border-radius:12px;padding:13px;box-shadow:3px 3px 0 var(--ink)}
+.card .k{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.7px}
+.card .v{font-family:'Londrina Solid',cursive;font-size:22px;margin-top:5px;font-variant-numeric:tabular-nums;word-break:break-word;line-height:1.1}
+.card .v.sm{font-size:15px;font-family:'Patrick Hand',cursive}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:9px 11px;border-bottom:2px dotted rgba(168,151,122,.3);vertical-align:top}
+th{color:var(--gold);font-family:'Londrina Solid',cursive;font-weight:400;font-size:13px;text-transform:uppercase;letter-spacing:.6px;border-bottom:2.5px solid var(--line2)}
+tbody tr:last-child td{border-bottom:0}
+td.num{font-variant-numeric:tabular-nums;text-align:right}
+.pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;border:2px solid var(--line2);font-family:'Patrick Hand',cursive}
+.pill.settled{color:var(--ok);border-color:#2f6d47}
+.pill.void{color:var(--warn);border-color:#6d5520}
+.pill.split{color:var(--blue);border-color:#3c4c7a}
+.form{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.field label{display:block;font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
+.field .range{font-size:11px;color:var(--mut);margin-top:4px}
+input{width:100%;background:var(--bg);border:2.5px solid var(--line2);border-radius:10px;color:var(--ink);padding:10px 11px;
+  font-family:'Patrick Hand',cursive;font-size:15px;font-variant-numeric:tabular-nums}
+input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(109,132,198,.25)}
+button{background:var(--blue);color:var(--tee);border:2.5px solid var(--ink);border-radius:11px;padding:10px 18px;
+  font-family:'Patrick Hand',cursive;font-size:16px;font-weight:400;cursor:pointer;box-shadow:4px 4px 0 var(--ink);
+  transition:transform .06s,box-shadow .06s}
+button:active{transform:translate(4px,4px);box-shadow:0 0 0 var(--ink)}
+button.ghost{background:var(--panel2);color:var(--ink)}
+#saveBtn{background:var(--gold);color:var(--ink)}
+button:disabled{opacity:.5;cursor:default;transform:none;box-shadow:4px 4px 0 var(--ink)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.note{color:var(--mut);font-size:13px}
+.pending{color:var(--warn);font-weight:700}
+.msg{font-size:14px;margin-top:8px;min-height:18px}
+.msg.ok{color:var(--ok)}.msg.err{color:var(--bad)}
+#login{max-width:380px;margin:12vh auto}
+#login .panel{text-align:center}
+#login .vr-mask{margin:0 auto 10px}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="login">
+    <div class="panel">
+      <span class="vr-mask" aria-hidden="true"></span>
+      <h2>Admin sign in</h2>
+      <p class="note">Paste the admin token to manage the Vault Standoff economy. This is separate from the play password.</p>
+      <div class="row" style="margin-top:12px">
+        <input id="tok" type="password" placeholder="admin token" autofocus style="flex:1">
+        <button id="loginBtn">Enter</button>
+      </div>
+      <div id="loginMsg" class="msg"></div>
+    </div>
+  </div>
+
+  <div id="dash" class="hidden">
+    <div class="head">
+      <div class="brand-logo">
+        <span class="vr-mask" aria-hidden="true"></span>
+        <div>
+          <h1>Vault Standoff, admin</h1>
+          <div class="sub">Economy controls and ops metrics. Testnet dev twin. Config edits apply on the next round.</div>
+        </div>
+      </div>
+      <div class="row">
+        <span id="escBadge" class="badge"><span class="dot"></span><span>escrow</span></span>
+        <button class="ghost" id="logoutBtn">Sign out</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Live round</h2>
+      <div class="grid cards" id="liveCards"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Escrow and signer</h2>
+      <div class="grid cards" id="escCards"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Payout keeper</h2>
+      <div id="payoutBanner" class="msg" style="margin-bottom:12px"></div>
+      <div class="grid cards" id="payoutCards"></div>
+      <table id="payoutTbl" style="margin-top:14px"><thead><tr>
+        <th>Round</th><th>Kind</th><th class="num">Attempts</th><th>When</th><th>Last error</th>
+      </tr></thead><tbody></tbody></table>
+      <div class="note" id="payoutEmpty"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Totals</h2>
+      <div class="grid cards" id="totalCards"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Economy config</h2>
+      <div class="note" id="cfgState"></div>
+      <div class="grid form" id="cfgForm" style="margin-top:12px"></div>
+      <div class="row" style="margin-top:14px">
+        <button id="saveBtn">Save (applies next round)</button>
+        <button class="ghost" id="resetBtn">Reset to active</button>
+        <span id="cfgMsg" class="msg"></span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Recent rounds</h2>
+      <table id="roundsTbl"><thead><tr>
+        <th>Round</th><th>Status</th><th>Winner</th><th class="num">Pot (RVLT)</th><th>When</th><th>Proof</th>
+      </tr></thead><tbody></tbody></table>
+      <div class="note" id="roundsEmpty"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// RELATIVE paths only. The app is served under /pub/main/vaultstandoff-dev/.
+var CFG_FIELDS = [
+  ['entryUsd','Ticket price (USD — live-pegged to RVLT per round)'],
+  ['roundTarget','Tickets per game (round target)'],
+  ['thresholdPct','Fill threshold (% of target — arms the grace timer)'],
+  ['graceSec','Grace window (sec — time after threshold before lock)'],
+  ['maxTicketsPerWalletPct','Per-wallet cap (% of target; 6% = 3 tickets at target 50)'],
+  ['otDoors','Overtime doors'],
+  ['maxChambers','Chambers'],
+  ['chooseSec','Choose window (sec)'],
+  ['revealSec','Reveal window (sec)'],
+  ['lobbySec','Lobby (sec)']
+];
+var ranges = {};
+function $(id){ return document.getElementById(id); }
+function fmt(n,d){ if(n==null) return '--'; var x=Number(n); return x.toLocaleString(undefined,{maximumFractionDigits:(d==null?2:d)}); }
+function shortAddr(a){ return a? (a.slice(0,6)+'...'+a.slice(-4)) : '--'; }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+
+function card(k,v,sm){ return '<div class="card"><div class="k">'+esc(k)+'</div><div class="v'+(sm?' sm':'')+'">'+v+'</div></div>'; }
+
+async function api(path, opts){
+  var r = await fetch(path, Object.assign({ credentials:'same-origin' }, opts||{}));
+  if(r.status===401){ showLogin(); throw new Error('unauthorized'); }
+  return r;
+}
+
+function showLogin(){ $('login').classList.remove('hidden'); $('dash').classList.add('hidden'); }
+function showDash(){ $('login').classList.add('hidden'); $('dash').classList.remove('hidden'); }
+
+$('loginBtn').onclick = async function(){
+  var t = $('tok').value.trim();
+  $('loginMsg').textContent='';
+  try{
+    var r = await fetch('api/admin/login',{ method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token:t}) });
+    if(!r.ok){ $('loginMsg').className='msg err'; $('loginMsg').textContent='That token did not work.'; return; }
+    $('tok').value='';
+    showDash(); loadAll();
+  }catch(e){ $('loginMsg').className='msg err'; $('loginMsg').textContent='Could not sign in.'; }
+};
+$('tok').addEventListener('keydown',function(e){ if(e.key==='Enter') $('loginBtn').click(); });
+$('logoutBtn').onclick = async function(){ try{ await fetch('api/admin/logout',{method:'POST',credentials:'same-origin'}); }catch(e){} showLogin(); };
+
+function renderConfigForm(active, pending){
+  ranges = (window._ranges)||ranges;
+  var host = $('cfgForm'); host.innerHTML='';
+  CFG_FIELDS.forEach(function(f){
+    var key=f[0], label=f[1];
+    var rg = ranges[key]||[];
+    var val = (pending && pending[key]!=null) ? pending[key] : active[key];
+    var div=document.createElement('div'); div.className='field';
+    div.innerHTML = '<label>'+esc(label)+'</label>'+
+      '<input type="number" data-k="'+key+'" value="'+esc(val)+'" min="'+(rg[0]!=null?rg[0]:'')+'" max="'+(rg[1]!=null?rg[1]:'')+'">'+
+      '<div class="range">range '+(rg[0]!=null?rg[0]:'?')+' to '+(rg[1]!=null?rg[1]:'?')+(active[key]!=null?(' | active '+active[key]):'')+'</div>';
+    host.appendChild(div);
+  });
+}
+
+async function loadConfig(){
+  var r = await api('api/admin/config'); var j = await r.json();
+  window._ranges = j.ranges||{};
+  renderConfigForm(j.active||{}, j.pending);
+  var capA = j.active? j.active._walletCapAbs : null;
+  if(j.pending){
+    $('cfgState').innerHTML='<span class="pending">A pending change is staged and will apply at the next round.</span> Active per-wallet cap is '+capA+' tickets.';
+  }else{
+    $('cfgState').textContent='No pending change. Active per-wallet cap is '+capA+' tickets.';
+  }
+}
+
+$('saveBtn').onclick = async function(){
+  var patch={}; document.querySelectorAll('#cfgForm input').forEach(function(i){ patch[i.getAttribute('data-k')] = Number(i.value); });
+  $('cfgMsg').className='msg'; $('cfgMsg').textContent='Saving...';
+  $('saveBtn').disabled=true;
+  try{
+    var r = await api('api/admin/config',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(patch) });
+    var j = await r.json();
+    if(!r.ok){ $('cfgMsg').className='msg err'; $('cfgMsg').textContent=(j&&j.error)||'Save failed.'; }
+    else { $('cfgMsg').className='msg ok'; $('cfgMsg').textContent='Saved. The values were validated and clamped, and apply on the next round.'; await loadConfig(); }
+  }catch(e){ $('cfgMsg').className='msg err'; $('cfgMsg').textContent='Save failed.'; }
+  $('saveBtn').disabled=false;
+};
+$('resetBtn').onclick = function(){ loadConfig(); $('cfgMsg').textContent=''; };
+
+async function loadMetrics(){
+  var r = await api('api/admin/metrics'); var m = await r.json();
+  // escrow badge
+  var b=$('escBadge'); b.innerHTML='<span class="dot '+(m.escrow.on?'on':'off')+'"></span><span>escrow '+(m.escrow.on?'on':'off')+' | chain '+m.escrow.chainId+'</span>';
+  // live cards
+  var live=m.live||{};
+  $('liveCards').innerHTML =
+    card('Phase', esc(live.phase||'--')) +
+    card('Seats', fmt(live.seats,0)) +
+    card('Round id', '<span class="mono v sm">'+esc(live.roundId||'--')+'</span>') +
+    card('Pot', fmt(live.pot,2)+' RVLT');
+  // escrow cards
+  var e=m.escrow;
+  var gasWarn = (m.signerGasEth!=null && m.signerGasEth<0.01) ? ' style="color:var(--warn)"' : '';
+  $('escCards').innerHTML =
+    card('Address', '<span class="mono v sm">'+shortAddr(e.address)+'</span>') +
+    card('RVLT', '<span class="mono v sm">'+shortAddr(e.rvlt)+'</span>') +
+    card('Signer', '<span class="mono v sm">'+shortAddr(m.signerAddress)+'</span>') +
+    card('Signer gas', '<span'+gasWarn+'>'+(m.signerGasEth!=null?fmt(m.signerGasEth,5)+' ETH':'--')+'</span>') +
+    card('Rake', (m.rakeBps!=null?(m.rakeBps/100)+'%':'--'));
+  // payout keeper (MED-2): surface stranded winner payouts / rake sweeps so the operator sees a failing signer.
+  var pk = m.payoutKeeper || {};
+  var pkNeedsAttention = (pk.drops>0) || pk.lowSignerGas;
+  var pkGasWarn = pk.lowSignerGas ? ' style="color:var(--bad)"' : '';
+  $('payoutCards').innerHTML =
+    card('Queue', fmt(pk.queueLen,0)) +
+    card('Busy', pk.busy?'yes':'no', true) +
+    card('Signer gas', '<span'+pkGasWarn+'>'+(pk.signerGasEth!=null?fmt(pk.signerGasEth,5)+' ETH':'--')+'</span>') +
+    card('Drops', '<span'+(pk.drops>0?' style="color:var(--bad)"':'')+'>'+fmt(pk.drops,0)+'</span>');
+  var banner = $('payoutBanner');
+  if(pkNeedsAttention){
+    var why = pk.lowSignerGas
+      ? ('signer gas is low at '+(pk.signerGasEth!=null?fmt(pk.signerGasEth,5)+' ETH':'unknown')+(pk.drops>0?', and '+pk.drops+' payout(s) have been dropped':''))
+      : (pk.drops+' payout(s) exhausted retries and were dropped'+(pk.lastError?': '+pk.lastError:''));
+    banner.className='msg err';
+    banner.textContent='Payout keeper needs attention: '+why+'.';
+  } else {
+    banner.className='msg ok';
+    banner.textContent='Payouts healthy.';
+  }
+  var ptb = $('payoutTbl').querySelector('tbody'); ptb.innerHTML='';
+  (pk.alerts||[]).slice().reverse().forEach(function(a){
+    var when = a.ts? new Date(a.ts).toLocaleString() : '--';
+    var tr=document.createElement('tr');
+    tr.innerHTML = '<td class="mono">'+esc(a.roundId)+'</td>'+
+      '<td>'+esc(a.kind)+'</td>'+
+      '<td class="num">'+fmt(a.attempts,0)+'</td>'+
+      '<td class="note">'+esc(when)+'</td>'+
+      '<td class="note">'+esc(a.lastError||'--')+'</td>';
+    ptb.appendChild(tr);
+  });
+  $('payoutEmpty').textContent = (pk.alerts&&pk.alerts.length)? '' : 'No dropped payouts recorded this session.';
+  // totals
+  var t=m.totals||{};
+  $('totalCards').innerHTML =
+    card('Rounds', fmt(t.rounds,0)) +
+    card('Settled', fmt(t.settled,0)) +
+    card('Voided', fmt(t.voided,0)) +
+    card('Pot sum', fmt(t.potSumRvlt,2)+' RVLT') +
+    card('Rake to treasury', fmt(t.rakeToTreasury,2)) +
+    card('Rake burned', fmt(t.rakeBurned,2));
+  // rounds table
+  var tb = $('roundsTbl').querySelector('tbody'); tb.innerHTML='';
+  (m.recentRounds||[]).forEach(function(rd){
+    var when = rd.ts? new Date(rd.ts).toLocaleString() : '--';
+    var cls = rd.status==='settled'?'settled':(rd.status==='void'?'void':'split');
+    var tr=document.createElement('tr');
+    tr.innerHTML = '<td class="mono">'+esc(rd.id)+(rd.realMoney?' <span class="note">(real)</span>':'')+'</td>'+
+      '<td><span class="pill '+cls+'">'+esc(rd.status)+'</span></td>'+
+      '<td>'+esc(rd.winner)+'</td>'+
+      '<td class="num">'+fmt(rd.pot,2)+'</td>'+
+      '<td class="note">'+esc(when)+'</td>'+
+      '<td><a href="'+esc(rd.proofUrl)+'" target="_blank" rel="noopener">proof</a></td>';
+    tb.appendChild(tr);
+  });
+  $('roundsEmpty').textContent = (m.recentRounds&&m.recentRounds.length)? '' : 'No settled rounds yet.';
+}
+
+async function loadAll(){ try{ await loadConfig(); await loadMetrics(); }catch(e){} }
+
+// try an authenticated call first; if the cookie is still valid we skip the login box.
+(async function(){
+  try{ var r = await fetch('api/admin/config',{credentials:'same-origin'}); if(r.ok){ showDash(); loadAll(); return; } }catch(e){}
+  showLogin();
+})();
+// gentle auto-refresh of metrics while signed in
+setInterval(function(){ if(!$('dash').classList.contains('hidden')) loadMetrics().catch(function(){}); }, 6000);
+</script>
+</body></html>

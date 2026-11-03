@@ -1,0 +1,13 @@
+{
+  "name": "vault-robbers-gallery",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Passcode-gated preview gallery of the full 1,000-piece Vault Robbers collection, for artist review.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

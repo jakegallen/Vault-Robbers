@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vault Standoff, EV / Odds Simulator (admin)</title>
+<link href="https://fonts.googleapis.com/css2?family=Londrina+Solid:wght@400;900&family=Patrick+Hand&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#f3e3ca;--paper2:#eedaba;--ink:#17130d;--tee:#fbfaf6;--blue:#6d84c6;--blue-d:#54699f;--ember:#e07a3c;--gold-a:#d4af37;
+  --bg:var(--paper);--card:var(--tee);--gold:#d4af37;--blu:var(--blue);--grn:#2f8f4e;--red:#c2432f}
+*{box-sizing:border-box}
+body{margin:0;color:var(--ink);font-family:'Patrick Hand',ui-sans-serif;
+  background:radial-gradient(1000px 520px at 50% -14%,#fbeccf,transparent 64%),url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='.04'/%3E%3C/svg%3E"),var(--bg)}
+.wrap{max-width:860px;margin:0 auto;padding:18px}
+h1,h2,h3,.big{font-family:'Londrina Solid',cursive}
+h1{font-size:30px;margin:.1em 0}
+.muted{opacity:.72}
+.panel{border:2.5px solid var(--ink);border-radius:14px;box-shadow:4px 4px 0 var(--ink);background:var(--card);padding:16px;margin:14px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+label{display:block;font-size:14px}
+input{width:100%;font-family:'Patrick Hand',cursive;font-size:16px;padding:8px;border:2.5px solid var(--ink);border-radius:9px;margin-top:3px}
+.btn{font-family:'Patrick Hand',cursive;font-size:16px;padding:10px 16px;border:2.5px solid var(--ink);border-radius:11px;box-shadow:3px 3px 0 var(--ink);background:var(--blue);color:var(--tee);cursor:pointer;margin:8px 8px 0 0;transition:transform .1s,box-shadow .1s,background .15s}
+.btn:hover{transform:translate(-1px,-1px);box-shadow:4px 4px 0 var(--ink)}
+.btn:active{transform:translate(3px,3px);box-shadow:0 0 0 var(--ink)}
+.btn.p:hover,.btn:not(.g):hover{background:var(--blue-d)}
+.btn.g{background:var(--gold-a);color:var(--ink)}
+@media(prefers-reduced-motion:reduce){.btn:hover{transform:none;box-shadow:3px 3px 0 var(--ink)}}
+.stat{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed rgba(23,19,13,.2);font-size:15px}
+.stat b{font-family:'Londrina Solid',cursive;font-size:18px}
+.pos{color:var(--grn)}.neg{color:var(--red)}
+table{width:100%;border-collapse:collapse;font-size:14px;margin-top:8px}
+th,td{padding:6px 8px;text-align:right;border-bottom:1px solid rgba(23,19,13,.15)}
+th:first-child,td:first-child{text-align:left}
+th{font-family:'Londrina Solid',cursive}
+.bar{height:10px;background:#e7d7bd;border:1.5px solid var(--ink);border-radius:6px;overflow:hidden;position:relative}
+.bar i{display:block;height:100%}
+.note{font-size:13px;opacity:.7;margin-top:6px}
+</style></head>
+<body><div class="wrap">
+<h1 style="display:flex;align-items:center;gap:10px"><svg width="34" height="34" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="21" fill="var(--blue)" stroke="var(--ink)" stroke-width="3"/><ellipse cx="16.5" cy="22" rx="5.3" ry="7.2" fill="var(--tee)" stroke="var(--ink)" stroke-width="2.4"/><ellipse cx="31.5" cy="22" rx="5.3" ry="7.2" fill="var(--tee)" stroke="var(--ink)" stroke-width="2.4"/></svg><span>Vault Standoff, EV / Odds Simulator</span></h1>
+<p class="muted">Admin tool. Monte-Carlo of the real crowd-bust mechanic (most-crowded door busts each chamber; last party in the vault wins; SPLIT shared per person). Nothing here ships to players.</p>
+<p class="muted" style="font-size:13px">Real-money rounds seat ZERO house bots: the field is other humans/wallets only, so there is no bot statistical edge to model (bots exist solely for fake-chip preview liveliness). The lever worth modelling is Sybil: one actor spreading tickets across many wallets. A wallet is one finale party, so splitting your tickets across W wallets gives you up to W finale parties instead of 1 (hedging the pot), but each ticket still funds the pot and pays rake.</p>
+
+<div class="panel">
+<div class="grid">
+  <label>Field (others' tickets)<input id="field" type="number" value="80" min="1"></label>
+  <label>Your tickets (total)<input id="tix" type="number" value="5" min="1"></label>
+  <label>Your wallets (Sybil spread)<input id="wallets" type="number" value="1" min="1"></label>
+  <label>Per-wallet cap<input id="cap" type="number" value="10" min="1"></label>
+  <label>Chambers<input id="ch" type="number" value="6" min="1" max="12"></label>
+  <label>Entry (RVLT/ticket)<input id="entry" type="number" value="1000" min="1"></label>
+  <label>Rake %<input id="rake" type="number" value="2" min="0" step="0.5"></label>
+  <label>Crowd dodge skill %<input id="skill" type="number" value="70" min="0" max="100"></label>
+  <label>Sims<input id="sims" type="number" value="4000" min="200" step="500"></label>
+</div>
+<button class="btn g" id="run">Run</button>
+<button class="btn" id="sweep">Sweep your tickets 1 to 20</button>
+</div>
+
+<div class="panel" id="out"><p class="muted">Set parameters and hit Run.</p></div>
+<div class="panel" id="sweepout" style="display:none"></div>
+<p class="note">Model note: each alive ticket picks the least-crowded door with "dodge skill" probability, else random; the most-crowded door busts. The finale is modeled as an equal per-person split among finalists (matches the anti-hedge rule). Win-prob is your chance to hold a finalist; EV uses your expected per-person share of the pot minus your ticket cost.</p>
+</div>
+<script>
+function routesFor(n){ return n>24?5:n>12?4:n>5?3:2; }
+// Split T of your tickets across `wallets` distinct wallets (each <= cap). Returns the wallet id each of your
+// tickets belongs to (0..wallets-1); every OTHER ticket in the field is its own independent party.
+function walletAssign(T, wallets, cap){
+  wallets=Math.max(1,Math.min(wallets, T, Math.ceil(T/1)));
+  var owners=[], per=Math.ceil(T/wallets), placed=0;
+  for(var w=0; w<wallets && placed<T; w++){ for(var k=0;k<Math.min(per,cap) && placed<T;k++){ owners.push(w); placed++; } }
+  while(owners.length<T) owners.push(wallets-1);   // overflow beyond cap*wallets lands on the last wallet (modelled, not endorsed)
+  return owners;
+}
+// one simulated game. `yourOwners` = wallet id per your ticket; field tickets are null (each its own party).
+// Real-money has NO house bots, so "field" is just other human wallets. Returns {alive, share, parties}.
+function simGame(field, yourOwners, maxch, skill){
+  var ents=[]; var i;
+  for(i=0;i<field;i++) ents.push(null);               // field ticket = its own party (one human wallet, one ticket here)
+  for(i=0;i<yourOwners.length;i++) ents.push('you:'+yourOwners[i]);  // your ticket tagged by its wallet party
+  var alive=[]; for(i=0;i<ents.length;i++) alive.push(i);
+  for(var ch=0; ch<maxch && alive.length>1; ch++){
+    var R=routesFor(alive.length);
+    var counts=new Array(R).fill(0), picks={};
+    for(i=alive.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=alive[i]; alive[i]=alive[j]; alive[j]=t; }
+    alive.forEach(function(idx){ var d; if(Math.random()<skill){ var m=0; for(var k=1;k<R;k++) if(counts[k]<counts[m])m=k; d=m; } else { d=Math.floor(Math.random()*R); } picks[idx]=d; counts[d]++; });
+    var mx=0; for(var k=1;k<R;k++) if(counts[k]>counts[mx])mx=k;
+    var next=alive.filter(function(idx){ return picks[idx]!==mx; });
+    if(next.length===0) { alive=[]; break; }
+    alive=next;
+  }
+  // collapse survivors to PARTIES: each field ticket is its own party; your surviving tickets collapse to the
+  // distinct wallets that survived (one wallet = one finale party), which is exactly the Sybil hedge.
+  var fieldParties=0, yourWallets={};
+  alive.forEach(function(idx){ var e=ents[idx]; if(e===null) fieldParties++; else yourWallets[e]=1; });
+  var yourParties=Object.keys(yourWallets).length;
+  var parties = fieldParties + yourParties;
+  if(parties===0) return {alive:false, share:0, parties:0};
+  return {alive:yourParties>0, share: yourParties>0 ? yourParties/parties : 0, parties:parties};
+}
+function run(field,T,maxch,rake,skill,sims,wallets,cap){
+  wallets=Math.max(1,wallets||1); cap=Math.max(1,cap||10);
+  var owners=walletAssign(T, wallets, cap), effWallets=(new Set(owners)).size;
+  var sAlive=0, sShare=0;
+  for(var s=0;s<sims;s++){ var r=simGame(field,owners,maxch,skill); if(r.alive)sAlive++; sShare+=r.share; }
+  var total=field+T, pot=total*ENTRY, payout=pot*(1-rake);
+  var reach=sAlive/sims, avgShare=sShare/sims, expWin=avgShare*payout, cost=T*ENTRY, ev=expWin-cost;
+  return { reach, avgShare, expWin, cost, ev, evPer:ev/T, fair:T/total, pot, payout, houseTake:pot*rake, wallets:effWallets };
+}
+var ENTRY=1000;
+function num(id){ return parseFloat(document.getElementById(id).value)||0; }
+function money(n){ return Math.round(n).toLocaleString()+' RVLT'; }
+function pct(n){ return (n*100).toFixed(2)+'%'; }
+function read(){ ENTRY=num('entry'); return {field:Math.max(1,num('field')|0), T:Math.max(1,num('tix')|0), ch:Math.max(1,num('ch')|0), rake:num('rake')/100, skill:num('skill')/100, sims:Math.max(200,num('sims')|0), wallets:Math.max(1,num('wallets')|0), cap:Math.max(1,num('cap')|0)}; }
+document.getElementById('run').onclick=function(){
+  var p=read(); var r=run(p.field,p.T,p.ch,p.rake,p.skill,p.sims,p.wallets,p.cap);
+  var evc=r.ev>=0?'pos':'neg';
+  var sybil=(r.wallets>1)?('<div class="stat"><span>Sybil spread</span><b>'+p.T+' tickets across '+r.wallets+' wallets</b></div>'):'';
+  document.getElementById('out').innerHTML=
+    '<h2>Result, '+p.T+' ticket'+(p.T>1?'s':'')+(r.wallets>1?(' / '+r.wallets+' wallets'):'')+' vs '+p.field+' field ('+(p.field+p.T)+' total)</h2>'+
+    sybil+
+    '<div class="stat"><span>Your chance to reach the finale</span><b>'+pct(r.reach)+'</b></div>'+
+    '<div class="stat"><span>Your average pot share</span><b>'+pct(r.avgShare)+'</b></div>'+
+    '<div class="stat"><span>Fair share (tickets / total)</span><b>'+pct(r.fair)+'</b></div>'+
+    '<div class="stat"><span>Pot / winner payout</span><b>'+money(r.pot)+' / '+money(r.payout)+'</b></div>'+
+    '<div class="stat"><span>Expected winnings</span><b>'+money(r.expWin)+'</b></div>'+
+    '<div class="stat"><span>Your cost</span><b>'+money(r.cost)+'</b></div>'+
+    '<div class="stat"><span>Net EV</span><b class="'+evc+'">'+(r.ev>=0?'+':'')+money(r.ev)+'</b></div>'+
+    '<div class="stat"><span>EV per ticket</span><b class="'+evc+'">'+(r.evPer>=0?'+':'')+money(r.evPer)+'</b></div>'+
+    '<div class="stat"><span>House take this game (rake)</span><b>'+money(r.houseTake)+'</b></div>'+
+    '<p class="note">Notice: your average pot share tracks the fair share and net EV is negative by ~the rake. A Sybil spreading the SAME tickets across more wallets lifts finale-reach + raises the share ceiling (more finale parties to hedge), but every ticket still funds the pot and pays rake, so EV stays negative; it buys variance reduction, not a house drain. Real-money rounds have no bots, so the field here is other humans only.</p>';
+};
+document.getElementById('sweep').onclick=function(){
+  var p=read(); var Ts=[1,2,3,5,8,12,16,20], rows='', maxLoss=0;
+  var res=Ts.map(function(T){ var r=run(p.field,T,p.ch,p.rake,p.skill,Math.max(1500,p.sims/2|0),p.wallets,p.cap); maxLoss=Math.max(maxLoss,Math.abs(r.ev)); return {T:T,r:r}; });
+  res.forEach(function(x){ var r=x.r; var evc=r.ev>=0?'pos':'neg'; var w=Math.round(Math.abs(r.ev)/(maxLoss||1)*100);
+    rows+='<tr><td>'+x.T+'</td><td>'+pct(r.reach)+'</td><td>'+pct(r.avgShare)+'</td><td>'+pct(r.fair)+'</td><td class="'+evc+'">'+(r.ev>=0?'+':'')+money(r.ev)+'</td><td class="'+evc+'">'+(r.evPer>=0?'+':'')+Math.round(r.evPer)+'</td><td><div class="bar"><i style="width:'+w+'%;background:'+(r.ev>=0?'var(--grn)':'var(--red)')+'"></i></div></td></tr>'; });
+  document.getElementById('sweepout').style.display='block';
+  document.getElementById('sweepout').innerHTML='<h2>Sweep, your tickets vs '+p.field+' field</h2>'+
+    '<table><thead><tr><th>Tickets</th><th>Finale%</th><th>Avg share</th><th>Fair</th><th>Net EV</th><th>EV/tix</th><th>|EV|</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+    '<p class="note">Avg share ≈ fair share at every buy level, and EV stays negative by the rake and grows in absolute terms with more tickets. There is no ticket count that flips EV positive.</p>';
+};
+document.getElementById('run').click();
+</script>
+</body></html>

@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Vault Robbers — The Full 1,000</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Londrina+Solid:wght@400;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:#f3e3ca; --paper2:#eedaba; --ink:#17130d; --tee:#fbfaf6;
+    --green:#2ea65a; --green-d:#1f7d43; --gold:#e9a615; --red:#c2432f;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; font-family:'Inter',system-ui,sans-serif; color:var(--ink); min-height:100vh;
+    background:
+      radial-gradient(1400px 800px at 50% -8%, #fbeccf, transparent 60%),
+      radial-gradient(1200px 900px at 50% 112%, #e4cca1, transparent 60%),
+      var(--paper);
+  }
+  body::before{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.045; mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+  body::after{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:radial-gradient(130% 100% at 50% 35%, transparent 58%, rgba(23,19,13,.18));
+  }
+  .wrap{position:relative; z-index:1; max-width:1360px; margin:0 auto; padding:26px 20px 80px}
+
+  /* ---- Header ---- */
+  header{text-align:center; margin:8px 0 22px}
+  .wordmark{
+    font-family:'Londrina Solid',cursive; font-weight:900; text-transform:uppercase;
+    font-size:clamp(42px,8vw,78px); line-height:.86; letter-spacing:1px; margin:0;
+    text-shadow:3px 3px 0 var(--ink);
+  }
+  .tagline{font-size:clamp(13px,2.4vw,16px); font-weight:600; color:#5d4e38; margin:8px 0 0}
+  .count{
+    display:inline-block; margin-top:12px; font-size:12px; font-weight:700; letter-spacing:.4px;
+    text-transform:uppercase; color:var(--ink); background:var(--tee);
+    border:3px solid var(--ink); box-shadow:3px 3px 0 var(--ink); padding:6px 13px; border-radius:999px;
+  }
+
+  /* ---- Controls ---- */
+  .controls{
+    position:sticky; top:0; z-index:5; margin:0 -20px 22px; padding:14px 20px;
+    background:linear-gradient(var(--paper), rgba(243,227,202,.86));
+    backdrop-filter:blur(3px); border-bottom:3px solid var(--ink);
+  }
+  .pills{display:flex; flex-wrap:wrap; gap:9px; justify-content:center}
+  .pill{
+    cursor:pointer; font-size:13px; font-weight:700; letter-spacing:.3px;
+    border:3px solid var(--ink); background:var(--tee); color:var(--ink);
+    padding:7px 13px; border-radius:999px; box-shadow:2px 2px 0 var(--ink);
+    transition:transform .06s ease, box-shadow .06s ease, background .12s;
+  }
+  .pill:hover{transform:translateY(-1px)}
+  .pill:active{transform:translate(2px,2px); box-shadow:0 0 0 var(--ink)}
+  .pill.active{background:var(--green); color:var(--tee)}
+  .pill.active[data-tier=Mythic]{background:var(--gold); color:var(--ink)}
+  .pill .n{opacity:.7; font-weight:600; margin-left:4px}
+  .search{
+    display:block; margin:12px auto 0; width:min(420px,100%);
+    font-family:'Inter',sans-serif; font-size:15px; font-weight:500;
+    padding:10px 13px; border:3px solid var(--ink); border-radius:999px; background:var(--tee);
+    outline:none; box-shadow:2px 2px 0 var(--ink);
+  }
+  .search:focus{box-shadow:3px 3px 0 var(--gold)}
+
+  /* ---- Grid ---- */
+  .grid{
+    display:grid; gap:16px;
+    grid-template-columns:repeat(auto-fill, minmax(190px, 1fr));
+  }
+  .tile{
+    background:var(--tee); border:3px solid var(--ink); border-radius:6px;
+    box-shadow:3px 3px 0 var(--ink); overflow:hidden; cursor:pointer;
+    transition:transform .1s ease, box-shadow .1s ease; display:flex; flex-direction:column;
+  }
+  .tile:hover{transform:translate(-2px,-2px); box-shadow:6px 6px 0 var(--ink)}
+  .thumb{
+    position:relative; width:100%; aspect-ratio:1/1; background:var(--paper2);
+    border-bottom:3px solid var(--ink);
+  }
+  .thumb img{width:100%; height:100%; object-fit:cover; display:block}
+  .badge{
+    position:absolute; top:8px; left:8px; font-size:10px; font-weight:700; letter-spacing:.5px;
+    text-transform:uppercase; color:var(--tee); background:var(--ink);
+    border:2px solid var(--ink); border-radius:999px; padding:2px 8px;
+  }
+  .badge.Common{background:#8a7a5e}
+  .badge.Uncommon{background:var(--green-d)}
+  .badge.Rare{background:var(--red)}
+  .badge.Ultra{background:#5b3fa0}
+  .badge.Mythic{background:var(--gold); color:var(--ink)}
+  .meta{padding:9px 11px 11px}
+  .tname{font-size:13px; font-weight:700; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .tsub{font-size:11px; color:#6b5c45; margin:2px 0 0; font-weight:500}
+  .empty{text-align:center; padding:60px 20px; font-weight:600; color:#6b5c45}
+
+  /* ---- Lightbox ---- */
+  .lb{
+    position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center;
+    background:rgba(23,19,13,.82); padding:20px;
+  }
+  .lb.show{display:flex}
+  .lb-card{
+    position:relative; background:var(--tee); border:3px solid var(--ink); border-radius:8px;
+    box-shadow:8px 8px 0 var(--ink); width:min(920px,100%); max-height:92vh; overflow:auto;
+    display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);
+  }
+  .lb-img{background:var(--paper2); border-right:3px solid var(--ink); display:flex; align-items:center; justify-content:center}
+  .lb-img img{width:100%; height:100%; max-height:92vh; object-fit:contain; display:block}
+  .lb-info{padding:22px 22px 24px; min-width:0}
+  .lb-name{font-family:'Londrina Solid',cursive; font-weight:900; font-size:30px; line-height:1; margin:0; text-transform:uppercase}
+  .lb-row{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 4px}
+  .chip{
+    font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.4px;
+    border:2px solid var(--ink); background:var(--paper); border-radius:999px; padding:3px 9px;
+  }
+  .chip.gold{background:var(--gold)}
+  .traits{margin-top:14px; border-top:3px solid var(--ink); padding-top:14px}
+  .trait{
+    display:flex; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px solid rgba(23,19,13,.12);
+    font-size:13px;
+  }
+  .trait:last-child{border-bottom:0}
+  .trait .k{color:#6b5c45; font-weight:600}
+  .trait .v{font-weight:700; text-align:right}
+  .dl{
+    display:inline-flex; align-items:center; gap:7px; margin-top:18px; text-decoration:none;
+    font-family:'Londrina Solid',cursive; font-weight:900; font-size:18px; letter-spacing:.5px; text-transform:uppercase;
+    color:var(--tee); background:var(--green); border:3px solid var(--ink); border-radius:4px;
+    padding:9px 15px; box-shadow:3px 3px 0 var(--ink);
+  }
+  .dl:hover{background:var(--green-d)}
+  .dl:active{transform:translate(3px,3px); box-shadow:0 0 0 var(--ink)}
+  .lb-close{
+    position:absolute; top:-3px; right:-3px; z-index:2; cursor:pointer;
+    font-family:'Inter'; font-size:20px; font-weight:700; line-height:1;
+    width:40px; height:40px; color:var(--tee); background:var(--red);
+    border:3px solid var(--ink); border-radius:0 8px 0 10px;
+  }
+  .nav{
+    position:fixed; top:50%; transform:translateY(-50%); z-index:51; cursor:pointer;
+    width:52px; height:52px; font-size:26px; font-weight:700; color:var(--ink);
+    background:var(--tee); border:3px solid var(--ink); border-radius:999px; box-shadow:3px 3px 0 var(--ink);
+  }
+  .nav:active{transform:translateY(-50%) translate(3px,3px); box-shadow:0 0 0 var(--ink)}
+  .nav.prev{left:16px}
+  .nav.next{right:16px}
+
+  @media (max-width:640px){
+    .lb-card{grid-template-columns:1fr}
+    .lb-img{border-right:0; border-bottom:3px solid var(--ink)}
+    .nav{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 class="wordmark">Vault Robbers</h1>
+    <p class="tagline">The full 1,000 &middot; collection preview</p>
+    <span class="count" id="count">Loading&hellip;</span>
+  </header>
+
+  <div class="controls">
+    <div class="pills" id="pills"></div>
+    <input class="search" id="search" type="text" placeholder="Search by name&hellip;" autocomplete="off" spellcheck="false" />
+  </div>
+
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty" style="display:none">No pieces match.</div>
+</div>
+
+<!-- Lightbox -->
+<div class="lb" id="lb">
+  <button class="nav prev" id="prev" aria-label="Previous">&#8249;</button>
+  <div class="lb-card">
+    <button class="lb-close" id="close" aria-label="Close">&times;</button>
+    <div class="lb-img"><img id="lbImg" alt="" /></div>
+    <div class="lb-info">
+      <h2 class="lb-name" id="lbName"></h2>
+      <div class="lb-row" id="lbChips"></div>
+      <div class="traits" id="lbTraits"></div>
+      <a class="dl" id="lbDl" download>&#11015; Download PNG</a>
+    </div>
+  </div>
+  <button class="nav next" id="next" aria-label="Next">&#8250;</button>
+</div>
+
+<script>
+// All fetches are RELATIVE (served under /pub/main/vault-robbers-gallery/).
+var ITEMS = [];         // all 1000, normalized rows from the server
+var VIEW = [];          // currently filtered + searched subset (in display order)
+var activeTier = 'All';
+var searchTerm = '';
+var lbIndex = -1;       // index into VIEW for the open lightbox item
+
+var TIERS = ['All', 'Common', 'Uncommon', 'Rare', 'Ultra', 'Mythic'];
+
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+async function boot(){
+  var data = await fetch('api/collection').then(function(r){ return r.json(); });
+  ITEMS = data.items;
+  document.getElementById('count').textContent =
+    data.total.toLocaleString() + ' pieces · ' + data.generative + ' generative · ' + data.mythics + ' one-of-ones';
+  buildPills();
+  render();
+}
+
+function tierCount(tier){
+  if (tier === 'All') return ITEMS.length;
+  return ITEMS.filter(function(i){ return i.tier === tier; }).length;
+}
+
+function buildPills(){
+  var host = document.getElementById('pills');
+  host.innerHTML = '';
+  TIERS.forEach(function(t){
+    var b = document.createElement('button');
+    b.className = 'pill' + (t === activeTier ? ' active' : '');
+    b.setAttribute('data-tier', t);
+    var label = t === 'Mythic' ? 'Mythic (one-of-ones)' : t;
+    b.innerHTML = esc(label) + ' <span class="n">' + tierCount(t) + '</span>';
+    b.addEventListener('click', function(){
+      activeTier = t;
+      document.querySelectorAll('.pill').forEach(function(p){ p.classList.remove('active'); });
+      b.classList.add('active');
+      render();
+    });
+    host.appendChild(b);
+  });
+}
+
+function render(){
+  VIEW = ITEMS.filter(function(i){
+    if (activeTier !== 'All' && i.tier !== activeTier) return false;
+    if (searchTerm && i.name.toLowerCase().indexOf(searchTerm) < 0) return false;
+    return true;
+  });
+  var grid = document.getElementById('grid');
+  var empty = document.getElementById('empty');
+  grid.innerHTML = '';
+  empty.style.display = VIEW.length ? 'none' : 'block';
+
+  var frag = document.createDocumentFragment();
+  VIEW.forEach(function(item, vi){
+    var tile = document.createElement('div');
+    tile.className = 'tile';
+    var sub = item.isMythic
+      ? (item.klass ? item.klass + ' · 1 of 1' : '1 of 1')
+      : ('Art #' + item.art);
+    tile.innerHTML =
+      '<div class="thumb">' +
+        '<span class="badge ' + esc(item.tier) + '">' + esc(item.tier) + '</span>' +
+        '<img loading="lazy" src="img/' + item.art + '.png" alt="' + esc(item.name) + '" />' +
+      '</div>' +
+      '<div class="meta">' +
+        '<p class="tname">' + esc(item.name) + '</p>' +
+        '<p class="tsub">' + esc(sub) + '</p>' +
+      '</div>';
+    tile.addEventListener('click', function(){ openLb(vi); });
+    frag.appendChild(tile);
+  });
+  grid.appendChild(frag);
+}
+
+// ---- Lightbox ----
+function openLb(vi){
+  lbIndex = vi;
+  var item = VIEW[vi];
+  if (!item) return;
+  document.getElementById('lbImg').src = 'img/' + item.art + '.png';
+  document.getElementById('lbImg').alt = item.name;
+  document.getElementById('lbName').textContent = item.name;
+
+  var chips = document.getElementById('lbChips');
+  chips.innerHTML = '';
+  var badge = document.createElement('span');
+  badge.className = 'chip' + (item.tier === 'Mythic' ? ' gold' : '');
+  badge.textContent = item.tier;
+  chips.appendChild(badge);
+  if (item.isMythic && item.klass){
+    var c = document.createElement('span'); c.className = 'chip'; c.textContent = item.klass; chips.appendChild(c);
+  }
+  if (!item.isMythic && item.rank != null){
+    var r = document.createElement('span'); r.className = 'chip'; r.textContent = 'Rank #' + item.rank; chips.appendChild(r);
+  }
+
+  // Traits: for mythics, lead with Inspired By / Class; otherwise the generative traits.
+  var traits = document.getElementById('lbTraits');
+  traits.innerHTML = '';
+  item.attributes.forEach(function(a){
+    var row = document.createElement('div');
+    row.className = 'trait';
+    row.innerHTML = '<span class="k">' + esc(a.trait_type) + '</span><span class="v">' + esc(a.value) + '</span>';
+    traits.appendChild(row);
+  });
+
+  var dl = document.getElementById('lbDl');
+  dl.href = 'img/' + item.art + '.png';
+  dl.setAttribute('download', item.name.replace(/[^a-z0-9]+/gi, '-') + '.png');
+
+  document.getElementById('lb').classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+function closeLb(){
+  document.getElementById('lb').classList.remove('show');
+  document.body.style.overflow = '';
+  lbIndex = -1;
+}
+function step(d){
+  if (lbIndex < 0) return;
+  var ni = lbIndex + d;
+  if (ni < 0) ni = VIEW.length - 1;
+  if (ni >= VIEW.length) ni = 0;
+  openLb(ni);
+}
+
+document.getElementById('close').addEventListener('click', closeLb);
+document.getElementById('prev').addEventListener('click', function(){ step(-1); });
+document.getElementById('next').addEventListener('click', function(){ step(1); });
+document.getElementById('lb').addEventListener('click', function(ev){ if (ev.target.id === 'lb') closeLb(); });
+document.addEventListener('keydown', function(ev){
+  if (!document.getElementById('lb').classList.contains('show')) return;
+  if (ev.key === 'Escape') closeLb();
+  else if (ev.key === 'ArrowLeft') step(-1);
+  else if (ev.key === 'ArrowRight') step(1);
+});
+
+// Debounced search.
+var st;
+document.getElementById('search').addEventListener('input', function(ev){
+  clearTimeout(st);
+  var v = ev.target.value.trim().toLowerCase();
+  st = setTimeout(function(){ searchTerm = v; render(); }, 120);
+});
+
+boot();
+</script>
+</body>
+</html>

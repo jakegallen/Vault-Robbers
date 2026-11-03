@@ -1,0 +1,1556 @@
+{
+  "name": "Vault Robbers",
+  "canvas": 2048,
+  "categories": [
+    {
+      "key": "background",
+      "z": 1,
+      "label": "Background",
+      "traits": [
+        {
+          "id": "ash",
+          "name": "Ash",
+          "file": "background/ash.svg",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "smoke",
+          "name": "Smoke",
+          "file": "background/smoke.svg",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "concrete",
+          "name": "Concrete",
+          "file": "background/concrete.svg",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "dusk",
+          "name": "Dusk",
+          "file": "background/dusk.svg",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "steel",
+          "name": "Steel",
+          "file": "background/steel.svg",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "sand",
+          "name": "Sand",
+          "file": "background/sand.svg",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "mist",
+          "name": "Mist",
+          "file": "background/mist.svg",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "blush",
+          "name": "Blush",
+          "file": "background/blush.svg",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "slate",
+          "name": "Slate",
+          "file": "background/slate.svg",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "alarm-red",
+          "name": "Alarm Red",
+          "file": "background/alarm-red.svg",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "original"
+        },
+        {
+          "id": "royal",
+          "name": "Royal",
+          "file": "background/royal.svg",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "original"
+        },
+        {
+          "id": "blackout",
+          "name": "Blackout",
+          "file": "background/blackout.svg",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "original"
+        },
+        {
+          "id": "corner",
+          "name": "Corner",
+          "file": "background/corner.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "searchlight",
+          "name": "Searchlight",
+          "file": "background/searchlight.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "vault-gold",
+          "name": "Vault Gold",
+          "file": "background/vault-gold.svg",
+          "tier": "ultra-rare",
+          "weight": 6,
+          "pool": "original"
+        },
+        {
+          "id": "vault-door",
+          "name": "Vault Door",
+          "file": "background/vault-door.png",
+          "tier": "ultra-rare",
+          "weight": 6,
+          "pool": "experimental"
+        },
+        {
+          "id": "o-cool-grey",
+          "name": "Cool Grey",
+          "file": "background/cool-grey.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "o-warm-grey",
+          "name": "Warm Grey",
+          "file": "background/warm-grey.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "o-light-grey",
+          "name": "Light Grey",
+          "file": "background/light-grey.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "o-periwinkle",
+          "name": "Periwinkle",
+          "file": "background/periwinkle.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "o-steel-blue",
+          "name": "Steel Blue",
+          "file": "background/steel-blue.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        }
+      ]
+    },
+    {
+      "key": "body",
+      "z": 2,
+      "label": "Body",
+      "traits": [
+        {
+          "id": "lean-standing",
+          "name": "Lean Stance",
+          "file": "body/b-lean-standing.png",
+          "tier": "common",
+          "weight": 0,
+          "pool": "experimental",
+          "enabled": false
+        },
+        {
+          "id": "lean-crouch",
+          "name": "Lean Crouch",
+          "file": "body/b-lean-crouch.png",
+          "tier": "common",
+          "weight": 0,
+          "pool": "experimental",
+          "enabled": false
+        },
+        {
+          "id": "broad-standing",
+          "name": "Broad Stance",
+          "file": "body/b-broad-standing.png",
+          "tier": "common",
+          "weight": 0,
+          "pool": "experimental",
+          "enabled": false
+        },
+        {
+          "id": "hunched-standing",
+          "name": "Hunched Stance",
+          "file": "body/b-hunched-standing.png",
+          "tier": "common",
+          "weight": 0,
+          "pool": "experimental",
+          "enabled": false
+        },
+        {
+          "id": "hunched-crouch",
+          "name": "Hunched Crouch",
+          "file": "body/b-hunched-crouch.png",
+          "tier": "common",
+          "weight": 0,
+          "pool": "experimental",
+          "enabled": false
+        },
+        {
+          "id": "lean-peek",
+          "name": "Lean Peek",
+          "file": "body/b-lean-peek.png",
+          "tier": "rare",
+          "weight": 0,
+          "pool": "experimental",
+          "enabled": false
+        },
+        {
+          "id": "hunched-peek",
+          "name": "Hunched Peek",
+          "file": "body/b-hunched-peek.png",
+          "tier": "rare",
+          "weight": 0,
+          "pool": "experimental",
+          "enabled": false
+        },
+        {
+          "id": "broad-loot",
+          "name": "Loot Shoulder",
+          "file": "body/b-broad-loot.png",
+          "tier": "rare",
+          "weight": 0,
+          "pool": "experimental",
+          "enabled": false
+        },
+        {
+          "id": "broad-handsup",
+          "name": "Caught",
+          "file": "body/b-broad-handsup.png",
+          "tier": "rare",
+          "weight": 0,
+          "pool": "experimental",
+          "enabled": false
+        },
+        {
+          "id": "lean-vault",
+          "name": "Vault Crack",
+          "file": "body/b-lean-vault.png",
+          "tier": "ultra-rare",
+          "weight": 0,
+          "pool": "experimental",
+          "enabled": false
+        },
+        {
+          "id": "o-sage-puffer",
+          "name": "Sage Puffer",
+          "file": "body/sage-puffer.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "o-shadow-silhouette",
+          "name": "Shadow Silhouette",
+          "file": "body/shadow-silhouette.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "x-hooded-nolegs",
+          "name": "Hooded Ghost",
+          "file": "body/x-hooded-nolegs.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        }
+      ]
+    },
+    {
+      "key": "head",
+      "z": 3,
+      "label": "Head",
+      "traits": [
+        {
+          "id": "classic-skull",
+          "name": "Classic Skull",
+          "file": "head/classic-skull.png",
+          "weight": 100,
+          "tier": "common",
+          "pool": "original"
+        },
+        {
+          "id": "grinning-skull",
+          "name": "Grinning Skull",
+          "file": "head/grinning-skull.png",
+          "weight": 100,
+          "tier": "common",
+          "pool": "original"
+        },
+        {
+          "id": "wide-eye-skull",
+          "name": "Wide Eye Skull",
+          "file": "head/wide-eye-skull.png",
+          "weight": 100,
+          "tier": "common",
+          "pool": "original"
+        },
+        {
+          "id": "mustache-skull",
+          "name": "Mustache Skull",
+          "file": "head/mustache-skull.png",
+          "weight": 100,
+          "tier": "common",
+          "pool": "original"
+        },
+        {
+          "id": "brute-skull",
+          "name": "Brute Skull",
+          "file": "head/droopy-brute.png",
+          "weight": 100,
+          "tier": "common",
+          "pool": "experimental"
+        },
+        {
+          "id": "cracked-skull",
+          "name": "Cracked Skull",
+          "file": "head/cracked-skull.png",
+          "weight": 100,
+          "tier": "common",
+          "pool": "experimental"
+        },
+        {
+          "id": "olive-alien-skull",
+          "name": "Olive Alien Skull",
+          "file": "head/olive-alien-skull.png",
+          "weight": 28,
+          "tier": "rare",
+          "pool": "original"
+        },
+        {
+          "id": "wolf-skull",
+          "name": "Wolf Skull",
+          "file": "head/wolf-skull.png",
+          "weight": 28,
+          "tier": "rare",
+          "pool": "original"
+        },
+        {
+          "id": "gas-mask-skull",
+          "name": "Gas Mask Skull",
+          "file": "head/gas-mask-skull.png",
+          "weight": 6,
+          "tier": "ultra-rare",
+          "pool": "original"
+        },
+        {
+          "id": "x-cracked-gold",
+          "name": "Gold Cracked Skull",
+          "file": "head/x-cracked-gold.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-wolf-grey",
+          "name": "Grey Wolf Skull",
+          "file": "head/x-wolf-grey.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-chrome",
+          "name": "Chrome Skull",
+          "file": "head/x-chrome.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-melting",
+          "name": "Melting Skull",
+          "file": "head/x-melting.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-horned",
+          "name": "Horned Skull",
+          "file": "head/x-horned.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-alien",
+          "name": "Alien Skull",
+          "file": "head/x-alien.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-golden",
+          "name": "Golden Skull",
+          "file": "head/x-golden.png",
+          "tier": "ultra-rare",
+          "weight": 6,
+          "pool": "experimental"
+        }
+      ]
+    },
+    {
+      "key": "clothes",
+      "z": 4,
+      "label": "Clothes",
+      "optional": true,
+      "noneWeight": 0,
+      "traits": [
+        {
+          "id": "trench-charcoal",
+          "name": "Charcoal Trench",
+          "file": "clothes/j-trench-charcoal.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "trench-tan",
+          "name": "Tan Trench",
+          "file": "clothes/j-trench-tan.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "bomber-olive",
+          "name": "Olive Bomber",
+          "file": "clothes/j-bomber-olive.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "bomber-blood",
+          "name": "Blood Bomber",
+          "file": "clothes/j-bomber-blood.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "hoodie-grey",
+          "name": "Grey Hoodie",
+          "file": "clothes/j-hoodie-grey.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "peacoat-slate",
+          "name": "Slate Peacoat",
+          "file": "clothes/j-peacoat-slate.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "vest-tactical",
+          "name": "Tactical Vest",
+          "file": "clothes/j-vest-tactical.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "denim",
+          "name": "Denim Jacket",
+          "file": "clothes/j-denim.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "puffer-plum",
+          "name": "Plum Puffer",
+          "file": "clothes/j-puffer-plum.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "puffer-ice",
+          "name": "Ice Puffer",
+          "file": "clothes/j-puffer-ice.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "hoodup-black",
+          "name": "Black Hood Up",
+          "file": "clothes/j-hoodup-black.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "varsity-navy",
+          "name": "Navy Varsity",
+          "file": "clothes/j-varsity-navy.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "raincoat-yellow",
+          "name": "Yellow Raincoat",
+          "file": "clothes/j-raincoat-yellow.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "jailbird",
+          "name": "Jailbird Stripes",
+          "file": "clothes/j-jailbird.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "suit-black",
+          "name": "Black Suit",
+          "file": "clothes/j-suit-black.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "trench-gold",
+          "name": "Vault Gold Trench",
+          "file": "clothes/j-trench-gold.png",
+          "tier": "ultra-rare",
+          "weight": 6,
+          "pool": "experimental"
+        },
+        {
+          "id": "o-charcoal",
+          "name": "Charcoal Coat",
+          "file": "clothes/charcoal.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "o-blood",
+          "name": "Blood Coat",
+          "file": "clothes/blood.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "o-forest",
+          "name": "Forest Coat",
+          "file": "clothes/forest.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "o-denim",
+          "name": "Denim",
+          "file": "clothes/denim.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "o-ice",
+          "name": "Ice Coat",
+          "file": "clothes/ice.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "o-navy",
+          "name": "Navy Coat",
+          "file": "clothes/navy.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "o-plum",
+          "name": "Plum Coat",
+          "file": "clothes/plum.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "o-rust",
+          "name": "Rust Coat",
+          "file": "clothes/rust.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "o-sand",
+          "name": "Sand Coat",
+          "file": "clothes/sand.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "o-striped",
+          "name": "Striped Coat",
+          "file": "clothes/striped.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "original"
+        },
+        {
+          "id": "o-vault-gold",
+          "name": "Vault Gold Coat",
+          "file": "clothes/vault-gold.png",
+          "tier": "ultra-rare",
+          "weight": 6,
+          "pool": "original"
+        },
+        {
+          "id": "x-trench-oxblood",
+          "name": "Oxblood Trench",
+          "file": "clothes/x-trench-oxblood.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-hoodie-ash",
+          "name": "Ash Hoodie",
+          "file": "clothes/x-hoodie-ash.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-peacoat-navy",
+          "name": "Navy Peacoat",
+          "file": "clothes/x-peacoat-navy.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-denim-black",
+          "name": "Black Denim",
+          "file": "clothes/x-denim-black.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-puffer-crimson",
+          "name": "Crimson Puffer",
+          "file": "clothes/x-puffer-crimson.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-varsity-green",
+          "name": "Green Varsity",
+          "file": "clothes/x-varsity-green.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-raincoat-teal",
+          "name": "Teal Raincoat",
+          "file": "clothes/x-raincoat-teal.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-suit-pinstripe",
+          "name": "Pinstripe Suit",
+          "file": "clothes/x-suit-pinstripe.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-straitjacket",
+          "name": "Straitjacket",
+          "file": "clothes/x-straitjacket.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-bomber-gold",
+          "name": "Gold Bomber",
+          "file": "clothes/x-bomber-gold.png",
+          "tier": "ultra-rare",
+          "weight": 6,
+          "pool": "experimental"
+        }
+      ]
+    },
+    {
+      "key": "mask",
+      "z": 5,
+      "label": "Mask",
+      "optional": true,
+      "noneWeight": 40,
+      "traits": [
+        {
+          "id": "domino-black",
+          "name": "Black Domino",
+          "file": "mask/m-domino-black.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "domino-crimson",
+          "name": "Crimson Domino",
+          "file": "mask/m-domino-crimson.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "bandana-red",
+          "name": "Red Bandana",
+          "file": "mask/m-bandana-red.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "bandana-navy",
+          "name": "Navy Bandana",
+          "file": "mask/m-bandana-navy.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "surgical",
+          "name": "Surgical Mask",
+          "file": "mask/m-surgical.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "balaclava",
+          "name": "Balaclava",
+          "file": "mask/m-balaclava.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "ski",
+          "name": "Ski Mask",
+          "file": "mask/m-ski.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "opera",
+          "name": "Opera Mask",
+          "file": "mask/m-opera.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "respirator",
+          "name": "Respirator",
+          "file": "mask/m-respirator.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "gas",
+          "name": "Gas Mask",
+          "file": "mask/m-gas.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "hockey",
+          "name": "Hockey Mask",
+          "file": "mask/m-hockey.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "plague",
+          "name": "Plague Beak",
+          "file": "mask/m-plague.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "gold-vault",
+          "name": "Gold Vault Mask",
+          "file": "mask/m-gold-vault.png",
+          "tier": "ultra-rare",
+          "weight": 6,
+          "pool": "experimental"
+        },
+        {
+          "id": "o-mask-black",
+          "name": "Black Mask",
+          "file": "mask/mask-black.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "o-mask-crimson",
+          "name": "Crimson Mask",
+          "file": "mask/mask-crimson.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "o-mask-bone",
+          "name": "Bone Mask",
+          "file": "mask/mask-bone.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "original"
+        },
+        {
+          "id": "x-visor-slit",
+          "name": "Visor Slit",
+          "file": "mask/x-visor-slit.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-muzzle",
+          "name": "Muzzle",
+          "file": "mask/x-muzzle.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-blindfold",
+          "name": "Blindfold",
+          "file": "mask/x-blindfold.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-kerchief",
+          "name": "Star Kerchief",
+          "file": "mask/x-kerchief.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-neon-domino",
+          "name": "Neon Domino",
+          "file": "mask/x-neon-domino.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-welder",
+          "name": "Welder Shield",
+          "file": "mask/x-welder.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-scarf",
+          "name": "Scarf Wrap",
+          "file": "mask/x-scarf.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-split-chrome",
+          "name": "Chrome Split",
+          "file": "mask/x-split-chrome.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-jester",
+          "name": "Jester",
+          "file": "mask/x-jester.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-oni",
+          "name": "Oni Demon",
+          "file": "mask/x-oni.png",
+          "tier": "ultra-rare",
+          "weight": 6,
+          "pool": "experimental"
+        }
+      ]
+    },
+    {
+      "key": "eyes",
+      "z": 6,
+      "label": "Eyes",
+      "optional": true,
+      "noneWeight": 900,
+      "traits": [
+        {
+          "id": "wide",
+          "name": "Wide Eyes",
+          "file": "eyes/e-wide.png",
+          "weight": 100,
+          "tier": "common",
+          "pool": "experimental"
+        },
+        {
+          "id": "shifty",
+          "name": "Shifty Eyes",
+          "file": "eyes/e-shifty.png",
+          "weight": 100,
+          "tier": "common",
+          "pool": "experimental"
+        },
+        {
+          "id": "halflid",
+          "name": "Half Lidded",
+          "file": "eyes/e-halflid.png",
+          "weight": 100,
+          "tier": "common",
+          "pool": "experimental"
+        },
+        {
+          "id": "round-glasses",
+          "name": "Round Glasses",
+          "file": "eyes/e-round-glasses.png",
+          "weight": 100,
+          "tier": "common",
+          "pool": "experimental"
+        },
+        {
+          "id": "shades",
+          "name": "Shades",
+          "file": "eyes/e-shades.png",
+          "weight": 100,
+          "tier": "common",
+          "pool": "experimental"
+        },
+        {
+          "id": "glow-blue",
+          "name": "Blue Glow",
+          "file": "eyes/e-glow-blue.png",
+          "weight": 28,
+          "tier": "rare",
+          "pool": "experimental"
+        },
+        {
+          "id": "glow-gold",
+          "name": "Gold Glow",
+          "file": "eyes/e-glow-gold.png",
+          "weight": 28,
+          "tier": "rare",
+          "pool": "experimental"
+        },
+        {
+          "id": "xout",
+          "name": "X Out",
+          "file": "eyes/e-xout.png",
+          "weight": 28,
+          "tier": "rare",
+          "pool": "experimental"
+        },
+        {
+          "id": "visor-glow",
+          "name": "Visor Glow",
+          "file": "eyes/e-visor-glow.png",
+          "weight": 28,
+          "tier": "rare",
+          "pool": "experimental"
+        },
+        {
+          "id": "dollar",
+          "name": "Dollar Eyes",
+          "file": "eyes/e-dollar.png",
+          "weight": 6,
+          "tier": "ultra-rare",
+          "pool": "experimental"
+        },
+        {
+          "id": "o-round-glasses",
+          "name": "Round Glasses",
+          "file": "eyes/round-glasses.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "o-white-lens",
+          "name": "White Lens",
+          "file": "eyes/white-lens.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "original"
+        },
+        {
+          "id": "o-masquerade",
+          "name": "Masquerade",
+          "file": "eyes/masquerade-mask.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "original"
+        },
+        {
+          "id": "x-sleepy",
+          "name": "Sleepy",
+          "file": "eyes/x-sleepy.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-heart",
+          "name": "Heart Eyes",
+          "file": "eyes/x-heart.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-monocle",
+          "name": "Monocle",
+          "file": "eyes/x-monocle.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-glow-green",
+          "name": "Green Glow",
+          "file": "eyes/x-glow-green.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-glow-red",
+          "name": "Red Glow",
+          "file": "eyes/x-glow-red.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-spiral",
+          "name": "Spiral",
+          "file": "eyes/x-spiral.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-cyclops",
+          "name": "Cyclops",
+          "file": "eyes/x-cyclops.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-laser",
+          "name": "Laser Eyes",
+          "file": "eyes/x-laser.png",
+          "tier": "ultra-rare",
+          "weight": 6,
+          "pool": "experimental"
+        }
+      ]
+    },
+    {
+      "key": "headwear",
+      "z": 7,
+      "label": "Hat",
+      "optional": true,
+      "noneWeight": 90,
+      "traits": [
+        {
+          "id": "beanie",
+          "name": "Beanie",
+          "file": "headwear/h-beanie.png",
+          "weight": 100,
+          "tier": "common",
+          "pool": "experimental"
+        },
+        {
+          "id": "beanie-rust",
+          "name": "Rust Beanie",
+          "file": "headwear/h-beanie-rust.png",
+          "weight": 100,
+          "tier": "common",
+          "pool": "experimental"
+        },
+        {
+          "id": "cap",
+          "name": "Cap",
+          "file": "headwear/h-cap.png",
+          "weight": 100,
+          "tier": "common",
+          "pool": "experimental"
+        },
+        {
+          "id": "cap-back",
+          "name": "Backwards Cap",
+          "file": "headwear/h-cap-back.png",
+          "weight": 100,
+          "tier": "common",
+          "pool": "experimental"
+        },
+        {
+          "id": "bucket",
+          "name": "Bucket Hat",
+          "file": "headwear/h-bucket.png",
+          "weight": 100,
+          "tier": "common",
+          "pool": "experimental"
+        },
+        {
+          "id": "newsboy",
+          "name": "Newsboy",
+          "file": "headwear/h-newsboy.png",
+          "weight": 100,
+          "tier": "common",
+          "pool": "experimental"
+        },
+        {
+          "id": "visor",
+          "name": "Visor",
+          "file": "headwear/h-visor.png",
+          "weight": 100,
+          "tier": "common",
+          "pool": "experimental"
+        },
+        {
+          "id": "hood-up",
+          "name": "Hood Up",
+          "file": "headwear/h-hood-up.png",
+          "weight": 100,
+          "tier": "common",
+          "pool": "experimental"
+        },
+        {
+          "id": "fedora",
+          "name": "Fedora",
+          "file": "headwear/h-fedora.png",
+          "weight": 28,
+          "tier": "rare",
+          "pool": "experimental"
+        },
+        {
+          "id": "fedora-tan",
+          "name": "Tan Fedora",
+          "file": "headwear/h-fedora-tan.png",
+          "weight": 28,
+          "tier": "rare",
+          "pool": "experimental"
+        },
+        {
+          "id": "tophat",
+          "name": "Top Hat",
+          "file": "headwear/h-tophat.png",
+          "weight": 28,
+          "tier": "rare",
+          "pool": "experimental"
+        },
+        {
+          "id": "crown",
+          "name": "Crown",
+          "file": "headwear/h-crown.png",
+          "weight": 6,
+          "tier": "ultra-rare",
+          "pool": "experimental"
+        },
+        {
+          "id": "gold-halo",
+          "name": "Gold Halo",
+          "file": "headwear/gold-halo.png",
+          "weight": 6,
+          "tier": "ultra-rare",
+          "pool": "original"
+        },
+        {
+          "id": "o-robin-hat",
+          "name": "Robin Hat",
+          "file": "headwear/robin-hat.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "o-tan-beret",
+          "name": "Tan Beret",
+          "file": "headwear/tan-beret.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "o-trucker-cap",
+          "name": "Trucker Cap",
+          "file": "headwear/trucker-cap.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "original"
+        },
+        {
+          "id": "x-fedora-grey",
+          "name": "Grey Fedora",
+          "file": "headwear/x-fedora-grey.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-newsboy-rust",
+          "name": "Rust Newsboy",
+          "file": "headwear/x-newsboy-rust.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-beanie-olive",
+          "name": "Olive Beanie",
+          "file": "headwear/x-beanie-olive.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-bucket-camo",
+          "name": "Camo Bucket",
+          "file": "headwear/x-bucket-camo.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-durag",
+          "name": "Durag",
+          "file": "headwear/x-durag.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-visor-sun",
+          "name": "Sun Visor",
+          "file": "headwear/x-visor-sun.png",
+          "tier": "common",
+          "weight": 100,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-cowboy",
+          "name": "Cowboy Hat",
+          "file": "headwear/x-cowboy.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-tophat-plum",
+          "name": "Plum Top Hat",
+          "file": "headwear/x-tophat-plum.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-party",
+          "name": "Party Hat",
+          "file": "headwear/x-party.png",
+          "tier": "rare",
+          "weight": 28,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-crown-gold",
+          "name": "Gold Crown",
+          "file": "headwear/x-crown-gold.png",
+          "tier": "ultra-rare",
+          "weight": 6,
+          "pool": "experimental"
+        },
+        {
+          "id": "x-halo",
+          "name": "Halo",
+          "file": "headwear/x-halo.png",
+          "tier": "ultra-rare",
+          "weight": 6,
+          "pool": "experimental"
+        }
+      ]
+    },
+    {
+      "key": "fx",
+      "z": 8,
+      "label": "FX",
+      "optional": true,
+      "noneWeight": 90,
+      "traits": [
+        {
+          "id": "faint-sparkle",
+          "name": "Faint Sparkle",
+          "file": "fx/faint-sparkle.png",
+          "weight": 100,
+          "tier": "common",
+          "pool": "original"
+        },
+        {
+          "id": "faint-mark",
+          "name": "Faint Mark",
+          "file": "fx/faint-mark.png",
+          "weight": 100,
+          "tier": "common",
+          "pool": "original"
+        },
+        {
+          "id": "soft-glints",
+          "name": "Soft Glints",
+          "file": "fx/soft-glints.png",
+          "weight": 28,
+          "tier": "rare",
+          "pool": "original"
+        },
+        {
+          "id": "gold-dashes",
+          "name": "Gold Dashes",
+          "file": "fx/gold-dashes.png",
+          "weight": 28,
+          "tier": "rare",
+          "pool": "original"
+        }
+      ]
+    },
+    {
+      "key": "item",
+      "z": 9,
+      "label": "Held Item",
+      "optional": true,
+      "noneWeight": 240,
+      "traits": [
+        {
+          "id": "crowbar",
+          "name": "Crowbar",
+          "file": "item/crowbar.png",
+          "tier": "common",
+          "weight": 0,
+          "pool": "experimental",
+          "enabled": false
+        },
+        {
+          "id": "lockpick",
+          "name": "Lockpick",
+          "file": "item/lockpick.png",
+          "tier": "common",
+          "weight": 0,
+          "pool": "experimental",
+          "enabled": false
+        },
+        {
+          "id": "flashlight",
+          "name": "Flashlight",
+          "file": "item/flashlight.png",
+          "tier": "common",
+          "weight": 0,
+          "pool": "experimental",
+          "enabled": false
+        },
+        {
+          "id": "spray-can",
+          "name": "Spray Can",
+          "file": "item/spray-can.png",
+          "tier": "common",
+          "weight": 0,
+          "pool": "experimental",
+          "enabled": false
+        },
+        {
+          "id": "drill",
+          "name": "Power Drill",
+          "file": "item/drill.png",
+          "tier": "common",
+          "weight": 0,
+          "pool": "experimental",
+          "enabled": false
+        },
+        {
+          "id": "briefcase",
+          "name": "Briefcase",
+          "file": "item/briefcase.png",
+          "tier": "common",
+          "weight": 0,
+          "pool": "experimental",
+          "enabled": false
+        },
+        {
+          "id": "grappling-hook",
+          "name": "Grappling Hook",
+          "file": "item/grappling-hook.png",
+          "tier": "rare",
+          "weight": 0,
+          "pool": "experimental",
+          "enabled": false
+        },
+        {
+          "id": "safe-dial",
+          "name": "Safe Dial",
+          "file": "item/safe-dial.png",
+          "tier": "rare",
+          "weight": 0,
+          "pool": "experimental",
+          "enabled": false
+        },
+        {
+          "id": "loot-bag",
+          "name": "Loot Bag",
+          "file": "item/loot-bag.png",
+          "tier": "rare",
+          "weight": 0,
+          "pool": "experimental",
+          "enabled": false
+        },
+        {
+          "id": "key",
+          "name": "Gold Key",
+          "file": "item/key.png",
+          "tier": "rare",
+          "weight": 0,
+          "pool": "experimental",
+          "enabled": false
+        },
+        {
+          "id": "gold-bar",
+          "name": "Gold Bar",
+          "file": "item/gold-bar.png",
+          "tier": "ultra-rare",
+          "weight": 0,
+          "pool": "experimental",
+          "enabled": false
+        },
+        {
+          "id": "dynamite",
+          "name": "Dynamite",
+          "file": "item/dynamite.png",
+          "tier": "ultra-rare",
+          "weight": 0,
+          "pool": "experimental",
+          "enabled": false
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "type": "exclude",
+      "ifCat": "clothes",
+      "ifTrait": "hoodup-black",
+      "thenCat": "headwear",
+      "thenTrait": "fedora"
+    },
+    {
+      "type": "exclude",
+      "ifCat": "clothes",
+      "ifTrait": "hoodup-black",
+      "thenCat": "headwear",
+      "thenTrait": "fedora-tan"
+    },
+    {
+      "type": "exclude",
+      "ifCat": "clothes",
+      "ifTrait": "hoodup-black",
+      "thenCat": "headwear",
+      "thenTrait": "tophat"
+    },
+    {
+      "type": "exclude",
+      "ifCat": "clothes",
+      "ifTrait": "hoodup-black",
+      "thenCat": "headwear",
+      "thenTrait": "crown"
+    },
+    {
+      "type": "exclude",
+      "ifCat": "headwear",
+      "ifTrait": "hood-up",
+      "thenCat": "mask",
+      "thenTrait": "plague"
+    }
+  ]
+}

@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Vault Robbers — Enter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Londrina+Solid:wght@400;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:#f3e3ca; --paper2:#eedaba; --ink:#17130d; --tee:#fbfaf6;
+    --green:#2ea65a; --green-d:#1f7d43; --gold:#e9a615; --red:#c2432f;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; font-family:'Inter',system-ui,sans-serif; color:var(--ink);
+    display:flex; align-items:center; justify-content:center; padding:24px;
+    background:
+      radial-gradient(1200px 700px at 50% -10%, #fbeccf, transparent 60%),
+      radial-gradient(1000px 800px at 50% 115%, #e4cca1, transparent 60%),
+      var(--paper);
+    position:relative; overflow:hidden;
+  }
+  /* faint fractal noise + vignette, matching the Standoff stack */
+  body::before{
+    content:""; position:fixed; inset:0; pointer-events:none; opacity:.05; mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+  body::after{
+    content:""; position:fixed; inset:0; pointer-events:none;
+    background:radial-gradient(120% 90% at 50% 40%, transparent 55%, rgba(23,19,13,.22));
+  }
+  .card{
+    position:relative; z-index:1; width:100%; max-width:400px; background:var(--tee);
+    border:3px solid var(--ink); box-shadow:6px 6px 0 var(--ink); padding:30px 28px 26px; border-radius:4px;
+  }
+  .brand{
+    font-family:'Londrina Solid',cursive; font-weight:900; font-size:40px; line-height:.9;
+    letter-spacing:.5px; margin:0 0 4px; text-transform:uppercase;
+  }
+  .sub{font-size:13px; color:#6b5c45; margin:0 0 22px; font-weight:500}
+  .lock{
+    display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:700;
+    text-transform:uppercase; letter-spacing:.6px; color:var(--green-d);
+    border:2px solid var(--ink); background:var(--paper); padding:4px 9px; border-radius:999px; margin-bottom:20px;
+  }
+  label{display:block; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; margin:0 0 7px}
+  input[type=text]{
+    width:100%; font-family:'Inter',sans-serif; font-size:17px; font-weight:600; letter-spacing:.5px;
+    padding:13px 14px; border:3px solid var(--ink); border-radius:4px; background:var(--paper);
+    color:var(--ink); outline:none; box-shadow:inset 0 2px 0 rgba(23,19,13,.05);
+  }
+  input[type=text]:focus{box-shadow:3px 3px 0 var(--gold)}
+  button{
+    margin-top:16px; width:100%; cursor:pointer; font-family:'Londrina Solid',cursive; font-weight:900;
+    font-size:22px; letter-spacing:1px; text-transform:uppercase; color:var(--tee);
+    background:var(--green); border:3px solid var(--ink); border-radius:4px; padding:11px;
+    box-shadow:3px 3px 0 var(--ink); transition:transform .06s ease, box-shadow .06s ease;
+  }
+  button:hover{background:var(--green-d)}
+  button:active{transform:translate(3px,3px); box-shadow:0 0 0 var(--ink)}
+  .err{
+    margin-top:14px; display:none; font-size:13px; font-weight:600; color:var(--tee);
+    background:var(--red); border:2px solid var(--ink); border-radius:4px; padding:8px 11px; box-shadow:3px 3px 0 var(--ink);
+  }
+  .err.show{display:block}
+</style>
+</head>
+<body>
+  <form class="card" id="f" method="POST" action="auth" autocomplete="off">
+    <span class="lock">&#128274; Private preview</span>
+    <h1 class="brand">Vault Robbers</h1>
+    <p class="sub">The full 1,000 &middot; collection preview</p>
+    <label for="code">Passcode</label>
+    <input id="code" name="code" type="text" autofocus spellcheck="false" placeholder="Enter passcode" />
+    <button type="submit">Enter</button>
+    <div class="err" id="err">That passcode is not right. Try again.</div>
+  </form>
+<script>
+  // Show the error if the server bounced us back with ?e=1.
+  if (new URLSearchParams(location.search).get('e')) document.getElementById('err').classList.add('show');
+  // Progressive enhancement: submit via fetch so we can show inline errors without a full reload.
+  var form = document.getElementById('f'), err = document.getElementById('err');
+  form.addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    err.classList.remove('show');
+    var code = document.getElementById('code').value.trim();
+    try {
+      var r = await fetch('auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: code })
+      });
+      if (r.ok) { location.href = location.pathname.replace(/[^/]*$/, ''); return; }
+      err.classList.add('show');
+    } catch (e) {
+      err.classList.add('show');
+    }
+  });
+</script>
+</body>
+</html>

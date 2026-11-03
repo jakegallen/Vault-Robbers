@@ -1,0 +1,45 @@
+{
+  "name": "vaultrobbers-mint",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vault Robbers multichain mint hub (vaultrobbers.com). Pay in any currency via Wrapping Companion + Relay, mint on Robinhood Chain. Runtime-configurable USD buffer + destinations. Includes V1/V2 immortalized-stats showcase tabs.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "ethers": "^6.13.0"
+  },
+  "emblem_build": {
+    "tables": [
+      {
+        "name": "vrmint_config",
+        "schema": "CREATE TABLE IF NOT EXISTS vrmint_config (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT DEFAULT (datetime('now')))"
+      },
+      {
+        "name": "vrmint_orders",
+        "schema": "CREATE TABLE IF NOT EXISTS vrmint_orders (id INTEGER PRIMARY KEY AUTOINCREMENT, minter TEXT, qty INTEGER, tier_price_rvlt TEXT, usd_subtotal REAL, buffer_pct REAL, usd_total REAL, pay_currency TEXT, status TEXT DEFAULT 'quoted', tx TEXT, net INTEGER, ts TEXT DEFAULT (datetime('now')))"
+      },
+      {
+        "name": "vr_buyburn",
+        "schema": "CREATE TABLE IF NOT EXISTS vr_buyburn (id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT, rvlt_amount REAL, usd REAL, tx TEXT, net INTEGER DEFAULT 4663, ts TEXT DEFAULT (datetime('now')))"
+      },
+      {
+        "name": "vrmint_premium_used",
+        "schema": "CREATE TABLE IF NOT EXISTS vrmint_premium_used (tx_hash TEXT PRIMARY KEY, minter TEXT, qty INTEGER, wei TEXT, used_at TEXT DEFAULT (datetime('now')))"
+      },
+      {
+        "name": "vrmint_vouchers",
+        "schema": "CREATE TABLE IF NOT EXISTS vrmint_vouchers (minter TEXT, qty INTEGER, nonce TEXT, deadline INTEGER, issued_at TEXT DEFAULT (datetime('now')))"
+      },
+      {
+        "name": "vrmint_free_credits",
+        "schema": "CREATE TABLE IF NOT EXISTS vrmint_free_credits (minter TEXT PRIMARY KEY, qty INTEGER NOT NULL DEFAULT 0, redeemed INTEGER NOT NULL DEFAULT 0, reason TEXT, created_at TEXT DEFAULT (datetime('now')))"
+      },
+      {
+        "name": "vrmint_owed",
+        "schema": "CREATE TABLE IF NOT EXISTS vrmint_owed (minter TEXT PRIMARY KEY, qty_short INTEGER, eth_wei TEXT, note TEXT, flagged_at TEXT DEFAULT (datetime('now')))"
+      }
+    ]
+  }
+}

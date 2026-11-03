@@ -1,0 +1,74 @@
+{
+  "mythic": [
+    {
+      "name": "The Prince of Thieves",
+      "lore": "Steals from the vault, gives to the mob.",
+      "inspiredBy": "Robin Hood",
+      "klass": "Fictional",
+      "image": "layers/mythic/990.png"
+    },
+    {
+      "name": "The Gentleman",
+      "lore": "He left a thank you note where the diamonds used to be.",
+      "inspiredBy": "Arsene Lupin",
+      "klass": "Fictional",
+      "image": "layers/mythic/991.png"
+    },
+    {
+      "name": "The Vanisher",
+      "lore": "Jumped with the bag and was never seen again.",
+      "inspiredBy": "D.B. Cooper",
+      "klass": "Real",
+      "image": "layers/mythic/992.png"
+    },
+    {
+      "name": "The Outlaw",
+      "lore": "Dead or alive, the reward keeps going up.",
+      "inspiredBy": "Jesse James",
+      "klass": "Real",
+      "image": "layers/mythic/993.png"
+    },
+    {
+      "name": "The Ironclad",
+      "lore": "Bullets bounce, the vault does not.",
+      "inspiredBy": "Ned Kelly",
+      "klass": "Real",
+      "image": "layers/mythic/994.png"
+    },
+    {
+      "name": "The Mastermind",
+      "lore": "He already left with it before you noticed.",
+      "inspiredBy": "Danny Ocean",
+      "klass": "Fictional",
+      "image": "layers/mythic/995.png"
+    },
+    {
+      "name": "The Cat",
+      "lore": "Nine lives, one diamond at a time.",
+      "inspiredBy": "Catwoman",
+      "klass": "Fictional",
+      "image": "layers/mythic/996.png"
+    },
+    {
+      "name": "Public Enemy",
+      "lore": "The feds have a file, and it is very thick.",
+      "inspiredBy": "John Dillinger",
+      "klass": "Real",
+      "image": "layers/mythic/997.png"
+    },
+    {
+      "name": "The Professor",
+      "lore": "The whole city is watching, and he planned on that.",
+      "inspiredBy": "Money Heist",
+      "klass": "Fictional",
+      "image": "layers/mythic/998.png"
+    },
+    {
+      "name": "The Lovers",
+      "lore": "They robbed together, and they ran together.",
+      "inspiredBy": "Bonnie and Clyde",
+      "klass": "Real",
+      "image": "layers/mythic/999.png"
+    }
+  ]
+}

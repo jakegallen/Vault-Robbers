@@ -1,0 +1,1621 @@
+'use strict';
+/*
+ * Vault Robbers — SKILL ENGINE v4 (seed-not-answer). Detached, flag-gated (RTV_SKILL_V4).
+ *
+ * THE ONE RULE that makes the deterministic model bot-safe:
+ *   The client is NEVER sent enough to compute the winning input. Every challenge splits into:
+ *     data   -> safe to ship to the browser (motion, counts, grid dims, timings). Contains NO answer.
+ *     pixels -> the answer-bearing content the human PERCEIVES. In transport (P3) this is rendered as
+ *               distorted glyphs / a visual scene, so only human vision extracts it; a JSON/step bot cannot.
+ *     secret -> the server-only grading key. Never leaves the server.
+ *   The server re-derives `secret` from the seed and grades the streamed inputs. A payload-reading bot has
+ *   only `data`, so it can do no better than chance. (Full CV bots are handled by the OTHER layers:
+ *   proof-of-humanity at the core + the payout cap — see P5. No single layer is claimed to be perfect.)
+ *
+ * Difficulty axis (NOT ms-window-shrink, which becomes superhuman under determinism and helps bots):
+ *   scale by DISCRETE cognitive/perceptual load — rounds (N), memory span (M), choices (K), tolerance (T).
+ *   Each atomic action stays inside a comfortable human window; quantity + cognition are the wall.
+ *
+ * Contract per game:
+ *   family                          'memory'|'perception'|'compute'|'timing'
+ *   build(seed, level) -> { data, pixels, secret }
+ *   grade(built, level, events) -> score in [0,1]
+ *   humanP(level) -> { p, kind }    per-item/round human success prob, for the calibration sim
+ */
+const crypto = require('crypto');
+
+// deterministic byte stream from seed material (rehashes with a counter when exhausted)
+function rng(mat) {
+  let ctr = 0, buf = crypto.createHash('sha256').update(mat + ':0').digest(), p = 0;
+  const next = () => { if (p + 4 > buf.length) { ctr++; buf = crypto.createHash('sha256').update(mat + ':' + ctr).digest(); p = 0; } const v = buf.readUInt32BE(p); p += 4; return v; };
+  return { u: () => next() / 0xffffffff, int: (n) => next() % n, sample: (arr, k) => { const a = arr.slice(); const out = []; for (let i = 0; i < k && a.length; i++) out.push(a.splice(next() % a.length, 1)[0]); return out; } };
+}
+const LEVELS = 10;
+const dOf = (lvl) => (lvl - 1) / (LEVELS - 1);
+// SHALLOW-ONLY difficulty lift for SKILL games (Jake direction, 2026-09-13). Chambers 1-2 currently play trivially; this
+// raises the effective difficulty of the FRONT chambers (tighter tolerances / more cells / faster reveals / more decoys —
+// every SKILL build derives its params from `d`, so one knob hardens them all) while FADING to zero by ~chamber 6, so the
+// deep vault-approach chambers (6-10) are LEFT EXACTLY AS-IS (bump=0 => the vault gate is never made easier). Used ONLY by
+// the 15 live family:'skill' games' build(); memory/perception/rhythm/dexterity/luck all keep plain dOf(). The wins-stick
+// re-solve (SKILL_ROLL_T ch1-5 raised, ch6-10 lowered in skillv4.js) is calibrated AGAINST this lift via sim-reach.js, so
+// cumulative P(reach ch10) stays <= the frozen value. Shape: bump peaks BUMP at ch1, linearly -> 0 at chamber FADE.
+const DSKILL_BUMP = 0.34, DSKILL_FADE = 6;
+const dSkill = (lvl) => { const d = (lvl - 1) / (LEVELS - 1); const bump = DSKILL_BUMP * Math.max(0, (DSKILL_FADE - lvl) / (DSKILL_FADE - 1)); return clamp(d + bump, 0, 1); };
+// SHALLOW-ONLY difficulty lift for the SKILL-BASED PROTOTYPE categories (Jake direction, 2026-09-13, wins-stick re-solve).
+// SAME shape as dSkill (BUMP 0.34, FADE 6) so all four skill-based categories (skill / dexterity / perception / rhythm)
+// share ONE difficulty-lift curve AND one ROLL backbone — this is what keeps the optimal door path vault-safe (door-distinct
+// guarantees >=2 skill-based doors per chamber, all on the same curve). SEPARATE fn (dShallow) scoped ONLY to the dexterity/
+// perception/rhythm build()s via a local `dOf = dShallow` alias inside their IIFE blocks — memory/luck/skill builds are NEVER
+// touched (skill keeps dSkill; memory/luck keep plain dOf). Paired with the ch1-5-raised / ch6-10-lowered ROLL_T re-solve in
+// skillv4.js (DEXTERITY_ROLL_T / PERCEPTION_ROLL_T / RHYTHM_ROLL_T), calibrated AGAINST this lift via sim-reach.js so cumulative
+// P(reach ch10) per tier per category stays <= the frozen curve-A value. bump peaks BUMP at ch1, linearly -> 0 at chamber FADE.
+const DSHALLOW_BUMP = 0.34, DSHALLOW_FADE = 6;
+const dShallow = (lvl) => { const d = (lvl - 1) / (LEVELS - 1); const bump = DSHALLOW_BUMP * Math.max(0, (DSHALLOW_FADE - lvl) / (DSHALLOW_FADE - 1)); return clamp(d + bump, 0, 1); };
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const seedMat = (seed, key, lvl) => `${seed}:${key}:${lvl}`;
+// CORE HARDENING (Jake 2026-09-08 unification): shallow chambers unchanged; from ~ch6 the deep continuous games ramp HARD
+// so a real human's (continuous) score collapses toward the luck backbone (~0.2% at the core). Applied to the depth-gated
+// deep pools only (timing precision for skill; long-span recall for memory). Verified via sim-odds.js round-trip.
+const coreSpeed = (d) => (d <= 0.55 ? 1 : 1 + 3.6 * Math.pow((d - 0.55) / 0.45, 1.5));   // 1x through ch6 -> ~4.6x at ch10
+const coreTol = (d) => (d <= 0.55 ? 1 : clamp(1 - 0.6 * Math.pow((d - 0.55) / 0.45, 1.1), 0.4, 1));   // shrink tolerance to ~0.4x deep
+
+const GAMES = {
+  // ── MEMORY: flash a sequence of distorted glyphs; recall them in order. Answer lives only in pixels+secret.
+  lineup: {
+    family: 'memory', label: 'Lineup',
+    build(seed, lvl) {
+      const r = rng(seedMat(seed, 'lineup', lvl)), d = dOf(lvl);
+      const M = Math.min(10, Math.round(3 + 7 * d));         // span 3..10 (deep-hardened for unification)
+      const palette = 10;                                    // 10 possible glyphs
+      const seq = []; for (let i = 0; i < M; i++) seq.push(r.int(palette));
+      const flashMs = Math.round(clamp(950 - 720 * d, 200, 950));
+      return { data: { count: M, palette, flashMs }, pixels: { seq }, secret: { seq } };
+    },
+    grade(b, lvl, ev) {
+      const picks = (ev || []).filter(e => e && e.type === 'pick').map(e => e.idx);
+      let correct = 0; for (let i = 0; i < b.secret.seq.length; i++) { if (picks[i] === b.secret.seq[i]) correct++; else break; }
+      return correct / b.secret.seq.length;                  // graded prefix (smooth curve, no all-or-nothing cliff)
+    },
+    humanP(lvl) { const d = dOf(lvl), M = Math.round(3 + 4 * d), cap = 6.4 - Math.max(0, (500 - (950 - 520 * d))) / 260; return { p: cap, M, kind: 'span' }; }
+  },
+
+  // ── MEMORY (NEW V2 batch): Safe Combo — the combination flashes ONE DIGIT at a time; recall it in order. Answer lives only
+  //    in pixels+secret (a payload bot sees only count/flashMs). Span grows + flash shrinks with depth so a human's recall
+  //    collapses toward the backbone; digits are a fresh modality the V1 kit never trained on.
+  safecombo: {
+    family: 'memory', label: 'Safe Combo',
+    build(seed, lvl) {
+      const r = rng(seedMat(seed, 'safecombo', lvl)), d = dOf(lvl);
+      const M = Math.min(9, Math.round(3 + 6 * d));           // span 3..9 digits (deep-hardened)
+      const seq = []; for (let i = 0; i < M; i++) seq.push(r.int(10));
+      const flashMs = Math.round(clamp(900 - 680 * d, 200, 900));
+      return { data: { count: M, palette: 10, flashMs, digits: true }, pixels: { seq }, secret: { seq } };
+    },
+    grade(b, lvl, ev) {
+      const picks = (ev || []).filter(e => e && e.type === 'pick').map(e => e.idx);
+      let correct = 0; for (let i = 0; i < b.secret.seq.length; i++) { if (picks[i] === b.secret.seq[i]) correct++; else break; }
+      return correct / b.secret.seq.length;                  // graded prefix (smooth)
+    },
+    humanP(lvl) { const d = dOf(lvl), M = Math.round(3 + 4 * d), cap = 6.6 - Math.max(0, (500 - (900 - 500 * d))) / 260; return { p: cap, M, kind: 'span' }; }
+  },
+
+  // ── MEMORY (NEW V2 batch): Color Lock — a run of coloured indicators flashes in order; recall the colour sequence. Same
+  //    farm-resistant span-recall as Lineup but a distinct colour modality; smooth graded-prefix + depth-collapse.
+  colorlock: {
+    family: 'memory', label: 'Color Lock',
+    build(seed, lvl) {
+      const r = rng(seedMat(seed, 'colorlock', lvl)), d = dOf(lvl);
+      const M = Math.min(9, Math.round(3 + 6 * d));           // span 3..9 colours
+      const palette = 6; const seq = []; for (let i = 0; i < M; i++) seq.push(r.int(palette));
+      const flashMs = Math.round(clamp(880 - 660 * d, 200, 880));
+      return { data: { count: M, palette, flashMs }, pixels: { seq }, secret: { seq } };
+    },
+    grade(b, lvl, ev) {
+      const picks = (ev || []).filter(e => e && e.type === 'pick').map(e => e.idx);
+      let correct = 0; for (let i = 0; i < b.secret.seq.length; i++) { if (picks[i] === b.secret.seq[i]) correct++; else break; }
+      return correct / b.secret.seq.length;
+    },
+    humanP(lvl) { const d = dOf(lvl), M = Math.round(3 + 4 * d), cap = 6.8 - Math.max(0, (500 - (880 - 500 * d))) / 260; return { p: cap, M, kind: 'span' }; }
+  },
+
+  // ── MEMORY (NEW V2 batch): Bearing — a run of directions (up/right/down/left) flashes; recall the path in order.
+  bearing: {
+    family: 'memory', label: 'Bearing',
+    build(seed, lvl) { const r = rng(seedMat(seed, 'bearing', lvl)), d = dOf(lvl); const M = Math.min(9, Math.round(3 + 6 * d)); const seq = []; for (let i = 0; i < M; i++) seq.push(r.int(4)); const flashMs = Math.round(clamp(860 - 640 * d, 200, 860)); return { data: { count: M, palette: 4, flashMs, dirs: true }, pixels: { seq }, secret: { seq } }; },
+    grade(b, lvl, ev) { const picks = (ev || []).filter(e => e && e.type === 'pick').map(e => e.idx); let c = 0; for (let i = 0; i < b.secret.seq.length; i++) { if (picks[i] === b.secret.seq[i]) c++; else break; } return c / b.secret.seq.length; },
+    humanP(lvl) { const d = dOf(lvl), M = Math.round(3 + 4 * d), cap = 6.9 - Math.max(0, (500 - (860 - 500 * d))) / 260; return { p: cap, M, kind: 'span' }; }
+  },
+  // ── MEMORY (NEW V2 batch): The Count — loot denominations flash one at a time; recall the run in order.
+  denoms: {
+    family: 'memory', label: 'The Count',
+    build(seed, lvl) { const r = rng(seedMat(seed, 'denoms', lvl)), d = dOf(lvl); const opts = [5, 10, 25, 50, 100]; const M = Math.min(8, Math.round(3 + 5 * d)); const seq = []; for (let i = 0; i < M; i++) seq.push(opts[r.int(opts.length)]); const flashMs = Math.round(clamp(950 - 700 * d, 220, 950)); return { data: { count: M, options: opts, flashMs, values: true }, pixels: { seq }, secret: { seq } }; },
+    grade(b, lvl, ev) { const picks = (ev || []).filter(e => e && e.type === 'pick').map(e => Number(e.idx)); let c = 0; for (let i = 0; i < b.secret.seq.length; i++) { if (picks[i] === b.secret.seq[i]) c++; else break; } return c / b.secret.seq.length; },
+    humanP(lvl) { const d = dOf(lvl), M = Math.round(3 + 3.5 * d), cap = 6.2 - Math.max(0, (500 - (950 - 520 * d))) / 260; return { p: cap, M, kind: 'span' }; }
+  },
+  // ── MEMORY (NEW V2 batch): Shortlist — a SET of marks appears together for a beat; recall the whole set (order-free).
+  glyphset: {
+    family: 'memory', label: 'Shortlist',
+    build(seed, lvl) { const r = rng(seedMat(seed, 'glyphset', lvl)), d = dOf(lvl); const K = Math.min(8, Math.round(3 + 5 * d)); const set = r.sample([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], K); const flashMs = Math.round(clamp(1100 - 780 * d, 260, 1100)); return { data: { k: K, palette: 10, flashMs, set: true }, pixels: { set }, secret: { set } }; },
+    grade(b, lvl, ev) { const picks = [...new Set((ev || []).filter(e => e && e.type === 'pick').map(e => e.idx))]; const S = new Set(b.secret.set); let hit = 0; for (const p of picks) if (S.has(p)) hit++; return Math.min(1, hit / b.secret.set.length); },
+    humanP(lvl) { const d = dOf(lvl); return { p: clamp(0.95 - 0.5 * d, 0.3, 0.95), kind: 'set' }; }
+  },
+  // ── OLD SKILL literal entries (pendulum/crosshair/orbit/slider/align3/pulse) WIPED 2026-09-12 — replaced by the SKILL V4 reaction/execution pool below.
+
+  // ── MEMORY + COMPUTE (Finance theme): deposits/withdrawals flash ONE AT A TIME; track the running balance and
+  //    submit the final total. Amounts live only in pixels; the net is server-only. Sequential flash = higher memory
+  //    load than combo (which shows all at once), and it is a brand-new mechanic the V1 attacker's kit never saw.
+  ledger: {
+    family: 'memory', label: 'The Ledger',
+    build(seed, lvl) {
+      const r = rng(seedMat(seed, 'ledger', lvl)), d = dOf(lvl);
+      const M = Math.round(3 + 4 * d);                       // 3..7 entries, flashed one at a time
+      const maxv = Math.round(9 + 40 * d);                   // 9..49 magnitude (multi-digit deeper)
+      const amts = []; let net = 0;
+      for (let i = 0; i < M; i++) {
+        let v = 1 + r.int(maxv);
+        let sign = (i === 0) ? 1 : (r.u() < 0.4 ? -1 : 1);   // first is always a deposit; ~40% withdrawals after
+        if (net + sign * v < 1) sign = 1;                    // never let the running balance drop below 1 (net stays a positive integer -> plain keypad)
+        net += sign * v; amts.push({ v, sign });
+      }
+      const flashMs = Math.round(clamp(1000 - 560 * d, 420, 1000));
+      return { data: { count: M, flashMs }, pixels: { amts }, secret: { net } };
+    },
+    grade(b, lvl, ev) { const a = (ev || []).find(e => e && e.type === 'answer'); return a && Number(a.value) === b.secret.net ? 1 : 0; },
+    humanP(lvl) { const d = dOf(lvl); return { p: clamp(0.96 - 0.6 * d, 0.28, 0.96), kind: 'binary' }; }
+  },
+
+  // ── MEMORY + PERCEPTION (Tech theme): a grid flashes with cells at TWO brightness tiers (hot vs warm decoys). Recall
+  //    ONLY the brightest cells. Two-tier discrimination under a flash = distinct from gridrecall's binary lit/unlit, and
+  //    the brightness lives only in rendered pixels (a JSON bot sees nothing). Wrong taps subtract, so guessing is punished.
+  heatmap: {
+    family: 'memory', label: 'Heat Map',
+    build(seed, lvl) {
+      const r = rng(seedMat(seed, 'heatmap', lvl)), d = dOf(lvl);
+      const grid = (d < 0.34 ? 9 : (d < 0.7 ? 16 : 25));
+      const hotN = Math.round(2 + 3 * d);                  // 2..5 brightest to recall
+      const warmN = Math.round(2 + 4 * d);                 // medium decoys (the discrimination load)
+      const idx = []; for (let i = 0; i < grid; i++) idx.push(i);
+      const pick = r.sample(idx, Math.min(grid, hotN + warmN));
+      const hot = pick.slice(0, hotN), warm = pick.slice(hotN);
+      const flashMs = Math.round(clamp(1100 - 620 * d, 380, 1100));
+      return { data: { grid, count: hotN, flashMs }, pixels: { hot, warm }, secret: { hot } };
+    },
+    grade(b, lvl, ev) {
+      const picks = new Set((ev || []).filter(e => e && e.type === 'cell').map(e => e.cell));
+      const hot = b.secret.hot; let ok = 0; for (const h of hot) if (picks.has(h)) ok++;
+      let over = 0; for (const p of picks) if (!hot.includes(p)) over++;   // wrong taps subtract (no spray-and-pray)
+      return clamp((ok - over) / hot.length, 0, 1);
+    },
+    humanP(lvl) { const d = dOf(lvl); return { p: clamp(0.95 - 0.55 * d, 0.3, 0.95), kind: 'set' }; }
+  },
+
+  // ── OLD SKILL 'voltage' (Voltage Match) WIPED 2026-09-12 — old skill pool replaced by SKILL V4 reaction/execution.
+
+  // ── PERCEPTION: N rounds, each a grid of K near-identical tiles with one visual outlier. Click the odd one.
+  //    The perturbation is a RENDERED artifact (pixels), never a data field — the bot can't diff descriptors.
+  oddone: {
+    family: 'perception', label: 'Odd One Out',
+    build(seed, lvl) {
+      const r = rng(seedMat(seed, 'oddone', lvl)), d = dOf(lvl);
+      const N = Math.round(2 + 2 * d);                       // 2..4 rounds (monotonic, less non-linear vs bar)
+      const K = Math.round(6 + 10 * d);                      // 6..16 tiles
+      const salience = clamp(0.85 - 0.55 * d, 0.28, 0.85);   // odd-tile distinctness (shrinks gently with depth)
+      const odd = []; for (let i = 0; i < N; i++) odd.push(r.int(K));
+      return { data: { rounds: N, tiles: K, salience }, pixels: { odd, salience }, secret: { odd } };
+    },
+    grade(b, lvl, ev) {
+      const picks = (ev || []).filter(e => e && e.type === 'pick');
+      let ok = 0; for (let i = 0; i < b.secret.odd.length; i++) { if (picks[i] && picks[i].idx === b.secret.odd[i]) ok++; }
+      return ok / b.secret.odd.length;
+    },
+    humanP(lvl) { const d = dOf(lvl); return { p: clamp(0.99 - 0.5 * d, 0.4, 0.99), N: Math.round(2 + 3 * d), kind: 'round' }; }
+  },
+
+  // ── COMPUTE + MEMORY: flash M numbers + a rule, hide them, submit the computed answer. Operands only in pixels.
+  combo: {
+    family: 'compute', label: 'Mental Combo',
+    build(seed, lvl) {
+      const r = rng(seedMat(seed, 'combo', lvl)), d = dOf(lvl);
+      const M = Math.round(2 + 4 * d);                       // 2..6 operands (trivial early, real deep)
+      const nums = []; for (let i = 0; i < M; i++) nums.push(1 + r.int(9));
+      const rules = ['sum', 'max', 'min', 'sumEven', 'sumOdd'];
+      const rule = rules[r.int(d < 0.4 ? 3 : rules.length)]; // harder rules (sumEven/Odd) unlock deeper
+      const ans = rule === 'sum' ? nums.reduce((a, x) => a + x, 0)
+        : rule === 'max' ? Math.max(...nums) : rule === 'min' ? Math.min(...nums)
+        : rule === 'sumEven' ? nums.filter(x => x % 2 === 0).reduce((a, x) => a + x, 0)
+        : nums.filter(x => x % 2 === 1).reduce((a, x) => a + x, 0);
+      const flashMs = Math.round(clamp(1100 - 560 * d, 460, 1100));
+      return { data: { count: M, rule, flashMs }, pixels: { nums }, secret: { ans } };
+    },
+    grade(b, lvl, ev) { const a = (ev || []).find(e => e && e.type === 'answer'); return a && Number(a.value) === b.secret.ans ? 1 : 0; },
+    humanP(lvl) { const d = dOf(lvl); return { p: clamp(0.97 - 0.55 * d, 0.3, 0.97), kind: 'binary' }; }
+  },
+
+  // ── OLD SKILL 'dial' (Crack the Dial) WIPED 2026-09-12 — old skill pool replaced by SKILL V4 reaction/execution.
+
+  // ── PERCEPTION (discrimination): match a dial to a target SHADE you can only see. Target value is pixels-only,
+  //    so a bot never learns the hue/brightness to match. Difficulty = tighter tolerance + more rounds.
+  shade: {
+    family: 'perception', label: 'Shade Match',
+    build(seed, lvl) {
+      const r = rng(seedMat(seed, 'shade', lvl)), d = dOf(lvl);
+      const N = Math.round(1 + 1.5 * d);                     // 1..2 rounds
+      const tol = clamp(0.16 - 0.07 * d, 0.06, 0.16);        // perceptual tolerance (fraction of the scale)
+      const targets = []; for (let i = 0; i < N; i++) targets.push(0.12 + r.u() * 0.76);
+      return { data: { rounds: N, tol }, pixels: { targets }, secret: { targets, tol } };
+    },
+    grade(b, lvl, ev) {
+      const m = (ev || []).filter(e => e && e.type === 'match');
+      if (m.length < b.secret.targets.length) return 0;
+      let s = 0; for (let i = 0; i < b.secret.targets.length; i++) { const err = Math.abs(m[i].v - b.secret.targets[i]); s += err <= b.secret.tol ? clamp(1 - err / b.secret.tol, 0, 1) : 0; }
+      return s / b.secret.targets.length;
+    },
+    humanP(lvl) { const d = dOf(lvl); return { p: clamp(0.9 - 0.2 * d, 0.4, 0.9), N: Math.round(1 + 2 * d), kind: 'round' }; }
+  },
+
+  // ── MEMORY (spatial): a path of cells lights up on a grid; reproduce it in order. Which cells + order are
+  //    pixels-only; the bot gets only the grid size + count, so it can't know the path.
+  spatial: {
+    family: 'memory', label: 'Spatial Recall',
+    build(seed, lvl) {
+      const r = rng(seedMat(seed, 'spatial', lvl)), d = dOf(lvl);
+      const grid = d < 0.5 ? 9 : 16;                         // 3x3 early, 4x4 deep
+      const M = Math.min(grid, Math.round(3 + 7 * d));       // path length 3..10 (deep-hardened)
+      const cells = []; for (let i = 0; i < M; i++) cells.push(r.int(grid));
+      const flashMs = Math.round(clamp(720 - 520 * d, 200, 720));
+      return { data: { grid, count: M, flashMs }, pixels: { cells }, secret: { cells } };
+    },
+    grade(b, lvl, ev) {
+      const picks = (ev || []).filter(e => e && e.type === 'pick').map(e => e.cell);
+      let correct = 0; for (let i = 0; i < b.secret.cells.length; i++) { if (picks[i] === b.secret.cells[i]) correct++; else break; }
+      return correct / b.secret.cells.length;
+    },
+    humanP(lvl) { const d = dOf(lvl); return { p: clamp(0.9 - 0.25 * d, 0.35, 0.9), M: Math.min(16, Math.round(3 + 4 * d)), kind: 'span' }; }
+  },
+
+  // ── RHYTHM: a beat pattern plays (audio + visual pulses); reproduce it by tapping. Graded on RELATIVE interval
+  //    accuracy (tempo-invariant). The intervals are pixels/audio-only, so a JSON bot has no timestamps to copy.
+  // ── OLD SKILL 'keypad' (Keypad Breach) WIPED 2026-09-12 — old skill pool replaced by SKILL V4 reaction/execution.
+
+  // ── OLD SKILL 'torque' (Torque Wrench) WIPED 2026-09-12 — old skill pool replaced by SKILL V4 reaction/execution.
+
+  // ── TARGETS "Snap the Locks" (perception + dexterity): tap all the hidden locks before the timer. Lock POSITIONS
+  //    are a TRANSPARENT server overlay (pixels-only); a bot doesn't know where they are, so it can't tap them.
+  targets: {
+    family: 'perception', label: 'Snap the Locks',
+    build(seed, lvl) {
+      const r = rng(seedMat(seed, 'targets', lvl)), d = dOf(lvl);
+      const n = Math.round(3 + 3 * d);                       // 3..6 locks
+      const span = Math.round(clamp(4800 - 2200 * d, 2400, 4800)); const tol = 0.085;
+      const pos = []; for (let i = 0; i < n; i++) pos.push({ x: 0.12 + r.u() * 0.76, y: 0.16 + r.u() * 0.68 });
+      // pos IS in data on purpose: the locks are visible (a speed/accuracy game, not a hidden-answer one), so the client
+      // draws them and clears each on tap. Bots that read pos and auto-snap are caught by the humanness/rate anti-bot layer.
+      return { data: { n, span, tol, pos }, pixels: { pos }, secret: { pos, tol } };
+    },
+    grade(b, lvl, ev) {
+      const taps = (ev || []).filter(e => e && e.type === 'tap'), used = []; let m = 0;
+      for (const p of b.secret.pos) { for (let j = 0; j < taps.length; j++) { if (used[j]) continue; if (Math.hypot(taps[j].x - p.x, taps[j].y - p.y) <= b.secret.tol) { used[j] = 1; m++; break; } } }
+      return m / b.secret.pos.length;
+    },
+    humanP(lvl) { const d = dOf(lvl); return { p: clamp(0.96 - 0.13 * d, 0.5, 0.96), N: Math.round(3 + 3 * d), kind: 'round' }; }
+  },
+
+  // ── SORT "Crack the Sequence" (logic): tap the numbers in ascending order. The NUMBERS are a transparent server
+  //    overlay (pixels-only); a bot sees only how many slots there are, not the values, so it can't order them.
+  sort: {
+    family: 'compute', label: 'Crack the Sequence',
+    build(seed, lvl) {
+      const r = rng(seedMat(seed, 'sort', lvl)), d = dOf(lvl);
+      const N = Math.round(3 + 2 * d);                       // 3..5 numbers
+      const nums = [], used = new Set(); while (nums.length < N) { const v = 1 + r.int(98); if (!used.has(v)) { used.add(v); nums.push(v); } }
+      const order = nums.map((v, i) => i).sort((a, b) => nums[a] - nums[b]);   // correct slot order (ascending)
+      return { data: { count: N }, pixels: { nums }, secret: { nums, order } };
+    },
+    grade(b, lvl, ev) {
+      const picks = (ev || []).filter(e => e && e.type === 'order').map(e => e.idx); if (picks.length < b.secret.order.length) return 0;
+      let c = 0; for (let i = 0; i < b.secret.order.length; i++) { if (picks[i] === b.secret.order[i]) c++; else break; } return c / b.secret.order.length;
+    },
+    humanP(lvl) { const d = dOf(lvl); return { p: clamp(0.96 - 0.16 * d, 0.4, 0.96), kind: 'binary' }; }
+  },
+
+  // ── OLD SKILL 'stopwatch'/'wirecut'/'beam' (Time the Lock / Cut the Wire / Beat the Beam) WIPED 2026-09-12 — old skill pool replaced by SKILL V4 reaction/execution.
+
+  rhythm: {
+    family: 'rhythm', label: 'Rhythm Lock',
+    build(seed, lvl) {
+      const r = rng(seedMat(seed, 'rhythm', lvl)), d = dOf(lvl);
+      const beats = Math.round(4 + 3 * d);                   // 4..7 beats (more intervals => random guessing fails)
+      const iv = []; for (let i = 0; i < beats - 1; i++) iv.push(300 + Math.round(r.u() * 500));   // 300..800ms gaps
+      const tol = clamp(0.19 - 0.11 * d, 0.07, 0.19);        // allowed mean relative interval error
+      return { data: { beats, tol }, pixels: { iv }, secret: { iv, tol } };
+    },
+    grade(b, lvl, ev) {
+      const taps = (ev || []).filter(e => e && e.type === 'beat').map(e => e.t).sort((a, x) => a - x);
+      if (taps.length < b.secret.iv.length + 1) return 0;
+      const piv = []; for (let i = 1; i <= b.secret.iv.length; i++) piv.push(taps[i] - taps[i - 1]);
+      const norm = (a) => { const s = a.reduce((x, y) => x + y, 0) || 1; return a.map(x => x / s); };
+      const P = norm(piv), S = norm(b.secret.iv);
+      let e = 0; for (let i = 0; i < S.length; i++) e += Math.abs(P[i] - S[i]);       // total normalized deviation
+      const rel = e / S.length;
+      return clamp(1 - rel / b.secret.tol, 0, 1);
+    },
+    humanP(lvl) { const d = dOf(lvl); return { p: clamp(0.92 - 0.18 * d, 0.4, 0.92), N: Math.round(3 + 3 * d), kind: 'round' }; }
+  },
+
+  // ── OLD SKILL/orphan builders (hotwire/sonicrack/dialcombo/tumbler/pressureplates/reflex/mash/silentalarm) WIPED 2026-09-12 —
+  //    the old dialcombo/tumbler were part of the deprecated skill pool; the rest were parked orphans (in no live pool). Replaced by SKILL V4.
+
+  // ── LUCK "fate" family: ungraded. The mini is pure theatre; the real outcome is the provably-fair advance roll at
+  //    /api/crack (scoreEvents/grade return null). These exist only so luck runs on the SAME v4 shell + transport as the
+  //    rest. Presenters must stay OUTCOME-AGNOSTIC (never claim HEADS/win) so the canvas can't contradict the real roll.
+  coinflip: {
+    family: 'fate', label: 'Coin Toss',
+    build(seed, lvl) { return { data: {}, pixels: {}, secret: {} }; },
+    grade(b, lvl, ev) { return null; },
+    humanP(lvl) { return { p: 1, kind: 'fate' }; }
+  },
+  // ---- MEMORY category (new, deterministic, seed-not-answer). The pattern lives in server frames/secret; the client
+  // only gets counts + timing. Graded prefix / set match, gated by MEMORY_BAR (its own rising curve). ----
+  // Backward Span: watch a glyph sequence, tap it back in REVERSE (working-memory manipulation).
+  reverse: {
+    family: 'memory', label: 'Backward Span',
+    build(seed, lvl) {
+      const r = rng(seedMat(seed, 'reverse', lvl)), d = dOf(lvl);
+      const M = Math.min(9, Math.round(3 + 6 * d)), palette = 10;   // deep-hardened span
+      const seq = []; for (let i = 0; i < M; i++) seq.push(r.int(palette));
+      const flashMs = Math.round(clamp(950 - 680 * d, 220, 950));
+      return { data: { count: M, palette, flashMs, reverse: true }, pixels: { seq }, secret: { seq } };
+    },
+    grade(b, lvl, ev) {
+      const picks = (ev || []).filter(e => e && e.type === 'pick').map(e => e.idx);
+      const rev = b.secret.seq.slice().reverse();
+      let c = 0; for (let i = 0; i < rev.length; i++) { if (picks[i] === rev[i]) c++; else break; }
+      return c / rev.length;
+    },
+    humanP(lvl) { const d = dOf(lvl); return { p: clamp(0.86 - 0.34 * d, 0.28, 0.86), M: Math.round(3 + 4 * d), kind: 'span' }; }
+  },
+  // Simon Says: four colour pads light in sequence — reproduce the order (classic sequence recall).
+  simon: {
+    family: 'memory', label: 'Simon Says',
+    build(seed, lvl) {
+      const r = rng(seedMat(seed, 'simon', lvl)), d = dOf(lvl);
+      const M = Math.min(10, Math.round(3 + 7 * d));   // deep-hardened span
+      const seq = []; for (let i = 0; i < M; i++) seq.push(r.int(4));
+      const flashMs = Math.round(clamp(680 - 440 * d, 200, 680));
+      return { data: { count: M, flashMs }, pixels: { seq }, secret: { seq } };
+    },
+    grade(b, lvl, ev) {
+      const picks = (ev || []).filter(e => e && e.type === 'pad').map(e => e.pad);
+      let c = 0; for (let i = 0; i < b.secret.seq.length; i++) { if (picks[i] === b.secret.seq[i]) c++; else break; }
+      return c / b.secret.seq.length;
+    },
+    humanP(lvl) { const d = dOf(lvl); return { p: clamp(0.9 - 0.3 * d, 0.3, 0.9), M: Math.round(3 + 5 * d), kind: 'span' }; }
+  },
+  // Grid Recall: a SET of cells flashes at once — reproduce which cells lit (unordered spatial working memory).
+  gridrecall: {
+    family: 'memory', label: 'Grid Recall',
+    build(seed, lvl) {
+      const r = rng(seedMat(seed, 'gridrecall', lvl)), d = dOf(lvl);
+      const grid = d < 0.4 ? 9 : (d < 0.7 ? 16 : 25);        // 3x3 -> 4x4 -> 5x5 (deep-hardened)
+      const M = Math.min(grid - 1, Math.round(3 + 8 * d));   // set size 3..11
+      const set = []; while (set.length < M) { const c = r.int(grid); if (set.indexOf(c) < 0) set.push(c); }
+      const flashMs = Math.round(clamp(1300 - 1000 * d, 300, 1300));
+      return { data: { grid, count: M, flashMs }, pixels: { cells: set }, secret: { cells: set } };
+    },
+    grade(b, lvl, ev) {
+      const picks = Array.from(new Set((ev || []).filter(e => e && e.type === 'cell').map(e => e.cell)));
+      const set = new Set(b.secret.cells); let good = 0, bad = 0;
+      for (const p of picks) { if (set.has(p)) good++; else bad++; }
+      return clamp((good - bad) / b.secret.cells.length, 0, 1);
+    },
+    humanP(lvl) { const d = dOf(lvl); return { p: clamp(0.9 - 0.34 * d, 0.28, 0.9), M: Math.round(3 + 4 * d), kind: 'span' }; }
+  },
+  // Match-Up (concentration): memorise a face-up board of paired shapes, then for each prompt shape find its hidden twin.
+  pairs: {
+    family: 'memory', label: 'Match-Up',
+    build(seed, lvl) {
+      const r = rng(seedMat(seed, 'pairs', lvl)), d = dOf(lvl);
+      const P = Math.min(8, Math.round(3 + 5 * d)), cells = P * 2;   // deep-hardened (more pairs to hold)
+      const slots = []; for (let s = 0; s < P; s++) { slots.push(s); slots.push(s); }
+      for (let i = slots.length - 1; i > 0; i--) { const j = r.int(i + 1); const t = slots[i]; slots[i] = slots[j]; slots[j] = t; }
+      const cellOf = {}; slots.forEach((s, idx) => { (cellOf[s] = cellOf[s] || []).push(idx); });
+      const rounds = Math.min(P, Math.round(2 + 4 * d)); const order = []; for (let s = 0; s < P; s++) order.push(s);
+      for (let i = order.length - 1; i > 0; i--) { const j = r.int(i + 1); const t = order[i]; order[i] = order[j]; order[j] = t; }
+      const queries = order.slice(0, rounds).map(s => ({ sym: s, prompt: cellOf[s][0], answer: cellOf[s][1] }));
+      const flashMs = Math.round(clamp(1700 - 1100 * d, 450, 1700));
+      return { data: { cells, pairs: P, rounds, flashMs }, pixels: { layout: slots, queries }, secret: { layout: slots, queries } };
+    },
+    grade(b, lvl, ev) {
+      const picks = (ev || []).filter(e => e && e.type === 'match'); const qs = b.secret.queries; let good = 0;
+      for (let i = 0; i < qs.length; i++) { if (picks[i] && picks[i].cell === qs[i].answer) good++; }
+      return good / qs.length;
+    },
+    humanP(lvl) { const d = dOf(lvl); return { p: clamp(0.85 - 0.35 * d, 0.24, 0.85), kind: 'pairs' }; }
+  },
+  // N-Back: a stream of shapes; tap MATCH whenever the current shape equals the one N steps back (working memory + updating).
+  nback: {
+    family: 'memory', label: 'N-Back',
+    build(seed, lvl) {
+      const r = rng(seedMat(seed, 'nback', lvl)), d = dOf(lvl);
+      const N = d < 0.45 ? 1 : (d < 0.8 ? 2 : 3), len = Math.round(8 + 8 * d), palette = Math.max(4, 6 - N);
+      const seq = []; for (let i = 0; i < len; i++) seq.push(r.int(palette));
+      // deterministically PLANT a guaranteed set of match positions (min 2) so the game is always scorable; then break the rest.
+      const elig = []; for (let i = N; i < len; i++) elig.push(i);
+      for (let i = elig.length - 1; i > 0; i--) { const j = r.int(i + 1); const t = elig[i]; elig[i] = elig[j]; elig[j] = t; }
+      const want = Math.max(2, Math.round(elig.length * 0.32)), planted = new Set(elig.slice(0, want));
+      for (let i = N; i < len; i++) { if (planted.has(i)) seq[i] = seq[i - N]; else if (seq[i] === seq[i - N]) seq[i] = (seq[i] + 1) % palette; }
+      const matches = []; for (let i = N; i < len; i++) if (seq[i] === seq[i - N]) matches.push(i);
+      const stepMs = Math.round(clamp(1500 - 650 * d, 650, 1500));
+      return { data: { N, len, stepMs, palette }, pixels: { seq }, secret: { seq, matches, N } };
+    },
+    grade(b, lvl, ev) {
+      const N = b.secret.N, len = b.secret.seq.length, tapped = new Set((ev || []).filter(e => e && e.type === 'nback' && e.hit).map(e => e.pos));
+      const mset = new Set(b.secret.matches); let hits = 0, fa = 0;
+      for (let i = N; i < len; i++) { if (tapped.has(i)) { if (mset.has(i)) hits++; else fa++; } }
+      return clamp((hits - fa) / (b.secret.matches.length || 1), 0, 1);
+    },
+    humanP(lvl) { const d = dOf(lvl); return { p: clamp(0.85 - 0.42 * d, 0.18, 0.85), kind: 'nback' }; }
+  },
+  // Tally (enumeration memory): gems and bombs flash by fast; count the gems, then key in the total.
+  countflash: {
+    family: 'memory', label: 'Tally',
+    build(seed, lvl) {
+      const r = rng(seedMat(seed, 'countflash', lvl)), d = dOf(lvl);
+      const len = Math.round(6 + 10 * d); const seq = []; let cnt = 0;
+      for (let i = 0; i < len; i++) { const gem = r.u() < 0.5; seq.push(gem ? 1 : 0); if (gem) cnt++; }
+      const flashMs = Math.round(clamp(560 - 360 * d, 180, 560));
+      return { data: { len, flashMs, max: len }, pixels: { seq }, secret: { seq, count: cnt } };
+    },
+    grade(b, lvl, ev) {
+      // ANTI-BOT (Jake 2026-09-13): EXACT-ONLY. The count ~ Binomial(len,0.5) is centred at len/2, so a blind "always guess len/2" bot landed
+      // within +/-1 ~38% of the time and banked the old 0.4 partial tier for free. Removed the +/-1 credit — you must actually count. A human who
+      // counted still scores 1.0; the blind-median bot now scores ~0 (its exact-hit rate is only ~1/sqrt(len) and shrinks as the sequence grows).
+      const a = (ev || []).find(e => e && e.type === 'answer'); if (!a) return 0;
+      return ((a.value | 0) === b.secret.count) ? 1 : 0;
+    },
+    humanP(lvl) { const d = dOf(lvl); return { p: clamp(0.85 - 0.4 * d, 0.2, 0.85), kind: 'count' }; }
+  },
+  // Spot the Change (change detection): study a vault of shapes, it flickers, one shape changes — tap the cell that changed.
+  whatchanged: {
+    family: 'memory', label: 'Spot the Change',
+    build(seed, lvl) {
+      const r = rng(seedMat(seed, 'whatchanged', lvl)), d = dOf(lvl);
+      const grid = d < 0.5 ? 9 : 16, sceneA = []; for (let c = 0; c < grid; c++) sceneA.push(r.int(10));
+      const changed = r.int(grid); let ns = r.int(10); if (ns === sceneA[changed]) ns = (ns + 1) % 10;
+      const sceneB = sceneA.slice(); sceneB[changed] = ns;
+      const flashMs = Math.round(clamp(1400 - 650 * d, 600, 1400));
+      return { data: { grid, flashMs }, pixels: { sceneA, sceneB }, secret: { changed, sceneA, sceneB } };
+    },
+    grade(b, lvl, ev) { const p = (ev || []).find(e => e && e.type === 'cell'); return (p && p.cell === b.secret.changed) ? 1 : 0; },
+    humanP(lvl) { const d = dOf(lvl); return { p: clamp(0.9 - 0.4 * d, 0.2, 0.9), kind: 'change' }; }
+  },
+  // Heist Route (spatial-order path): a route lights up cell by cell across the floorplan; retrace it in order.
+  journey: {
+    family: 'memory', label: 'Heist Route',
+    build(seed, lvl) {
+      const r = rng(seedMat(seed, 'journey', lvl)), d = dOf(lvl), grid = 16;
+      const len = Math.min(12, Math.round(3 + 8 * d)), cells = []; while (cells.length < len) { const c = r.int(grid); if (cells.indexOf(c) < 0) cells.push(c); }   // deep-hardened route length
+      const flashMs = Math.round(clamp(700 - 480 * d, 200, 700));
+      return { data: { grid, count: len, flashMs }, pixels: { cells }, secret: { cells } };
+    },
+    grade(b, lvl, ev) {
+      const picks = (ev || []).filter(e => e && (e.type === 'cell' || e.type === 'pick')).map(e => (e.cell != null ? e.cell : e.idx));
+      let cc = 0; for (let i = 0; i < b.secret.cells.length; i++) { if (picks[i] === b.secret.cells[i]) cc++; else break; }
+      return cc / b.secret.cells.length;
+    },
+    humanP(lvl) { const d = dOf(lvl); return { p: clamp(0.85 - 0.35 * d, 0.22, 0.85), kind: 'route' }; }
+  }
+};
+
+// The rest of LUCK: all ungraded 'fate' entries so luck runs on the SAME v4 shell + transport as skill. Pure theatre;
+// the real outcome is the provably-fair advance roll at /api/crack (grade returns null). Presenters stay outcome-agnostic.
+['wheel', 'dice', 'cardflip', 'slots', 'roulette', 'shells', 'scratch', 'plinko', 'keno', 'goldbar', 'magnetgrab', 'fuserace', 'elevatorroulette', 'safedial'].forEach(function (k) {
+  if (!GAMES[k]) GAMES[k] = { family: 'fate', label: k, build: function () { return { data: {}, pixels: {}, secret: {} }; }, grade: function () { return null; }, humanP: function () { return { p: 1, kind: 'fate' }; } };
+});
+// plinko & roulette use INTERACTIVE fate presenters that read st.data (peg board / wheel layout). The generic stub above
+// only sends data:{}, so their boards rendered EMPTY (plinko) / threw on missing options (roulette). Give them real layout
+// data here (theatre only; outcome is still the fate roll, grade returns null). (Jake playtest 2026-09-13)
+GAMES.plinko = { family: 'fate', label: 'plinko', build: function () { return { data: { rows: 8, slots: 9, vals: [9, 3, 1, 0, 0, 0, 1, 3, 9], maxV: 9 }, pixels: {}, secret: {} }; }, grade: function () { return null; }, humanP: function () { return { p: 1, kind: 'fate' }; } };
+GAMES.roulette = { family: 'fate', label: 'roulette', build: function () { return { data: { N: 16, options: [{ k: 'single', cover: 1 }, { k: 'split', cover: 2 }, { k: 'corner', cover: 4 }] }, pixels: {}, secret: {} }; }, grade: function () { return null; }, humanP: function () { return { p: 1, kind: 'fate' }; } };
+
+// ── SKILL V4 REACTION/EXECUTION (Jake 2026-09-12): the old deterministic single-tap-timing skill pool (pendulum/orbit/slider/pulse/
+//    crosshair/dial/dialcombo/align3/torque/tumbler/stopwatch/beam/wirecut/voltage/keypad) is WIPED. A fixed-latency bot or an agent
+//    trained on those exact motion curves could walk them. Replaced with a NEW verb — PRECISE DISCRETE EXECUTION UNDER UNCERTAINTY
+//    (reaction, reactive sequences, charge/aim-with-feedback). Every new game: seed-not-answer (grading key only in `secret`, never
+//    in `data`), server-graded from streamed events, NEW mechanic + NEW key (a trained-on-old-games agent is worthless), and NOT a
+//    mimic of Dexterity (continuous drag) / Rhythm (beat entrainment) / Memory (recall) / Perception (judge a still image).
+//    data.mode uses an 'rx' prefix (NOT 'sk') so frameCount() returns 0 => client-drawn, no server PNG. See the SKILL V4 block below.
+/* --- WIPED SKILL V3 BATCH 1 (pendulum/orbit/slider/pulse) --- deleted 2026-09-12
+(function () {
+  const skHumanP = function (lvl) { const d = dOf(lvl); return { p: clamp(0.9 - 0.45 * d, 0.05, 0.9), kind: 'single' }; };
+  GAMES.pendulum = {
+    family: 'skill', label: 'Wrecking Ball',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'pendulum', lvl)), d = dOf(lvl); const omega = +(0.0040 * (1 + 1.35 * d)).toFixed(6); const tol = Math.round(260 - 150 * d); return { data: { mode: 'skpend', omega: omega, dur: 6000, skin: { label: 'Wrecking Ball' } }, secret: { tol: tol, omega: omega } }; },
+    grade: function (b, lvl, ev) { const tap = (ev || []).find(e => e && e.type === 'tap'); if (!tap) return 0; const t = tap.t || 0; if (t < 250) return 0; const om = b.secret.omega, p = om * t, k = Math.round((p - Math.PI / 2) / Math.PI), tb = (Math.PI / 2 + k * Math.PI) / om; return clamp(1 - Math.abs(t - tb) / b.secret.tol, 0, 1); },
+    humanP: skHumanP
+  };
+  GAMES.orbit = {
+    family: 'skill', label: 'Satellite Lock',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'orbit', lvl)), d = dOf(lvl); const omega = +(0.0034 * (1 + 1.4 * d)).toFixed(6); const tol = Math.round(255 - 148 * d); return { data: { mode: 'skorbit', omega: omega, dur: 6000, skin: { label: 'Satellite Lock' } }, secret: { tol: tol, omega: omega } }; },
+    grade: function (b, lvl, ev) { const tap = (ev || []).find(e => e && e.type === 'tap'); if (!tap) return 0; const t = tap.t || 0; if (t < 250) return 0; const om = b.secret.omega, TAU2 = Math.PI * 2, tgt = 3 * Math.PI / 2, k = Math.round((om * t - tgt) / TAU2), tt = (tgt + k * TAU2) / om; return clamp(1 - Math.abs(t - tt) / b.secret.tol, 0, 1); },
+    humanP: skHumanP
+  };
+  GAMES.slider = {
+    family: 'skill', label: 'Rail Brake',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'slider', lvl)), d = dOf(lvl); const omega = +(0.0036 * (1 + 1.2 * d)).toFixed(6); const tolPos = +(0.31 - 0.19 * d).toFixed(4); return { data: { mode: 'skslider', omega: omega, dur: 6000, skin: { label: 'Rail Brake' } }, secret: { tolPos: tolPos, omega: omega } }; },
+    grade: function (b, lvl, ev) { const tap = (ev || []).find(e => e && e.type === 'tap'); if (!tap) return 0; const t = tap.t || 0; if (t < 250) return 0; const pos = Math.abs(Math.sin(b.secret.omega * t)); return clamp(1 - pos / b.secret.tolPos, 0, 1); },
+    humanP: skHumanP
+  };
+  GAMES.pulse = {
+    family: 'skill', label: 'Shockwave',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'pulse', lvl)), d = dOf(lvl); const cycle = Math.round(1500 - 650 * d); const rT = +(0.55 + r.u() * 0.35).toFixed(3); const tolR = +(0.22 - 0.125 * d).toFixed(4); return { data: { mode: 'skpulse', cycle: cycle, dur: 6000, skin: { label: 'Shockwave' } }, pixels: { rT: rT }, secret: { tolR: tolR, cycle: cycle, rT: rT } }; },
+    grade: function (b, lvl, ev) { const tap = (ev || []).find(e => e && e.type === 'tap'); if (!tap) return 0; const t = tap.t || 0; if (t < 200) return 0; const rr = (t % b.secret.cycle) / b.secret.cycle; return clamp(1 - Math.abs(rr - b.secret.rT) / b.secret.tolR, 0, 1); },
+    humanP: skHumanP
+  };
+})();
+// ── SKILL V3 Batch 2: aim / momentum / multi-stage (Sniper Window / Safe Dial / Triple Tumbler / Triple Align) ──
+(function () {
+  const skHumanP = function (lvl) { const d = dOf(lvl); return { p: clamp(0.9 - 0.45 * d, 0.05, 0.9), kind: 'single' }; };
+  const TAU2 = Math.PI * 2;
+  const angDist = (a, b2) => { const x = ((a - b2) % TAU2 + TAU2) % TAU2; return Math.min(x, TAU2 - x); };
+  GAMES.crosshair = {
+    family: 'skill', label: 'Sniper Window',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'crosshair', lvl)), d = dOf(lvl); const omx = +(0.0026 * (1 + 1.2 * d)).toFixed(6), omy = +(2 * omx).toFixed(6); const tol = +(0.27 - 0.155 * d).toFixed(4); return { data: { mode: 'skaim', omx: omx, omy: omy, dur: 6000, skin: { label: 'Sniper Window' } }, secret: { tol: tol, omx: omx, omy: omy } }; },
+    grade: function (b, lvl, ev) { const tap = (ev || []).find(e => e && e.type === 'tap'); if (!tap) return 0; const t = tap.t || 0; if (t < 250) return 0; const err = Math.hypot(Math.sin(b.secret.omx * t), Math.sin(b.secret.omy * t)); return clamp(1 - err / b.secret.tol, 0, 1); },
+    humanP: skHumanP
+  };
+  GAMES.dial = {
+    family: 'skill', label: 'Safe Dial',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'dial', lvl)), d = dOf(lvl); const v0 = +(0.011 * (1 + 0.9 * d)).toFixed(6); const a = +(v0 / (2600 - 900 * d)).toFixed(9); const notch = +(r.u() * TAU2).toFixed(4); const tol = +(0.52 - 0.33 * d).toFixed(4); return { data: { mode: 'skdial', v0: v0, a: a, dur: 6000, skin: { label: 'Safe Dial' } }, pixels: { notch: notch }, secret: { tol: tol, v0: v0, a: a, notch: notch } }; },
+    grade: function (b, lvl, ev) { const tap = (ev || []).find(e => e && e.type === 'tap'); if (!tap) return 0; let t = tap.t || 0; if (t < 250) return 0; const tStop = b.secret.v0 / b.secret.a; if (t > tStop) t = tStop; const th = b.secret.v0 * t - 0.5 * b.secret.a * t * t; return clamp(1 - angDist(th, b.secret.notch) / b.secret.tol, 0, 1); },
+    humanP: skHumanP
+  };
+  GAMES.dialcombo = {
+    family: 'skill', label: 'Triple Tumbler',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'dialcombo', lvl)), d = dOf(lvl); const pins = []; for (let i = 0; i < 3; i++) pins.push({ om: +(0.0044 * (1 + 1.1 * d) * (0.85 + i * 0.18)).toFixed(6) }); const tol = Math.round(270 - 150 * d); return { data: { mode: 'sktriple', pins: pins, dur: 8000, skin: { label: 'Triple Tumbler' } }, secret: { tol: tol, pins: pins } }; },
+    grade: function (b, lvl, ev) { const taps = (ev || []).filter(e => e && e.type === 'tap'); if (taps.length < 3) return 0; let sum = 0; for (let i = 0; i < 3; i++) { const om = b.secret.pins[i].om, t = taps[i].t || 0; const k = Math.round((om * t - Math.PI / 2) / Math.PI), tb = (Math.PI / 2 + k * Math.PI) / om; sum += clamp(1 - Math.abs(t - tb) / b.secret.tol, 0, 1); } return clamp(sum / 3, 0, 1); },
+    humanP: skHumanP
+  };
+  GAMES.align3 = {
+    family: 'skill', label: 'Triple Align',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'align3', lvl)), d = dOf(lvl); const tAlign = 2200 + r.u() * 3500; const arcs = []; for (let i = 0; i < 3; i++) { const om = +(0.0022 * (1 + 1.0 * d) * (1 + i * 0.55)).toFixed(6); arcs.push({ om: om, ph: +((((3 * Math.PI / 2) - om * tAlign) % TAU2 + TAU2) % TAU2).toFixed(4) }); } const tol = +(0.42 - 0.255 * d).toFixed(4); return { data: { mode: 'skalign', arcs: arcs, dur: 9000, skin: { label: 'Triple Align' } }, secret: { tol: tol, arcs: arcs } }; },
+    grade: function (b, lvl, ev) { const tap = (ev || []).find(e => e && e.type === 'tap'); if (!tap) return 0; const t = tap.t || 0; if (t < 250) return 0; const top = 3 * Math.PI / 2; let worst = 0; for (const arc of b.secret.arcs) { const e2 = angDist(arc.om * t + arc.ph, top); if (e2 > worst) worst = e2; } return clamp(1 - worst / b.secret.tol, 0, 1); },
+    humanP: skHumanP
+  };
+})();
+--- end WIPED SKILL V3 BATCH 1+2 --- */
+
+// what the browser is allowed to receive: DATA ONLY. pixels+secret never ship as parseable fields.
+function renderSafe(gameKey, built) { return { gameKey, data: built.data }; }
+
+/* --- WIPED SKILL V3 BATCH 3 (torque/tumbler/stopwatch) --- deleted 2026-09-12
+(function () {
+  const skHumanP = function (lvl) { const d = dOf(lvl); return { p: clamp(0.9 - 0.45 * d, 0.05, 0.9), kind: "single" }; };
+  GAMES.torque = {
+    family: "skill", label: "Torque Wrench",
+    build: function (seed, lvl) { const r = rng(seedMat(seed, "torque", lvl)), d = dOf(lvl); const rate = +(0.55 + 0.35 * d).toFixed(4); const target = +(0.45 + r.u() * 0.35).toFixed(3); const tol = +(0.24 - 0.14 * d).toFixed(4); return { data: { mode: "sktorque", rate: rate, dur: 6000, skin: { label: "Torque Wrench" } }, pixels: { target: target }, secret: { tol: tol, rate: rate, target: target } }; },
+    grade: function (b, lvl, ev) { const dn = (ev || []).find(e => e && e.type === "down"); const up = (ev || []).find(e => e && e.type === "up"); if (!dn || !up) return 0; const hold = (up.t || 0) - (dn.t || 0); if (hold <= 0) return 0; const v = clamp(b.secret.rate * hold / 1000, 0, 1.2); return clamp(1 - Math.abs(v - b.secret.target) / b.secret.tol, 0, 1); },
+    humanP: skHumanP
+  };
+  GAMES.tumbler = {
+    family: "skill", label: "Shear Line",
+    build: function (seed, lvl) { const r = rng(seedMat(seed, "tumbler", lvl)), d = dOf(lvl); const omega = +(0.0034 * (1 + 1.3 * d)).toFixed(6); const shear = +(0.30 + r.u() * 0.40).toFixed(3); const tol = +(0.23 - 0.135 * d).toFixed(4); return { data: { mode: "skshear", omega: omega, dur: 6000, skin: { label: "Shear Line" } }, pixels: { shear: shear }, secret: { tol: tol, omega: omega, shear: shear } }; },
+    grade: function (b, lvl, ev) { const tap = (ev || []).find(e => e && e.type === "tap"); if (!tap) return 0; const t = tap.t || 0; if (t < 250) return 0; const pos = 0.5 + 0.5 * Math.sin(b.secret.omega * t); return clamp(1 - Math.abs(pos - b.secret.shear) / b.secret.tol, 0, 1); },
+    humanP: skHumanP
+  };
+  GAMES.stopwatch = {
+    family: "skill", label: "Detonator Timer",
+    build: function (seed, lvl) { const r = rng(seedMat(seed, "stopwatch", lvl)), d = dOf(lvl); const period = Math.round(1500 - 650 * d); const mark = +(0.55 + r.u() * 0.35).toFixed(3); const tol = +(0.20 - 0.11 * d).toFixed(4); return { data: { mode: "sktimer", period: period, dur: 6000, skin: { label: "Detonator Timer" } }, pixels: { mark: mark }, secret: { tol: tol, period: period, mark: mark } }; },
+    grade: function (b, lvl, ev) { const tap = (ev || []).find(e => e && e.type === "tap"); if (!tap) return 0; const t = tap.t || 0; if (t < 150) return 0; const pos = (t % b.secret.period) / b.secret.period; return clamp(1 - Math.abs(pos - b.secret.mark) / b.secret.tol, 0, 1); },
+    humanP: skHumanP
+  };
+})();
+// ── SKILL V3 Batch 4 (shallow): reaction / dexterity / match / speed (Trip Beam / Steady Hand / Surge Match / Reflex Grid) ──
+(function () {
+  const skHumanP = function (lvl) { const d = dOf(lvl); return { p: clamp(0.9 - 0.45 * d, 0.05, 0.9), kind: "single" }; };
+  GAMES.beam = {
+    family: "skill", label: "Trip Beam",
+    build: function (seed, lvl) { const r = rng(seedMat(seed, "beam", lvl)), d = dOf(lvl); const oma = +(0.0030 * (1 + 1.2 * d)).toFixed(6), omb = +(0.0019 * (1 + 1.2 * d)).toFixed(6); const tol = +(0.22 - 0.125 * d).toFixed(4); return { data: { mode: "skbeam", oma: oma, omb: omb, dur: 6000, skin: { label: "Trip Beam" } }, secret: { tol: tol, oma: oma, omb: omb } }; },
+    grade: function (b, lvl, ev) { const tap = (ev || []).find(e => e && e.type === "tap"); if (!tap) return 0; const t = tap.t || 0; if (t < 250) return 0; const ba = (1 + Math.sin(b.secret.oma * t)) / 2, gp = (1 + Math.sin(b.secret.omb * t)) / 2; return clamp(1 - Math.abs(ba - gp) / b.secret.tol, 0, 1); },
+    humanP: skHumanP
+  };
+  GAMES.wirecut = {
+    family: "skill", label: "Steady Hand",
+    build: function (seed, lvl) { const r = rng(seedMat(seed, "wirecut", lvl)), d = dOf(lvl); const amp = +(0.18 + 0.14 * d).toFixed(3), fx = +(4 + 4 * d).toFixed(3); const tol = +(0.24 - 0.13 * d).toFixed(4); return { data: { mode: "skdrag", amp: amp, fx: fx, dur: 7000, skin: { label: "Steady Hand" } }, secret: { tol: tol, amp: amp, fx: fx } }; },
+    grade: function (b, lvl, ev) { const pts = (ev || []).filter(e => e && e.type === "pt"); if (pts.length < 5) return 0; let xmin = 1, xmax = 0, maxDev = 0; for (const p of pts) { const x = clamp(p.x || 0, 0, 1), y = clamp(p.y || 0, 0, 1); if (x < xmin) xmin = x; if (x > xmax) xmax = x; const dev = Math.abs(y - (0.5 + b.secret.amp * Math.sin(b.secret.fx * x))); if (dev > maxDev) maxDev = dev; } if (xmax - xmin < 0.6) return 0; return clamp(1 - maxDev / b.secret.tol, 0, 1); },
+    humanP: skHumanP
+  };
+  GAMES.voltage = {
+    family: "skill", label: "Surge Match",
+    build: function (seed, lvl) { const r = rng(seedMat(seed, "voltage", lvl)), d = dOf(lvl); const speed = +(0.45 + 0.4 * d).toFixed(4); const target = +(0.4 + r.u() * 0.4).toFixed(3); const tol = +(0.21 - 0.115 * d).toFixed(4); return { data: { mode: "skmatch", speed: speed, dur: 6000, skin: { label: "Surge Match" } }, pixels: { target: target }, secret: { tol: tol, speed: speed, target: target } }; },
+    grade: function (b, lvl, ev) { const tap = (ev || []).find(e => e && e.type === "tap"); if (!tap) return 0; const t = tap.t || 0; if (t < 150) return 0; const bar = clamp(b.secret.speed * t / 1000, 0, 1); return clamp(1 - Math.abs(bar - b.secret.target) / b.secret.tol, 0, 1); },
+    humanP: skHumanP
+  };
+  GAMES.keypad = {
+    family: "skill", label: "Reflex Grid",
+    build: function (seed, lvl) { const r = rng(seedMat(seed, "keypad", lvl)), d = dOf(lvl); const n = 4 + Math.round(2 * d); const winLen = Math.round(680 - 300 * d); const cells = []; let t = 500; for (let i = 0; i < n; i++) { cells.push({ x: +(0.15 + r.u() * 0.7).toFixed(3), y: +(0.2 + r.u() * 0.6).toFixed(3), s: Math.round(t), e: Math.round(t + winLen) }); t += winLen + 220; } return { data: { mode: "skgrid", cells: cells, n: n, dur: t + 500, skin: { label: "Reflex Grid" } }, secret: { cells: cells, n: n } }; },
+    grade: function (b, lvl, ev) { const hits = (ev || []).filter(e => e && e.type === "hit"); let got = 0; for (let i = 0; i < b.secret.n; i++) { const c = b.secret.cells[i]; if (hits.some(hh => (hh.i | 0) === i && (hh.t || 0) >= c.s - 110 && (hh.t || 0) <= c.e + 110)) got++; } return clamp(got / b.secret.n, 0, 1); },
+    humanP: skHumanP
+  };
+})();
+--- end WIPED SKILL V3 BATCH 3+4 --- */
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+// ── SKILL V4: PRECISE DISCRETE EXECUTION UNDER UNCERTAINTY (Jake 2026-09-12). 15 brand-new family:'skill' games in 3 clusters.
+//    REACTION (go-cue at a server-RANDOM per-play time; grade reaction offset; REJECT taps <110ms after the cue as pre-fire =>
+//    kills auto-tap/fixed-latency bots), SEQUENCE (state reacts to presses; not a fixed animation), CHARGE/AIM (set a value under
+//    control feedback). seed-not-answer: the go-times / correct pads / targets / bands live ONLY in `secret`; `data` ships motion/
+//    layout params a payload bot cannot solve from. data.mode has an 'rx' prefix so frameCount()==0 (client-drawn, no server PNG).
+// ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+(function () {
+  const rxHumanP = function (lvl) { const d = dOf(lvl); return { p: clamp(0.9 - 0.5 * d, 0.05, 0.9), kind: 'single' }; };
+  const RXFLOOR = 110;   // reject taps faster than ~110ms after the go-cue as pre-fire (superhuman => bot). Applied per REACTION game.
+  const RXGOOD = 340;    // any reaction at/under this = a normal human reflex => full credit (elite ~180, average ~250, comfortable ~340).
+  // Acceptance window (ms): kept HUMANE at depth so a genuine correct reaction always lands inside it. Was 560->260 (260 is superhuman
+  // at the 0.5 pass bar); now 640->440 so the window never dips below RXGOOD + headroom. Difficulty deep still ramps via the pass BAR + coreSpeed,
+  // not by shrinking the window below what a human can hit. Anti-bot rests on RXFLOOR (pre-fire reject) + the server-random go time.
+  const win = (d) => Math.round(640 - 200 * d);          // reaction acceptance window (ms): ch1 ~640 -> ch10 ~440
+  // Score: pre-fire (<RXFLOOR) or missed window (>w) => 0. A normal human reflex (<=RXGOOD) => full 1.0 so a CORRECT tap always clears the bar;
+  // beyond RXGOOD it decays linearly to 0 at the window edge. Empty input never reaches react() (callers return 0 when there is no tap).
+  const react = (off, w) => { if (off < RXFLOOR) return 0; if (off > w) return 0; if (off <= RXGOOD) return 1; return clamp(1 - (off - RXGOOD) / (w - RXGOOD), 0, 1); };
+  const goT = (r, lo, hi) => Math.round(lo + r.u() * (hi - lo));   // server-random go time per play (never memorizable)
+  // CHOICE / SEARCH reaction: for games where the SKILL is choosing CORRECTLY (which pad / which cell / all the greens) rather than
+  // raw reflex, a correct choice made after the pre-fire floor and inside a GENEROUS window earns full credit. Difficulty comes from
+  // the choice LOAD (more options, subtler target, faster reveal, tighter deadline) — NOT a razor reaction gate that fails a correct
+  // answer for being a normal 0.7-1.5s. This keeps correct play ~1.0 so bars hold and the odds ROLL sets the real chance (unified
+  // bar+roll model). Only reachable on a CORRECT choice (callers return 0 on a wrong pick), and RXFLOOR still rejects pre-fire bots.
+  const winChoice = (d) => Math.round(2600 - 900 * d);   // choice window (ms): ch1 ~2600 -> ch10 ~1700 (ample for read + find + tap)
+  const reactChoice = (off, w) => { if (off < RXFLOOR) return 0; if (off <= w) return 1; return clamp(1 - (off - w) / 1200, 0.4, 1); };
+
+  // ═══ REACTION CLUSTER (5) ═══
+  // 1) GO / NO-GO (INHIBITION, multi-target) — at ONE server-random instant a whole GRID of pads lights simultaneously: a subset
+  //    GREEN (tap ALL of them), the rest RED (never tap). Tapping any red = instant fail. NOT a single-tap reaction: it's parallel
+  //    selection + inhibition, so the render (lit grid) and input (tap-many / avoid-decoys) are unlike the pure-reaction games.
+  GAMES.gonogo = {
+    family: 'skill', label: 'Go / No-Go',
+    build: function (seed, lvl) {
+      const r = rng(seedMat(seed, 'gonogo', lvl)), d = dSkill(lvl);
+      const cols = 3, rows = 2 + Math.round(d), cells = cols * rows;   // grid grows with level (3x2 -> 3x3)
+      // choose which pads are GREEN this play (server-random count + positions). At least 1 green, and leave >=1 red decoy.
+      const nGo = clamp(1 + Math.round(1 * d + r.u() * 1.3), 1, cells - 1);
+      const idxs = []; for (let i = 0; i < cells; i++) idxs.push(i);
+      for (let i = idxs.length - 1; i > 0; i--) { const j = r.int(i + 1); const tmp = idxs[i]; idxs[i] = idxs[j]; idxs[j] = tmp; }
+      const goSet = idxs.slice(0, nGo).sort((a, c) => a - c);
+      // NEAR-GREEN TRAPS (Jake 2026-09-12): seed 1-2 "green-ish" decoy pads (a hue just OFF true-green — olive/teal-ish) among the reds.
+      // They fool a crude green-DETECTOR bot that taps anything greenish; a human sees they are not the true saturated green and skips
+      // them. Tapping a near-green busts exactly like a red. True greens stay clearly distinguishable (a wide hue gap from the near set).
+      const rest = idxs.slice(nGo);                                     // the non-green pads (reds pool)
+      const nNear = 0;   // NEAR-GREEN TRAPS DISABLED (Jake 2026-09-13): the decoy rendered too close to true green (~rgb(112,231,112) vs 61,255,143), so humans tapped a "green" tile and busted — unfair. gonogo bot-resistance now rests on the humanness gate + multi-select. Re-enable only with a clearly distinct hue.
+      const nearSet = rest.slice(0, nNear).sort((a, c) => a - c);       // greenish-but-not-green decoys
+      const nearHueOff = +(0.34 - 0.06 * d).toFixed(3);                 // how far the near-green sits off true green (still clearly off; a hint tighter deep)
+      const revealT = goT(r, 800, 2000), w = winChoice(d) + 500;   // parallel select+inhibit: generous window (skill = pick all TRUE greens, avoid reds + near-greens), not raw speed
+      // data ships the grid geometry + which pads light true-green / near-green / red at revealT so the CLIENT can draw the lit board live.
+      // Anti-bot: server-random reveal time + 110ms pre-fire floor + red-tap fail + NEAR-GREEN-tap fail — a blind masher hits a red, a
+      // greenish-detector taps a near-green, both bust; a pre-reveal spammer trips the floor.
+      // ANTI-LEAK (Jake 2026-09-13): goSet/nearSet are the ANSWER — they must NOT ride in `data` (a JSON-only bot read them and scored 1.0).
+      // `data` keeps ONLY geometry + timing (grid dims, counts, reveal instant, window). The lit board (which pads are green) is rendered
+      // into a server FRAME (render.js rxgonogo) that is TIME-GATED in getFrame so it can't be pre-fetched before revealT. Grade uses `secret`.
+      return { data: { mode: 'rxgonogo', srvFrame: 1, cols, rows, cells, nGo, nNear: nNear, nearHueOff, revealT, dur: revealT + w + 900, skin: { label: 'Go / No-Go' } }, secret: { cols, rows, cells, goSet, nearSet, nearHueOff, revealT, w } };
+    },
+    grade: function (b, lvl, ev) {
+      const taps = (ev || []).filter(e => e && e.type === 'tap' && e.idx != null); if (!taps.length) return 0;
+      const s = b.secret, goSet = new Set(s.goSet);
+      let firstOff = Infinity, hit = new Set();
+      for (const tp of taps) {
+        const t = tp.t || 0, idx = tp.idx | 0;
+        if (idx < 0 || idx >= s.cells) continue;
+        const off = t - s.revealT;
+        if (off < RXFLOOR) return 0;                 // tapped before the reveal (or superhuman) = pre-fire fail
+        if (!goSet.has(idx)) return 0;               // tapped a RED pad = false alarm => instant fail (inhibition failure)
+        if (!hit.has(idx)) { hit.add(idx); firstOff = Math.min(firstOff, off); }
+      }
+      if (!hit.size) return 0;
+      // must select ALL greens (avoid every red). The SKILL is the correct selection, not raw speed: a correct first tap inside the
+      // generous choice window earns full credit; difficulty comes from grid size + green/red count. reactChoice keeps a slow-but-correct
+      // completion from being an unfair zero (Jake: "I tapped every green and still lost"). Empty / red / pre-fire already returned 0 above.
+      const coverage = hit.size / s.goSet.length;
+      const speed = reactChoice(firstOff, s.w);
+      return clamp(coverage * speed, 0, 1);
+    },
+    humanP: rxHumanP
+  };
+  // 2) ODD SIGNAL (VISUAL SEARCH) — a full GRID of identical glyphs (same shape + rotation). At a server-random instant the whole
+  //    field reveals and exactly ONE cell is the odd-one-out (a different glyph, or the same glyph rotated). The player must SEARCH
+  //    the field and tap the outlier. Unlike the reaction games there is no "it turns green" cue — nothing flashes at the target;
+  //    the difficulty is finding it (more cells + a subtler difference deep). Different render (glyph grid), failure = wrong cell.
+  GAMES.oddsignal = {
+    family: 'skill', label: 'Odd Signal',
+    build: function (seed, lvl) {
+      const r = rng(seedMat(seed, 'oddsignal', lvl)), d = dSkill(lvl);
+      const cols = 4 + Math.round(d), rows = 3 + Math.round(d), cells = cols * rows;   // 4x3 -> 5x4 grid; MORE cells = harder search
+      const oddIdx = r.int(cells);
+      const baseGlyph = r.int(6), baseRot = r.int(4);   // 6 glyph shapes x 4 quarter-turn rotations
+      // ILLUSION-GRADE outlier (Jake 2026-09-12): the odd cell differs by a SUBTLE perceptual cue a human eye catches but a blind CV bot
+      // struggles with. Shallow = a different SHAPE (still subtle deep); deeper = same shape with a small ROTATION, or the same shape at a
+      // slightly off SHADE. oddKind 0=shape, 1=rotation, 2=shade. Rotation/shade deltas shrink with depth (camo/forgery-style).
+      const oddKind = d < 0.35 ? 0 : r.int(3);
+      let oddGlyph = baseGlyph, oddRot = baseRot, baseShade = +(0.62 + r.u() * 0.10).toFixed(3), oddShade = baseShade;
+      const rotStep = d < 0.5 ? 2 : 1;                                   // deep: a single quarter-turn (subtler) vs a clear flip shallow
+      const shadeDelta = +(0.16 - 0.10 * d).toFixed(3);                  // shade gap: clear ch1 -> forgery-subtle ch10
+      if (oddKind === 0) { oddGlyph = (baseGlyph + 1 + r.int(5)) % 6; }
+      else if (oddKind === 1) { oddRot = (baseRot + rotStep) % 4; }
+      else { oddShade = +clamp(baseShade + (r.u() < 0.5 ? shadeDelta : -shadeDelta), 0.35, 0.95).toFixed(3); }
+      const revealT = goT(r, 700, 1600), w = winChoice(d) + 500;   // a visual SEARCH: generous window (the skill is finding it), difficulty = grid size + subtlety
+      // grid layout + the odd cell + glyph/shade descriptors ship in data so the CLIENT can draw the field live. Anti-bot: the outlier is
+      // at a server-random cell AND server-random reveal time, the difference is illusion-grade (a blind pixel-spray CV bot can't localise
+      // a 1-quarter-turn or a 5% shade shift among many cells), and grade() rejects pre-reveal taps (pre-fire) + wrong cells.
+      // ANTI-LEAK (Jake 2026-09-13): oddIdx + the odd glyph/rot/shade descriptors ARE the answer (a JSON bot located the outlier from
+      // `data` and tapped it = 1.0). `data` keeps ONLY grid dims + reveal timing. The full glyph FIELD (base cells + the outlier) renders
+      // into a server FRAME (render.js rxoddsignal), TIME-GATED in getFrame (no pre-fetch before revealT). Grade uses secret.oddIdx.
+      return { data: { mode: 'rxoddsignal', srvFrame: 1, cols, rows, cells, revealT, dur: revealT + w + 900, skin: { label: 'Odd Signal' } }, secret: { oddIdx, baseGlyph, baseRot, oddGlyph, oddRot, oddKind, baseShade, oddShade, revealT, w, cells } };
+    },
+    grade: function (b, lvl, ev) {
+      const taps = (ev || []).filter(e => e && e.type === 'tap' && e.idx != null); if (!taps.length) return 0; const s = b.secret;
+      const tap = taps.find(tp => (tp.idx | 0) === s.oddIdx) || taps[0];
+      if ((tap.idx | 0) !== s.oddIdx) return 0;   // tapped the wrong cell = search failure
+      const off = (tap.t || 0) - s.revealT; if (off < RXFLOOR) return 0;   // tapped before the field revealed = pre-fire
+      return reactChoice(off, s.w);   // found the odd one in the (generous) window => full credit; difficulty is the search, not the speed
+    },
+    humanP: rxHumanP
+  };
+  // 3) TRAPDOOR (TARGET DISCRIMINATION) — a row of N pads, each a different colour. A TARGET swatch is shown; at a server-random instant the
+  //    pads "arm" (go-cue): tap the ONE pad whose colour matches the target. Tapping any other pad, or firing before the go-cue, fails. A
+  //    fixed-latency BLIND bot cannot read WHICH pad matches (the live pad index lives in secret) so it can only guess 1/N. DEEP (ch>=~6) the
+  //    round REPEATS with a fresh target and re-shuffled pads (2-stage confirm), so a blind guesser must be right (1/N)^2 => its lucky-pick
+  //    floor collapses below the backbone. Correct human play (read the swatch, tap the match, each round) => ~1.0.
+  GAMES.trapdoor = {
+    family: 'skill', label: 'Trapdoor',
+    build: function (seed, lvl) {
+      const r = rng(seedMat(seed, 'trapdoor', lvl)), d = dSkill(lvl);
+      const pads = 4 + Math.round(d);                         // 4 pads ch1 -> 5 pads ch10
+      const rounds = d >= 0.55 ? 2 : 1;                       // deep: a 2-stage confirm so a lucky blind pick must recur
+      const w = winChoice(d);
+      const stages = []; let base = 0;
+      for (let rr = 0; rr < rounds; rr++) {
+        const pal = [0, 1, 2, 3, 4].slice(0, Math.max(pads, 5));
+        for (let i = pal.length - 1; i > 0; i--) { const j = r.int(i + 1); const t = pal[i]; pal[i] = pal[j]; pal[j] = t; }
+        const padCols = pal.slice(0, pads);
+        const liveIdx = r.int(pads);
+        const goTime = base + goT(r, 800, 2000);
+        stages.push({ padCols, targetCol: padCols[liveIdx], liveIdx, goTime, w });
+        base = goTime + w + 500;
+      }
+      const dur = base + 300;
+      // ANTI-LEAK (Jake 2026-09-13): padCols + targetCol together REVEAL the matching pad index (a JSON bot found padCols.indexOf(targetCol)
+      // and tapped = 1.0). `data` keeps ONLY pads/rounds + per-stage goTime (timing). The target swatch + the armed pad row render into a
+      // per-stage server FRAME (render.js rxtrapdoor, frame i = stage i), TIME-GATED in getFrame (no pre-fetch before goTime). Grade = secret.
+      return { data: { mode: 'rxtrapdoor', srvFrame: 1, pads, rounds, stages: stages.map(x => ({ goTime: x.goTime })), w, dur, skin: { label: 'Trapdoor' } }, secret: { stages, w } };
+    },
+    grade: function (b, lvl, ev) {
+      const taps = (ev || []).filter(e => e && e.type === 'tap' && e.idx != null); if (!taps.length) return 0; const s = b.secret;
+      let acc = 0; const used = new Array(taps.length).fill(false);
+      for (const st of s.stages) {
+        // the tap for this stage = the earliest unused tap at/after this stage's go time (pre-fire rejected by the floor below).
+        let ti = -1, bd = 1e9; for (let i = 0; i < taps.length; i++) { if (used[i]) continue; const off = (taps[i].t || 0) - st.goTime; if (off >= -RXFLOOR && off < bd) { bd = off; ti = i; } }
+        if (ti < 0) return 0; used[ti] = true; const tp = taps[ti];
+        if ((tp.idx | 0) !== st.liveIdx) return 0;                    // wrong pad this stage = fail
+        const off = (tp.t || 0) - st.goTime; if (off < RXFLOOR) return 0;   // pre-fire = fail
+        acc += reactChoice(off, st.w);
+      }
+      return clamp(acc / s.stages.length, 0, 1);                      // every stage must be the correct pad; averaged reaction credit
+    },
+    humanP: rxHumanP
+  };
+  // 4) COLOUR CALL (FINE-SHADE DISCRIMINATION) — a called colour appears at a server-random time; tap the matching pad. The called colour is
+  //    a FINE SHADE: the target's hue family is shared by MOST pads (each at a different shade), so hue alone can't isolate it — only the
+  //    exact SHADE match does. A crude hue bot picks among same-hue pads (~1/N). DEEP (ch>=~6) the call REPEATS with a fresh shade + re-laid
+  //    pads (2-stage confirm) so a blind guesser's lucky-pick floor collapses to (1/N)^2. Correct human play (read the shade each round) ~1.0.
+  GAMES.colourcall = {
+    family: 'skill', label: 'Colour Call',
+    build: function (seed, lvl) {
+      const r = rng(seedMat(seed, 'colourcall', lvl)), d = dSkill(lvl);
+      const pads = 4 + Math.round(d), w = winChoice(d), rounds = d >= 0.55 ? 2 : 1;
+      const sep = 0.16 - 0.09 * d;                                 // min shade gap: clear ch1, subtle ch10
+      const stages = []; let base = 0;
+      for (let rr = 0; rr < rounds; rr++) {
+        const target = r.int(pads);
+        const padHue = [], padShade = [];
+        const tHue = r.int(5);
+        const nShare = Math.max(2, pads - 1 - r.int(2));           // how many pads share the target hue (target + decoys), >= 2
+        const shareIdx = new Set([target]);
+        { const pool = []; for (let i = 0; i < pads; i++) if (i !== target) pool.push(i); for (let i = pool.length - 1; i > 0; i--) { const j = r.int(i + 1); const t = pool[i]; pool[i] = pool[j]; pool[j] = t; } for (let i = 0; i < nShare - 1 && i < pool.length; i++) shareIdx.add(pool[i]); }
+        const usedShades = [];
+        const pickShade = () => { let s2, tries = 0; do { s2 = +(0.20 + r.u() * 0.60).toFixed(3); tries++; } while (tries < 30 && usedShades.some(u => Math.abs(u - s2) < sep)); usedShades.push(s2); return s2; };
+        let otherHues = [0, 1, 2, 3, 4].filter(x => x !== tHue); for (let i = otherHues.length - 1; i > 0; i--) { const j = r.int(i + 1); const t = otherHues[i]; otherHues[i] = otherHues[j]; otherHues[j] = t; }
+        let oh = 0;
+        for (let i = 0; i < pads; i++) { if (shareIdx.has(i)) { padHue[i] = tHue; padShade[i] = pickShade(); } else { padHue[i] = otherHues[oh % otherHues.length]; oh++; padShade[i] = +(0.20 + r.u() * 0.60).toFixed(3); } }
+        const cueT = base + goT(r, 800, 1800);
+        stages.push({ padHue, padShade, callHue: padHue[target], callShade: padShade[target], target, cueT, w });
+        base = cueT + w + 500;
+      }
+      const dur = base + 300;
+      // ANTI-LEAK (Jake 2026-09-13): padHue/padShade + callHue/callShade REVEAL the matching pad (a JSON bot matched call->pad and tapped =
+      // 1.0). `data` keeps ONLY pads/rounds + per-stage cueT (timing). The called swatch + the pad row render into a per-stage server FRAME
+      // (render.js rxcolourcall, frame i = stage i), TIME-GATED in getFrame (no pre-fetch before cueT). Grade uses secret.stages[].target.
+      return { data: { mode: 'rxcolourcall', srvFrame: 1, pads, rounds, stages: stages.map(x => ({ cueT: x.cueT })), w, dur, skin: { label: 'Colour Call' } }, secret: { stages, w } };
+    },
+    grade: function (b, lvl, ev) {
+      const taps = (ev || []).filter(e => e && e.type === 'tap' && e.idx != null); if (!taps.length) return 0; const s = b.secret;
+      let acc = 0; const used = new Array(taps.length).fill(false);
+      for (const st of s.stages) {
+        let ti = -1, bd = 1e9; for (let i = 0; i < taps.length; i++) { if (used[i]) continue; const off = (taps[i].t || 0) - st.cueT; if (off >= -RXFLOOR && off < bd) { bd = off; ti = i; } }
+        if (ti < 0) return 0; used[ti] = true; const tp = taps[ti];
+        if ((tp.idx | 0) !== st.target) return 0;   // wrong pad (incl. the near-match decoy) this stage = fail
+        const off = (tp.t || 0) - st.cueT; if (off < RXFLOOR) return 0;
+        acc += reactChoice(off, st.w);
+      }
+      return clamp(acc / s.stages.length, 0, 1);   // every stage must be the correct pad; averaged reaction credit
+    },
+    humanP: rxHumanP
+  };
+  // 5) TWITCH RELEASE (TRUE-CUE DISCRIMINATION) — HOLD the button. The panel throws several FAKE-OUT flashes (amber blips) before the ONE
+  //    TRUE cue (a sustained GREEN flip). RELEASE only on the true cue. Releasing on (or right after) a fake-out flash fails; a fixed-time
+  //    release lands on a decoy. The decoy flash times ship in data (the human sees them as amber, not green); the TRUE flip time lives in
+  //    secret. Correct human play = ignore the amber blips, release on the green flip => ~1.0.
+  GAMES.twitchrelease = {
+    family: 'skill', label: 'Twitch Release',
+    build: function (seed, lvl) {
+      const r = rng(seedMat(seed, 'twitchrelease', lvl)), d = dSkill(lvl);
+      const flipT = goT(r, 1400, 2800), w = winChoice(d);      // discrimination, not raw reflex: generous release window
+      const nDecoy = 2 + Math.round(d * 2);                    // 2 fake-outs ch1 -> 4 ch10
+      // scatter decoy flashes BEFORE the true flip (each a brief amber blip the human learns to ignore). Keep a clear gap around flipT so
+      // a genuine release lands cleanly. decoyReject = window around a decoy in which a release is judged a fake-out bust.
+      const decoys = []; let dt = 500;
+      for (let i = 0; i < nDecoy; i++) { dt += 260 + r.u() * 520; if (dt < flipT - 360) decoys.push(Math.round(dt)); }
+      const decoyReject = 200;
+      // data ships the flip time (so the client can render the GREEN flip) + the decoy flash times (amber). Anti-bot rests on the
+      // DISCRIMINATION: a blind bot that releases on any visible flash lands on an amber decoy and busts; only a release on the true green
+      // flip (and not within decoyReject of any decoy) scores. (Timing-in-data mirrors trapdoor/colourcall; the wall is telling green from amber.)
+      return { data: { mode: 'rxtwitch', flipT, decoys, decoyReject, dur: flipT + w + 800, skin: { label: 'Twitch Release' } }, secret: { flipT, w, decoys, decoyReject } };
+    },
+    grade: function (b, lvl, ev) {
+      const dn = (ev || []).find(e => e && e.type === 'down'); const up = (ev || []).find(e => e && e.type === 'up'); if (!dn || !up) return 0; const s = b.secret;
+      if ((dn.t || 0) > s.flipT - RXFLOOR) return 0;   // must already be holding before the flip (no last-instant press-release)
+      const ut = up.t || 0;
+      for (const dcy of (s.decoys || [])) { if (Math.abs(ut - dcy) <= s.decoyReject) return 0; }   // released on a fake-out flash = bust
+      if (ut < s.flipT - s.decoyReject) return 0;      // released before the true flip (during quiet or a decoy) = fail
+      return react(ut - s.flipT, s.w);                 // release offset after the TRUE green flip; early release scores 0 via the floor
+    },
+    humanP: rxHumanP
+  };
+
+  // ═══ SEQUENCE CLUSTER (5) ═══ — state reacts to presses; execution, not long recall.
+  // 6) SAFE PROCEDURE — a short directional sequence is shown briefly, then input it under a deadline (3-5 steps => execution).
+  GAMES.safeproc = {
+    family: 'skill', label: 'Safe Procedure',
+    // KNOBS (Jake 2026-09-13, additive; decoys=0/stepMax huge at d=0 so ch1 == old ch1): (1) sequence length n 3->5, (2) show time
+    // showMs 2200->900ms (less time to encode), (3) input deadline (per-item, existing), (4) NEW DECOY flashes decoys 0->~3 — extra
+    // arrows that flash DURING the show phase but are NOT part of the procedure (draw-only mislead; grade ignores them), forcing the
+    // player to encode the real order and reject noise, and (5) NEW per-press burst cap stepMax 3000->600ms — deep, consecutive presses
+    // must come in a quick burst, so you can't slowly reconstruct the sequence one careful key at a time. decoys ships in data (draw-only,
+    // never overlaps the real seq indices in meaning — client just flashes them); stepMax is secret-graded. A correct fast recall ~1.0.
+    build: function (seed, lvl) {
+      const r = rng(seedMat(seed, 'safeproc', lvl)), d = dSkill(lvl);
+      const n = 3 + Math.round(2 * d), seq = []; for (let i = 0; i < n; i++) seq.push(r.int(4));   // 0=up 1=right 2=down 3=left
+      const showMs = Math.round(clamp(2200 - 900 * d, 900, 2200)), deadline = Math.round(1400 + n * (900 - 300 * d));
+      const nDecoy = Math.round(3 * d); const decoys = []; for (let i = 0; i < nDecoy; i++) decoys.push({ id: r.int(4), at: Math.round(120 + r.u() * (showMs - 240)) });   // draw-only mislead flashes during show
+      const stepMax = Math.round(clamp(3000 - 2400 * d, 600, 3000));   // max ms between consecutive presses (deep = a burst, not a slow reconstruct)
+      // seq ships in data so the client can flash it during the show phase (then hides it for input); grade() enforces the input deadline server-side.
+      return { data: { mode: 'rxsafeproc', n, seq, showMs, deadline, decoys, dur: showMs + deadline + 600, skin: { label: 'Safe Procedure' } }, secret: { seq, n, showMs, deadline, stepMax } };
+    },
+    grade: function (b, lvl, ev) {
+      const s = b.secret; const presses = (ev || []).filter(e => e && e.type === 'press');
+      const inp = presses.map(e => e.id | 0);
+      const first = presses[0];
+      // pre-fire reject: the sequence is only hidden (input phase) after showMs; any press before that is superhuman / a t~0 blaster bot.
+      // (the presenter already blocks pre-show taps client-side; grade must mirror it, with a small tolerance.)
+      if (first && (first.t || 0) < s.showMs - 120) return 0;
+      const last = presses.slice(-1)[0];
+      if (last && (last.t || 0) > s.showMs + s.deadline + 200) return 0;   // blew the deadline
+      // BURST CAP (knob 5): consecutive presses must arrive within stepMax of each other. A slow one-key-at-a-time reconstruct blows it.
+      if (s.stepMax) { for (let i = 1; i < presses.length; i++) { if (((presses[i].t || 0) - (presses[i - 1].t || 0)) > s.stepMax + 120) return 0; } }
+      // ANTI-SPRAY (Jake 2026-09-12): a random spray fires a FIXED count of pads; requiring the input length to equal n rejects the
+      // spray outright (wrong press count => 0), while a graded in-order PREFIX still gives a real player smooth partial credit (so the
+      // shared competence bar isn't dragged down). A length-matched random spray then still needs the whole ordered sequence right =>
+      // ~(1/4)^n (tiny deep). Any wrong press inside the prefix truncates the credit.
+      if (inp.length > s.seq.length) return 0;   // NO extra presses — a fixed-count random spray fires more pads than n and scores 0
+      let c = 0; for (let i = 0; i < s.seq.length; i++) { if (inp[i] === s.seq[i]) c++; else break; }
+      return c / s.seq.length;
+    },
+    humanP: rxHumanP
+  };
+  // 7) LOCK ORDER — locks arm ONE AT A TIME (the next arms only after you hit the current); hit each as it arms.
+  GAMES.lockorder = {
+    family: 'skill', label: 'Lock Order',
+    // KNOBS (Jake 2026-09-13, additive; feints=0/armGap wide at d=0 so ch1 == old ch1): (1) lock count k 4->6 (more targets), (2) order
+    // length n 3->5, (3) per-lock reaction window w 900->380ms, (4) NEW FEINTS feints 0->2 — decoy locks that briefly light alongside the
+    // real armed lock (draw-only distractor; the client only emits a press on the CORRECT lock, so a feint tap is just a miss/shake — grade
+    // is unchanged), and (5) NEW re-arm gap armGap 320->90ms — deep, the NEXT lock arms almost immediately after a correct hit, cutting the
+    // slack between reactions. feints/armGap ship in data (armGap drives the client's next-arm delay; grade stays order+count based). A
+    // player hitting each lock as it arms scores ~1.0.
+    build: function (seed, lvl) {
+      const r = rng(seedMat(seed, 'lockorder', lvl)), d = dSkill(lvl);
+      const k = 4 + Math.round(2 * d), n = 3 + Math.round(2 * d), order = []; for (let i = 0; i < n; i++) order.push(r.int(k));   // n 3..5 (kept <6 so a fixed-count random spray always overshoots the exact-length gate); difficulty still ramps via k (4..6 lock choices) + shrinking window w
+      const w = Math.round(clamp(900 - 420 * d, 380, 900));   // per-lock reaction window after it arms
+      const feints = Math.round(2 * d), armGap = Math.round(clamp(320 - 230 * d, 90, 320));
+      // order ships in data so the client knows which lock to ARM next (locks arm sequentially, reacting to correct hits); grade() re-checks the order.
+      return { data: { mode: 'rxlockorder', k, n, order, w, feints, armGap, dur: 1200 + n * (w + 400), skin: { label: 'Lock Order' } }, secret: { order, k, n, w } };
+    },
+    grade: function (b, lvl, ev) {
+      const s = b.secret; const hits = (ev || []).filter(e => e && e.type === 'press');
+      // ANTI-SPRAY (Jake 2026-09-12): require the exact hit count (a fixed-count random spray misses n => 0), then grade the in-order
+      // prefix. A length-matched random spray still needs the whole order right => ~(1/k)^n (tiny deep); a human hitting each lock as it
+      // arms fires exactly n and scores its correct prefix (~1.0). The exact-count gate is what denies the 6-press spray any lane.
+      if (hits.length > s.order.length) return 0;   // NO extra presses — a fixed-count random spray fires more pads than n and scores 0
+      let got = 0; for (let i = 0; i < s.order.length; i++) { if (hits[i] && (hits[i].id | 0) === s.order[i]) got++; else break; }
+      return got / s.order.length;
+    },
+    humanP: rxHumanP
+  };
+  // 8) COUNTER-ROTATE — alternate LEFT/RIGHT taps; cadence rises; a wrong side or a missed beat breaks the chain.
+  GAMES.counterrot = {
+    family: 'skill', label: 'Counter-Rotate',
+    // KNOBS (Jake 2026-09-13, additive; gap0/decay/slowTol are at their EASY end at d=0 so ch1 == old ch1): (1) chain target 8->18 taps,
+    // (2) floor cadence gapMin 300->180ms (the fastest the chain gets), (3) NEW start tempo gap0 620->520ms (deep begins quicker, less
+    // early slack), (4) NEW accel decay 0.94->0.90 (the cadence RAMPS UP faster each tap), and (5) NEW late-tolerance slowTol 260->120ms
+    // (deep, a tap that lags the expected rising cadence breaks the chain sooner — you must keep PACE, not just alternate). gap0/decay
+    // ship in data so the client's on-screen cadence matches; slowTol is secret-graded. A player who tracks the rising tempo scores ~1.0.
+    build: function (seed, lvl) {
+      const r = rng(seedMat(seed, 'counterrot', lvl)), d = dSkill(lvl);
+      const target = 8 + Math.round(10 * d), startSide = r.int(2), gap0 = Math.round(620 - 100 * d), gapMin = Math.round(300 - 120 * d), decay = +(0.94 - 0.04 * d).toFixed(3), slowTol = Math.round(260 - 140 * d);
+      return { data: { mode: 'rxcounterrot', target, startSide, gap0, gapMin, decay, dur: 12000, skin: { label: 'Counter-Rotate' } }, secret: { target, startSide, gap0, gapMin, decay, slowTol } };
+    },
+    grade: function (b, lvl, ev) {
+      const s = b.secret; const taps = (ev || []).filter(e => e && e.type === 'press').sort((a, c) => (a.t || 0) - (c.t || 0));
+      // Human cadence floor: a genuine alternation can't be faster than a human can move both hands. Taps arriving faster than this floor are
+      // superhuman spam and break the chain. Additionally the game is a RISING-tempo chain: each accepted tap must land near the expected
+      // decaying gap. A flat fast-spam bot (constant ~150ms) taps far FASTER than the early expected cadence, so it fails the cadence band —
+      // this closes the shallow-level random-bot exploit without touching a real player who tracks the on-screen cadence.
+      const FASTFLOOR = 130, slowTol = s.slowTol != null ? s.slowTol : 260;
+      let streak = 0, best = 0, side = s.startSide, gap = s.gap0, lastT = 0;
+      for (const tp of taps) { const expect = side; if ((tp.id | 0) !== expect) { streak = 0; side = s.startSide; gap = s.gap0; lastT = tp.t || 0; continue; }
+        const dtp = (tp.t || 0) - lastT;
+        // chain-breaking: too fast (superhuman/spam), or well BELOW the expected cadence gap (spam not tracking the tempo), or too slow.
+        if (streak > 0 && (dtp < FASTFLOOR || dtp < gap * 0.45)) { streak = 0; side = s.startSide; gap = s.gap0; lastT = tp.t || 0; continue; }
+        if (streak > 0 && dtp > gap + slowTol) { streak = 1; } else { streak++; }   // too slow for the (rising) cadence breaks it; slowTol tightens with depth
+        best = Math.max(best, streak); lastT = tp.t || 0; side = 1 - side; gap = Math.max(s.gapMin, gap * s.decay); }
+      return clamp(best / s.target, 0, 1);
+    },
+    humanP: rxHumanP
+  };
+  // 9) REPEAT COMBO — a short 3-5 icon combo flashes; input it back fast (execution, not span recall).
+  GAMES.repeatcombo = {
+    family: 'skill', label: 'Repeat Combo',
+    build: function (seed, lvl) {
+      const r = rng(seedMat(seed, 'repeatcombo', lvl)), d = dSkill(lvl);
+      const icons = 4 + Math.round(d), n = 3 + Math.round(2 * d), combo = []; for (let i = 0; i < n; i++) combo.push(r.int(icons));
+      const flashMs = Math.round(clamp(560 - 220 * d, 260, 560)), deadline = Math.round(1000 + n * (760 - 260 * d));
+      // combo ships in data so the client can flash it, then hides it for the input phase; grade() enforces the post-flash deadline server-side.
+      return { data: { mode: 'rxrepeatcombo', icons, n, combo, flashMs, deadline, dur: n * (flashMs + 160) + deadline + 700, skin: { label: 'Repeat Combo' } }, secret: { combo, n, flashMs, deadline, icons } };
+    },
+    grade: function (b, lvl, ev) {
+      const s = b.secret; const inp = (ev || []).filter(e => e && e.type === 'press');
+      const flashPhase = s.n * (s.flashMs + 160); const ids = inp.map(e => e.id | 0);
+      // pre-fire reject: the combo is still flashing until flashPhase; the input phase starts after it. Any press before that is a t~0 blaster
+      // bot echoing the leaked combo (the presenter already blocks pre-flash taps client-side). Mirror it server-side with a small tolerance.
+      const first = inp[0]; if (first && (first.t || 0) < flashPhase - 120) return 0;
+      const last = inp.slice(-1)[0]; if (last && (last.t || 0) > flashPhase + s.deadline + 250) return 0;   // deadline (measured from combo end)
+      let c = 0; for (let i = 0; i < s.combo.length; i++) { if (ids[i] === s.combo[i]) c++; else break; }
+      const base = c / s.combo.length; if (c < s.combo.length) return base;
+      // full combo => small speed bonus for finishing well inside the deadline (still capped at 1)
+      const finish = last ? (last.t || 0) - flashPhase : s.deadline; const speed = clamp(1 - finish / s.deadline, 0, 1);
+      return clamp(0.8 + 0.2 * speed, 0, 1);
+    },
+    humanP: rxHumanP
+  };
+  // 10) OVERRIDE GRID — flip switches to match a shown target pattern in the fewest moves under time (each flip toggles a switch).
+  GAMES.overridegrid = {
+    family: 'skill', label: 'Override Grid',
+    build: function (seed, lvl) {
+      const r = rng(seedMat(seed, 'overridegrid', lvl)), d = dSkill(lvl);
+      const size = 4 + Math.round(2 * d);   // number of switches
+      const start = [], target = []; let diff = 0;
+      for (let i = 0; i < size; i++) { const s0 = r.int(2), t0 = r.int(2); start.push(s0); target.push(t0); if (s0 !== t0) diff++; }
+      if (diff === 0) { const j = r.int(size); target[j] = 1 - target[j]; diff = 1; }   // guarantee at least one flip needed
+      const moveBudget = diff + Math.max(0, Math.round(2 - 2 * d));   // deep: exactly the minimum; shallow: a little slack
+      const deadline = Math.round(2200 + size * (900 - 300 * d));
+      // start + target ship in data so the client can render both rows; grade() re-simulates the flips and checks move budget + deadline.
+      return { data: { mode: 'rxoverridegrid', size, start: start.slice(), target: target.slice(), moveBudget, deadline, dur: deadline + 900, skin: { label: 'Override Grid' } }, secret: { start, target, size, moveBudget, deadline } };
+    },
+    grade: function (b, lvl, ev) {
+      const s = b.secret; const flips = (ev || []).filter(e => e && e.type === 'press');
+      if (!flips.length) return 0;   // no input = no pass (the start already partially matches, so credit must come from ACTION)
+      const last = flips.slice(-1)[0]; if (last && (last.t || 0) > s.deadline + 250) return 0;   // over time
+      // ANTI-SPRAY (Jake 2026-09-12): scoring is now ALL-OR-NOTHING on an exact match within budget. A spray of random flips has
+      // ~0 chance of leaving EVERY switch matching target while staying inside moveBudget (over-budget => 0); a human flipping
+      // exactly the mismatched switches lands the exact state in the minimum moves and scores 1.0. No partial credit for a
+      // half-closed gap (that lane let a lucky spray harvest points).
+      const state = s.start.slice(); let used = 0;
+      for (const f of flips) { const j = f.id | 0; if (j < 0 || j >= s.size) continue; state[j] = 1 - state[j]; used++; }
+      let wrongNow = 0; for (let i = 0; i < s.size; i++) if (state[i] !== s.target[i]) wrongNow++;
+      if (wrongNow > 0) return 0;             // final state must EXACTLY match target
+      if (used > s.moveBudget) return 0;      // and be reached within the move budget (over-budget spray => 0)
+      return 1;
+    },
+    humanP: rxHumanP
+  };
+
+  // ═══ CHARGE / AIM-WITH-FEEDBACK CLUSTER (5) ═══ — set a value; outcome depends on control, not a memorized instant.
+  // 11) POWER METER — hold to charge a meter (VARIABLE fill rate) to an exact target value, release.
+  GAMES.powermeter = {
+    family: 'skill', label: 'Power Meter',
+    build: function (seed, lvl) {
+      const r = rng(seedMat(seed, 'powermeter', lvl)), d = dSkill(lvl);
+      // target range WIDENED (0.30..0.92) so a fixed park hold (v = rate*0.5 ~ 0.275..0.525) covers far LESS of the target space; tol
+      // narrows modestly with depth (kept above the human motor-jitter floor so a meter-watcher still clears). Park-resistance comes
+      // mainly from the wider seed-random target vs the park's single fixed fill value, not from a superhuman-tight band.
+      // target range shifted UP (0.50..1.05) so a fixed park hold (v = rate*0.5 ~ 0.275..0.525) sits at/below the FLOOR of the target
+      // range and reaches almost no seed's target — the naive 500ms tap is starved. A meter-watcher charges to whatever mark is drawn.
+      // LINEAR falloff over tol spreads the score so the sim bar separates the watcher (~1.0) from the fixed tap. tol narrows with depth
+      // but stays above the human motor-jitter floor.
+      const target = +(0.50 + r.u() * 0.55).toFixed(3), rate = +(0.55 + r.u() * 0.5).toFixed(4), tol = +(0.15 - 0.10 * d).toFixed(4);   // ~0.15 ch1 -> ~0.05 ch10
+      // target ships in data so the client can draw the target mark; the grading TOLERANCE stays in secret.
+      return { data: { mode: 'rxpowermeter', rate, target, dur: 6000, skin: { label: 'Power Meter' } }, secret: { target, rate, tol } };
+    },
+    grade: function (b, lvl, ev) {
+      const dn = (ev || []).find(e => e && e.type === 'down'); const up = (ev || []).find(e => e && e.type === 'up'); if (!dn || !up) return 0; const s = b.secret;
+      const hold = (up.t || 0) - (dn.t || 0); if (hold <= 0) return 0; const v = clamp(s.rate * hold / 1000, 0, 1.2);
+      return clamp(1 - Math.abs(v - s.target) / s.tol, 0, 1);
+    },
+    humanP: rxHumanP
+  };
+  // 12) RECOIL CONTROL — a value DECAYS on its own; tap to push it up; keep it inside a band for the duration.
+  GAMES.recoilctl = {
+    family: 'skill', label: 'Recoil Control',
+    build: function (seed, lvl) {
+      const r = rng(seedMat(seed, 'recoilctl', lvl)), d = dSkill(lvl);
+      const decay = +(0.28 + 0.30 * d).toFixed(4), kick = +(0.16 + 0.02 * d).toFixed(4);   // per-tap push
+      const bandLo = +(0.42 - 0.06 * d).toFixed(3), bandHi = +(0.58 + 0.06 * d - 0.14 * d).toFixed(3), dur = 6000;
+      // band ships in data so the client can draw the target band; grade() re-simulates the decayed value and scores time-in-band.
+      return { data: { mode: 'rxrecoil', decay, kick, bandLo, bandHi, dur, skin: { label: 'Recoil Control' } }, secret: { decay, kick, bandLo, bandHi, dur } };
+    },
+    grade: function (b, lvl, ev) {
+      const s = b.secret; const taps = (ev || []).filter(e => e && e.type === 'tap').map(e => e.t || 0).sort((a, c) => a - c);
+      if (!taps.length) return 0;   // no input = no pass (an idle, decaying value is not "held in band")
+      // simulate the decayed value over the run at 60ms steps; count fraction of samples inside the band
+      const step = 60; let v = 0.5, ti = 0, inband = 0, total = 0;
+      for (let t = 0; t <= s.dur; t += step) { while (ti < taps.length && taps[ti] <= t) { v = clamp(v + s.kick, 0, 1); ti++; } v = clamp(v - s.decay * step / 1000, 0, 1); if (t > 400) { total++; if (v >= s.bandLo && v <= s.bandHi) inband++; } }
+      return total ? clamp(inband / total, 0, 1) : 0;
+    },
+    humanP: rxHumanP
+  };
+  // 13) ANGLE LAUNCH — set an ANGLE then a POWER (two commits) to land a shot in a zone. Outcome = control, not timing.
+  GAMES.anglelaunch = {
+    family: 'skill', label: 'Angle Launch',
+    build: function (seed, lvl) {
+      const r = rng(seedMat(seed, 'anglelaunch', lvl)), d = dSkill(lvl);
+      // zoneX sits in one of TWO seed-random bands AWAY from the lazy middle (low 0.14..0.40 or high 0.62..0.92): a fixed/park (angle,power)
+      // guess (0.5/0.7, 0.55/0.75) always lands ~0.49..0.56 — squarely in the EXCLUDED gap — so a blind mid-guess misses by construction,
+      // while a human solving the inverse aims into whichever band is drawn. LINEAR falloff over zoneW (narrows with depth) grades a solved
+      // aim ~1.0 and the gap-landing guess ~0.
+      const zoneX = +((r.u() < 0.5 ? 0.14 + r.u() * 0.26 : 0.62 + r.u() * 0.30)).toFixed(3), zoneW = +(0.15 - 0.11 * d).toFixed(4);   // half-width; ~0.15 ch1 -> ~0.04 ch10
+      // zone (half-width) ships in data so the client draws the landing zone; grade() re-runs the projectile model from the two committed values.
+      return { data: { mode: 'rxanglelaunch', zoneX, zoneW, dur: 9000, skin: { label: 'Angle Launch' } }, secret: { zoneX, zoneW } };
+    },
+    grade: function (b, lvl, ev) {
+      const s = b.secret; const a = (ev || []).find(e => e && e.type === 'commit' && e.k === 'angle'); const p = (ev || []).find(e => e && e.type === 'commit' && e.k === 'power');
+      if (!a || !p) return 0;
+      const ang = clamp(a.v || 0, 0.05, 0.95), pow = clamp(p.v || 0, 0.05, 1);   // both in [0,1]
+      // projectile range model: range ∝ power^2 * sin(2*theta), theta in [~9°,~86°]; normalize to [0,1]
+      const theta = 0.15 + ang * 1.2; const range = clamp(pow * pow * Math.sin(2 * theta) / Math.sin(Math.PI / 2), 0, 1);
+      const dist = Math.abs(range - s.zoneX);
+      return clamp(1 - dist / s.zoneW, 0, 1);   // LINEAR falloff over the zone half-width
+    },
+    humanP: rxHumanP
+  };
+  // 14) PRESSURE VALVE — pressure rises on its own; tap to vent; keep the needle inside a MOVING band.
+  GAMES.pressurevalve = {
+    family: 'skill', label: 'Pressure Valve',
+    build: function (seed, lvl) {
+      const r = rng(seedMat(seed, 'pressurevalve', lvl)), d = dSkill(lvl);
+      const rise = +(0.34 + 0.24 * d).toFixed(4), vent = +(0.17 + 0.02 * d).toFixed(4);   // per-tap vent (deep rise eased so a controlled tap-cadence can track the band)
+      const bandW = +(0.22 - 0.09 * d).toFixed(4), bandOmega = +(0.0011 * (1 + 0.8 * d)).toFixed(6), bandAmp = 0.26, dur = 6500;   // band a touch wider so faithful visual tracking clears the 0.5 bar
+      return { data: { mode: 'rxpressure', rise, vent, bandW, bandOmega, bandAmp, dur, skin: { label: 'Pressure Valve' } }, secret: { rise, vent, bandW, bandOmega, bandAmp, dur } };
+    },
+    grade: function (b, lvl, ev) {
+      const s = b.secret; const taps = (ev || []).filter(e => e && e.type === 'tap').map(e => e.t || 0).sort((a, c) => a - c);
+      if (!taps.length) return 0;   // no venting = no pass (idle needle drifting through the band once is not control)
+      // Re-simulate at a FINE step and apply each vent at its EXACT tap timestamp (mirrors the presenter's per-frame rAF integration + instant
+      // vent-on-tap). The old 60ms quantization desynced grade from the on-screen needle so a player tracking the visible needle failed; matching
+      // the presenter's model means faithful visual play grades the same as it looked. Small in-band grace covers the sub-step tap-time rounding.
+      const step = 16; const grace = 0.02; let v = 0.5, ti = 0, inband = 0, total = 0;
+      for (let t = 0; t <= s.dur; t += step) { while (ti < taps.length && taps[ti] <= t) { v = clamp(v - s.vent, 0, 1); ti++; } v = clamp(v + s.rise * step / 1000, 0, 1); const center = 0.5 + s.bandAmp * Math.sin(s.bandOmega * t); if (t > 400) { total++; if (Math.abs(v - center) <= s.bandW / 2 + grace) inband++; } }
+      return total ? clamp(inband / total, 0, 1) : 0;
+    },
+    humanP: rxHumanP
+  };
+  // 15) RICOCHET — aim a bank-shot off a wall into a target (ONE drag-to-aim, then release/commit). A single aimed COMMIT (not
+  //     continuous tracing) so it stays distinct from Dexterity. secret holds the wall + target; grade = shot distance to target.
+  GAMES.ricochet = {
+    family: 'skill', label: 'Ricochet',
+    build: function (seed, lvl) {
+      const r = rng(seedMat(seed, 'ricochet', lvl)), d = dSkill(lvl);
+      // wallY is SEED-RANDOM (0.28..0.5): this breaks the "aim straight at the target" park exploit — with a fixed wall the straight
+      // aim banked to a predictable spot, so a naive commit landed near target on many seeds; a moving wall makes that blind aim land
+      // unpredictably (it must actually solve the bank). tolIn = full-credit inner radius (a hair above human aim jitter); tolOut = zero
+      // beyond. FLAT-TOP scoring (1 inside tolIn, ramp to 0 at tolOut) keeps a correctly-banked human ~1.0 while a park/blind aim, whose
+      // landing offset is large and seed-scattered, sits past tolOut => ~0.
+      const wallY = +(0.28 + r.u() * 0.22).toFixed(3), tol = +(0.105 - 0.062 * d).toFixed(4), originX = +(0.15 + r.u() * 0.2).toFixed(3);   // ~0.105 ch1 -> ~0.043 ch10
+      // REACHABILITY FIX (Jake audit 2026-09-13): targetX must lie inside the band an optimal bank can actually land in. The |dx|>=0.04
+      // non-degenerate-bank guard forces a MINIMUM achievable landing offset from origin (= 2*(0.95-wallY)*0.04/0.93); a target closer
+      // than that + tol was UNWINNABLE even with perfect play (~15-23% of deep doors). Sample targetX right of origin, at least minGap away.
+      const minGap = 2 * (0.95 - wallY) * 0.04 / 0.93 + tol + 0.02, loB = originX + minGap, hiB = 0.85, targetX = +(loB < hiB ? (loB + r.u() * (hiB - loB)) : Math.min(hiB, loB)).toFixed(3);
+      // origin/wall/target ship in data so the client can draw the scene + aim line; grade() re-computes the bank-shot landing from the commit vector.
+      return { data: { mode: 'rxricochet', originX, wallY, targetX, tol, dur: 9000, skin: { label: 'Ricochet' } }, secret: { originX, wallY, targetX, tol } };
+    },
+    grade: function (b, lvl, ev) {
+      const s = b.secret; const c = (ev || []).find(e => e && e.type === 'commit'); if (!c) return 0;
+      // aim vector from origin (bottom) toward wall; reflect off wall (top) down to the floor; landing x compared to target.
+      const aimX = clamp(c.x != null ? c.x : 0.5, 0, 1), aimY = clamp(c.y != null ? c.y : 0.5, 0.02, 0.98);
+      const originY = 0.95; const dx = aimX - s.originX, dy = aimY - originY;   // dy negative (aiming up toward wall)
+      if (dy >= -0.02) return 0;   // must aim upward toward the wall
+      if (Math.abs(dx) < 0.04) return 0;   // NON-DEGENERATE BANK: a near-vertical aim (|dx|~0) is not a real bank shot; a park/degenerate commit that just points up scores 0
+      const tWall = (s.wallY - originY) / dy;   // param to reach wall row
+      const wallHitX = clamp(s.originX + dx * tWall, 0, 1);
+      // reflect: after the wall the ball travels down with mirrored vertical velocity; land at floor y=0.95
+      const tFloor = (0.95 - s.wallY) / (-dy);
+      const landX = clamp(wallHitX + dx * tFloor, 0, 1);
+      const dist = Math.abs(landX - s.targetX);
+      // LINEAR falloff over tol (spreads the score so the sim bar can sit between a banked human ~1.0 and a blind/park aim whose
+      // seed-scattered landing offset grades low). The seed-random wallY is what actually denies the park its systematic near-hits.
+      return clamp(1 - dist / s.tol, 0, 1);
+    },
+    humanP: rxHumanP
+  };
+})();
+
+// ── MEMORY V2 (Jake 2026-09-11): TRANSFORMATION games — capture != answer. Stimulus flashes (server frames); the graded answer is a transform (sort/shift), so a screenshot/recording is only the input to an in-head computation.
+(function () {
+  const _sc = GAMES.safecombo, _cl = GAMES.colorlock;
+  GAMES.safecombo = {
+    family: "memory", label: "Sorted Combo",
+    build: function (seed, lvl) { const r = rng(seedMat(seed, "safecombo", lvl)), d = dOf(lvl); const M = Math.min(8, Math.round(3 + 5 * d)); const seq = []; for (let i = 0; i < M; i++) seq.push(r.int(10)); const flashMs = Math.round(clamp(900 - 680 * d, 200, 900)); const sorted = seq.slice().sort((a, b) => a - b); return { data: { count: M, palette: 10, flashMs, digits: true, transform: "sort" }, pixels: { seq }, secret: { seq, sorted } }; },
+    grade: function (b, lvl, ev) { const picks = (ev || []).filter(e => e && e.type === "pick").map(e => e.idx); const ans = b.secret.sorted; let c = 0; for (let i = 0; i < ans.length; i++) { if (picks[i] === ans[i]) c++; else break; } return c / ans.length; },
+    // humanP RE-DERIVED (Jake 2026-09-13): this is the SORT-transform game, NOT the plain-recall Safe Combo — reusing _sc.humanP (plain span)
+    // over-estimated the human, mis-calibrating the sim. Model: span recall + an in-head SORT load (per-item transform penalty growing with span).
+    // kind:'span-transform' so sim-odds applies the transform; sortPen ~0.05 + 0.02*(M-4). (Advisory — the frozen MEMORY_BAR is unchanged.)
+    humanP: function (lvl) { const d = dOf(lvl), M = Math.min(8, Math.round(3 + 5 * d)); return { p: 6.6, M, kind: 'span-transform', xform: 'sort', pen: +(0.05 + 0.02 * Math.max(0, M - 4)).toFixed(3) }; }
+  };
+  GAMES.colorlock = {
+    family: "memory", label: "Shift Lock",
+    build: function (seed, lvl) { const r = rng(seedMat(seed, "colorlock", lvl)), d = dOf(lvl); const palette = 6, M = Math.min(8, Math.round(3 + 5 * d)); const shift = 1 + r.int(Math.min(3, palette - 1)); const seq = []; for (let i = 0; i < M; i++) seq.push(r.int(palette)); const shifted = seq.map(c => (c + shift) % palette); const flashMs = Math.round(clamp(880 - 660 * d, 200, 880)); return { data: { count: M, palette, flashMs, shift: shift, transform: "shift" }, pixels: { seq }, secret: { seq, shift, shifted } }; },
+    grade: function (b, lvl, ev) { const picks = (ev || []).filter(e => e && e.type === "pick").map(e => e.idx); const ans = b.secret.shifted; let c = 0; for (let i = 0; i < ans.length; i++) { if (picks[i] === ans[i]) c++; else break; } return c / ans.length; },
+    // humanP RE-DERIVED (Jake 2026-09-13): SHIFT-transform game (recall M + add a constant shift mod palette per item), not plain Color Lock
+    // recall. Reusing _cl.humanP over-estimated the human. Model: span recall + per-item shift-add penalty. (Advisory — frozen bar unchanged.)
+    humanP: function (lvl) { const d = dOf(lvl), M = Math.min(8, Math.round(3 + 5 * d)); return { p: 6.8, M, kind: 'span-transform', xform: 'shift', pen: +(0.06 + 0.02 * Math.max(0, M - 4)).toFixed(3) }; }
+  };
+})();
+// ── MEMORY V2 batch 2: Vault Weigh (denoms -> total value) + Dead Reckoning (bearing -> net direction). Transform: capture != answer.
+(function () {
+  const _md = GAMES.denoms, _mb = GAMES.bearing;
+  GAMES.denoms = {
+    family: "memory", label: "Vault Weigh",
+    build: function (seed, lvl) { const r = rng(seedMat(seed, "denoms", lvl)), d = dOf(lvl); const opts = [5, 10, 25, 50, 100]; const M = Math.min(7, Math.round(3 + 4 * d)); const seq = []; let total = 0; for (let i = 0; i < M; i++) { const v = opts[r.int(opts.length)]; seq.push(v); total += v; } const flashMs = Math.round(clamp(950 - 700 * d, 220, 950)); return { data: { count: M, options: opts, flashMs, values: true, transform: "sum" }, pixels: { seq }, secret: { seq, total } }; },
+    grade: function (b, lvl, ev) { const a = (ev || []).find(e => e && e.type === "answer"); return a && Number(a.value) === b.secret.total ? 1 : 0; },
+    // humanP RE-DERIVED (Jake 2026-09-13): SUM-transform, SINGLE binary answer (recall M values + running-sum; exact total or 0) — NOT the
+    // plain per-item recall The Count. Reusing _md.humanP AND the sim emitting per-item picks (wrong shape) made the sim think pass=0. Model:
+    // needs EVERY value recalled + no add-slip => p_pass ~ (recall*(1-addSlip))^M. kind:'sum-single'. (Advisory — frozen bar unchanged.)
+    humanP: function (lvl) { const d = dOf(lvl), M = Math.min(7, Math.round(3 + 4 * d)); return { p: 6.2, M, kind: 'sum-single', xform: 'sum', pen: 0.03 }; }
+  };
+  GAMES.bearing = {
+    family: "memory", label: "Dead Reckoning",
+    build: function (seed, lvl) { const r = rng(seedMat(seed, "bearing", lvl)), d = dOf(lvl); const M = Math.min(9, Math.round(3 + 6 * d)); let seq, net, tries = 0; do { seq = []; let dx = 0, dy = 0; for (let i = 0; i < M; i++) { const a = r.int(4); seq.push(a); if (a === 0) dy -= 1; else if (a === 1) dx += 1; else if (a === 2) dy += 1; else dx -= 1; } if (Math.abs(dx) >= Math.abs(dy)) net = dx > 0 ? 1 : (dx < 0 ? 3 : -1); else net = dy < 0 ? 0 : 2; tries++; } while (net === -1 && tries < 40); if (net === -1) net = 1; const flashMs = Math.round(clamp(860 - 640 * d, 200, 860)); return { data: { count: M, palette: 4, flashMs, dirs: true, transform: "net" }, pixels: { seq }, secret: { seq, net } }; },
+    grade: function (b, lvl, ev) { const p = (ev || []).find(e => e && e.type === "pick"); return p && p.idx === b.secret.net ? 1 : 0; },
+    // humanP RE-DERIVED (Jake 2026-09-13): NET-direction transform, SINGLE answer of 4 (recall the path + vector-sum to one net heading) —
+    // NOT plain Bearing recall. Reusing _mb.humanP + the sim emitting per-item picks made the sim read a spurious ~1/4 floor. Model: needs the
+    // whole path recalled + a sum step => p_pass ~ (recall*(1-sumSlip))^M, else a 1-of-4 guess. kind:'net-single'. (Advisory — frozen bar unchanged.)
+    humanP: function (lvl) { const d = dOf(lvl), M = Math.min(9, Math.round(3 + 6 * d)); return { p: 6.9, M, kind: 'net-single', xform: 'net', pen: 0.04, choices: 4 }; }
+  };
+})();
+// ── PERCEPTION (Jake 2026-09-11): replaces MEMORY. Verb = JUDGE, not recall. The stimulus renders to a ONE-SHOT server PNG (the
+//    answer lives in pixels, never JSON) and the player answers under a tight DEADLINE — so an off-device screenshot/recording
+//    can't be analysed in time, and a JSON/CV scraper gets nothing usable. Each game is its own independent mechanic + secret.
+(function () {
+  const dOf = dShallow;   // SHALLOW WINS-STICK LIFT (2026-09-13): scope the difficulty-lift ONLY to this perception IIFE (skill/luck/memory untouched).
+  const pH = function (lvl) { const d = dOf(lvl); return { p: clamp(0.92 - 0.6 * d, 0.05, 0.92), kind: 'single' }; };
+  const DL = (lvl) => Math.round(6500 - 4700 * dOf(lvl));   // answer deadline: ch1 ~6.5s -> ch10 ~1.8s (steeper)
+  const pk = (ev) => (ev || []).find(e => e && e.type === 'pick');
+  // 1) APPRAISE THE HAUL — two coin piles; pick the more valuable. Value = summed coin sizes (area judgment, hard to script).
+  GAMES.appraise = { family: 'perception', label: 'Appraise the Haul',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'appraise', lvl)), d = dOf(lvl); const N = 3 + Math.round(d); const sum = a => a.reduce((s, x) => s + x * x, 0); const lo = 3 + r.int(3), span = 6 + Math.round(5 * d) + r.int(3), cap = 15; const csz = () => clamp(lo + r.int(span), 3, cap); const piles = []; for (let i = 0; i < N; i++) { const n = 4 + r.int(4 + Math.round(2 * d)), a = []; for (let j = 0; j < n; j++) a.push(csz()); piles.push(a); } const ans = r.int(N), margin = Math.max(90, (1 - 0.72 * d) * 620); let mx = 0; for (let i = 0; i < N; i++) if (i !== ans) mx = Math.max(mx, sum(piles[i])); let guard = 0; while (sum(piles[ans]) < mx + margin && guard++ < 60) { const pa = piles[ans]; let bumped = false; for (let j = 0; j < pa.length && !bumped; j++) if (pa[j] < cap) { pa[j]++; bumped = true; } if (!bumped) { if (pa.length < 12) pa.push(csz()); else break; } } return { data: { mode: 'perc', kind: 'taprow', cols: N, prompt: 'TAP THE MOST VALUABLE PILE', deadlineMs: DL(lvl) }, pixels: { piles: piles }, secret: { ans: ans } }; },
+    grade: function (b, lvl, ev) { const p = pk(ev); return p && (p.idx | 0) === b.secret.ans ? 1 : 0; }, humanP: pH };
+  // 2) COUNT THE TAKE — a scatter of gems flashes; estimate which range it falls in (subitizing under a deadline).
+  GAMES.counttake = { family: 'perception', label: 'Count the Take',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'counttake', lvl)), d = dOf(lvl); const n = 5 + r.int(8 + Math.round(d * 46)); const width = Math.max(2, Math.round(10 - 7 * d)); let ansK = r.int(4); let lo0 = n - ansK * width - r.int(width); if (lo0 < 0) lo0 = 0; ansK = clamp(Math.floor((n - lo0) / width), 0, 3); const labels = []; for (let k = 0; k < 4; k++) labels.push((lo0 + k * width) + '-' + (lo0 + (k + 1) * width - 1)); return { data: { mode: 'perc', kind: 'choose', labels: labels, prompt: 'HOW MANY GEMS?', deadlineMs: Math.round(DL(lvl) * 0.8) }, pixels: { n: n }, secret: { ans: ansK } }; },
+    grade: function (b, lvl, ev) { const p = pk(ev); return p && (p.idx | 0) === b.secret.ans ? 1 : 0; }, humanP: pH };
+  // 3) SPOT THE FORGERY — a grid of gold bars; one is a subtly different shade. Tap it. (shade discrimination)
+  GAMES.forgery = { family: 'perception', label: 'Spot the Forgery',
+    // KNOBS (Jake 2026-09-13, additive; jit/darkBias neutral at d=0 so ch1 == old ch1): (1) grid side 3x3->5x5 (more bars to scan), (2)
+    // odd-tile shade delta 0.22->0.03 (a far subtler forgery), (3) answer deadline DL 6.5->1.8s, (4) NEW per-tile luminance JITTER jit
+    // 0->min(0.02, delta*0.4) — deep, the "identical" bars carry a tiny texture noise so the eye can't rely on a dead-flat field to
+    // spot the outlier (the jitter is capped WELL under the odd delta so the true forgery stays the clear outlier — never ambiguous),
+    // and (5) NEW dark-bias darkBias 0->0.18 — deep, the base luminance is pushed toward the darker end where equal shade steps are
+    // harder to tell apart (Weber). jit ships in pixels; render applies it deterministically per tile (draw-only). Odd bar stays
+    // secret.ans, so a correct spot scores 1.0.
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'forgery', lvl)), d = dOf(lvl); const side = 3 + Math.round(d * 2), tiles = side * side; const darkBias = 0.18 * d; const baseL = clamp(0.4 - darkBias + r.u() * 0.25, 0.2, 0.72), delta = Math.max(0.03, 0.22 - 0.185 * d); const up = (baseL + delta > 0.85) ? false : (baseL - delta < 0.2 ? true : r.u() < 0.5); const oddL = clamp(baseL + (up ? delta : -delta), 0.2, 0.88), ans = r.int(tiles); const jit = +Math.min(0.02, delta * 0.4).toFixed(4); return { data: { mode: 'perc', kind: 'tapgrid', cols: side, rows: side, prompt: 'TAP THE ODD BAR', deadlineMs: DL(lvl) }, pixels: { cols: side, baseL: baseL, oddL: oddL, ans: ans, jit: jit }, secret: { ans: ans } }; },
+    grade: function (b, lvl, ev) { const p = pk(ev); return p && (p.idx | 0) === b.secret.ans ? 1 : 0; }, humanP: pH };
+  // 4) BALANCE THE SAFES — two safes on a beam with a subtle tilt; pick the heavier (lower) side. (comparative judgment)
+  GAMES.balance = { family: 'perception', label: 'Balance the Safes',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'balance', lvl)), d = dOf(lvl); const N = 3 + Math.round(d), ans = r.int(N), drop = Math.max(6, Math.round(46 - 38 * d)); const lo = r.int(6), span = 12 + Math.round(20 * d); const ys = []; for (let i = 0; i < N; i++) ys.push(lo + r.int(span)); let mx = 0; for (let i = 0; i < N; i++) if (i !== ans) mx = Math.max(mx, ys[i]); ys[ans] = Math.min(112, mx + drop); if (ys[ans] <= mx) ys[ans] = mx + Math.max(3, drop); return { data: { mode: 'perc', kind: 'taprow', cols: N, prompt: 'TAP THE HEAVIEST SAFE', deadlineMs: DL(lvl) }, pixels: { ys: ys }, secret: { ans: ans } }; },
+    grade: function (b, lvl, ev) { const p = pk(ev); return p && (p.idx | 0) === b.secret.ans ? 1 : 0; }, humanP: pH };
+  // 5) MATCH THE SIGIL — a target glyph up top; tap its twin in the lineup below.
+  GAMES.sigil = { family: 'perception', label: 'Match the Sigil',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'sigil', lvl)), d = dOf(lvl); const cols = 3 + Math.round(d * 3), target = r.int(10), ans = r.int(cols); const shapes = []; for (let i = 0; i < cols; i++) { if (i === ans) shapes.push(target); else { let s; do { s = r.int(10); } while (s === target); shapes.push(s); } } return { data: { mode: 'perc', kind: 'taprow', cols: cols, prompt: 'TAP THE MATCHING SIGIL', deadlineMs: DL(lvl) }, pixels: { target: target, shapes: shapes }, secret: { ans: ans } }; },
+    grade: function (b, lvl, ev) { const p = pk(ev); return p && (p.idx | 0) === b.secret.ans ? 1 : 0; }, humanP: pH };
+  // 6) ODD GLYPH OUT — a grid of one glyph; one cell is a different glyph. Tap the odd one.
+  GAMES.oddglyph = { family: 'perception', label: 'Odd Glyph Out',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'oddglyph', lvl)), d = dOf(lvl); const side = 3 + Math.round(d * 2), tiles = side * side; const common = r.int(10); let odd; do { odd = r.int(10); } while (odd === common); const ans = r.int(tiles); return { data: { mode: 'perc', kind: 'tapgrid', cols: side, rows: side, prompt: 'TAP THE ODD GLYPH', deadlineMs: DL(lvl) }, pixels: { cols: side, common: common, odd: odd, ans: ans }, secret: { ans: ans } }; },
+    grade: function (b, lvl, ev) { const p = pk(ev); return p && (p.idx | 0) === b.secret.ans ? 1 : 0; }, humanP: pH };
+  // 7) READ THE DIAL — a gauge needle points at a hidden value; pick the range it lands in.
+  GAMES.readdial = { family: 'perception', label: 'Read the Dial',
+    // KNOBS (Jake 2026-09-13, additive; bins=4/rot=0 at d=0 so ch1 == old ch1): (1) boundary-proximity probability 0.3->0.9 (deep, the
+    // needle is far more often sat right ON a bucket edge — the ambiguous read), (2) edge closeness eps 9->1 (how tightly it hugs the
+    // boundary), (3) answer deadline DL 6.5->1.8s, (4) NEW bucket count bins 4->8 — deep, the gauge is split into MORE, NARROWER ranges
+    // so each read is finer (labels are generated to match; the client `choose` row already renders n=labels.length buttons, so no client
+    // change needed), and (5) NEW gauge ROTATION rot (0 at ch1) — deep, the whole dial+needle are rotated by a random offset so a bot
+    // can't map a fixed screen-angle to a bucket; it must read the needle RELATIVE to the arcs. rot is DRAW-ONLY (arcs+needle rotate
+    // together), value/bins decide secret.ans, so a correct read scores 1.0.
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'readdial', lvl)), d = dOf(lvl); const bins = 4 + 2 * Math.round(d * 2); const bw = 100 / bins; let value; if (r.u() < 0.3 + 0.6 * d) { const bnd = bw * (1 + r.int(bins - 1)); const eps = Math.max(1, Math.round(9 - 7 * d)); let v = bnd + (r.u() < 0.5 ? -1 : 1) * (1 + r.int(eps)); value = clamp(v, 0, 99); } else value = r.int(100); const ans = Math.min(bins - 1, Math.floor(value / bw)); const labels = []; for (let k = 0; k < bins; k++) labels.push(Math.round(k * bw) + '-' + Math.round((k + 1) * bw - 1)); const rot = +((r.u() - 0.5) * 0.9 * d).toFixed(3); return { data: { mode: 'perc', kind: 'choose', labels: labels, prompt: 'WHERE DOES THE NEEDLE POINT?', deadlineMs: DL(lvl) }, pixels: { value: value, bins: bins, rot: rot }, secret: { ans: ans } }; },
+    grade: function (b, lvl, ev) { const p = pk(ev); return p && (p.idx | 0) === b.secret.ans ? 1 : 0; }, humanP: pH };
+  // 8) THROUGH THE PEEPHOLE — a blurred item up top; tap which of the clear options it is. (degraded-image recognition)
+  GAMES.peephole = { family: 'perception', label: 'Through the Peephole',
+    // KNOBS (Jake 2026-09-13, additive; tsz/optNoise neutral at d=0 so ch1 == old ch1): (1) option count cols 3->6, (2) blur strength
+    // 0.28->0.83 (heavier degrade over the peeped item), (3) answer deadline DL 6.5->1.8s, (4) NEW peeped-item SIZE tsz 42->28px — deep,
+    // the blurred item is drawn SMALLER so fewer recognisable features survive the blur, and (5) NEW OPTION NOISE optNoise 0->0.4 — deep,
+    // a light speckle over the option row so matching the recovered item to a choice is harder. tsz/optNoise are DRAW-ONLY; grade reads
+    // only pick.idx, so nothing leaks and a correct recognition scores 1.0.
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'peephole', lvl)), d = dOf(lvl); const cols = Math.min(6, 3 + Math.round(d * 3)), target = r.int(10), ans = r.int(cols); const opts = []; for (let i = 0; i < cols; i++) { if (i === ans) opts.push(target); else { let s; do { s = r.int(10); } while (s === target || opts.indexOf(s) >= 0); opts.push(s); } } return { data: { mode: 'perc', kind: 'taprow', cols: cols, prompt: 'WHICH ITEM IS BEHIND THE BLUR?', deadlineMs: DL(lvl) }, pixels: { target: target, blur: Math.min(0.85, 0.28 + 0.55 * d), opts: opts, tsz: Math.round(42 - 14 * d), optNoise: +(0.4 * d).toFixed(3) }, secret: { ans: ans } }; },
+    grade: function (b, lvl, ev) { const p = pk(ev); return p && (p.idx | 0) === b.secret.ans ? 1 : 0; }, humanP: pH };
+  // 9) SHADE RANK — a row of near-identical shades; tap the lightest. (fine luminance discrimination)
+  GAMES.shaderank = { family: 'perception', label: 'Shade Rank',
+    // KNOBS (Jake 2026-09-13, additive; topGap/darkBias neutral at d=0 so ch1 == old ch1): (1) swatches N 3->6, (2) rank STEP between
+    // shades 0.17->0.035 (the whole ladder gets finer), (3) answer deadline DL 6.5->1.8s, (4) NEW top-two crowding topGap — the
+    // SECOND-lightest is lifted to within topGap of the lightest (an independent axis from the overall step: even on a coarse ladder the
+    // two brightest can be near-identical), and (5) NEW dark-bias darkBias 0->0.16 pushing the whole range darker, where equal luminance
+    // steps are harder to separate (Weber). After crowding we RECOMPUTE the argmax so secret.ans is always the true lightest (never a
+    // tie). shades render verbatim; a correct pick scores 1.0.
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'shaderank', lvl)), d = dOf(lvl); const N = 3 + Math.round(d * 3), step = Math.max(0.035, 0.17 - 0.125 * d), darkBias = 0.16 * d, base = clamp(0.3 - darkBias + r.u() * (0.5 - (N - 1) * step), 0.15, 0.5); const vals = []; for (let k = 0; k < N; k++) vals.push(clamp(base + k * step + (r.u() - 0.5) * step * 0.4, 0.12, 0.92)); for (let i = vals.length - 1; i > 0; i--) { const j = r.int(i + 1); const t = vals[i]; vals[i] = vals[j]; vals[j] = t; }
+      // top-two crowding: find the two lightest, pull the runner-up to within topGap of the top (independent of the base step)
+      const topGap = Math.max(0.012, step * (0.9 - 0.7 * d)); let a1 = 0; for (let k = 1; k < N; k++) if (vals[k] > vals[a1]) a1 = k; let a2 = -1; for (let k = 0; k < N; k++) if (k !== a1 && (a2 < 0 || vals[k] > vals[a2])) a2 = k; if (a2 >= 0 && vals[a1] - vals[a2] > topGap) vals[a2] = clamp(vals[a1] - topGap, 0.12, 0.92);
+      let ans = 0; for (let k = 1; k < N; k++) if (vals[k] > vals[ans]) ans = k; return { data: { mode: 'perc', kind: 'taprow', cols: N, prompt: 'TAP THE LIGHTEST SHADE', deadlineMs: DL(lvl) }, pixels: { shades: vals }, secret: { ans: ans } }; },
+    grade: function (b, lvl, ev) { const p = pk(ev); return p && (p.idx | 0) === b.secret.ans ? 1 : 0; }, humanP: pH };
+  // 10) SHADOW MATCH — a silhouette up top; tap the object that casts it.
+  GAMES.shadowmatch = { family: 'perception', label: 'Shadow Match',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'shadowmatch', lvl)), d = dOf(lvl); const cols = Math.min(6, 3 + Math.round(d * 3)), target = r.int(10), ans = r.int(cols); const opts = []; for (let i = 0; i < cols; i++) { if (i === ans) opts.push(target); else { let s; do { s = r.int(10); } while (s === target || opts.indexOf(s) >= 0); opts.push(s); } } return { data: { mode: 'perc', kind: 'taprow', cols: cols, prompt: 'TAP THE MATCHING OBJECT', deadlineMs: DL(lvl) }, pixels: { target: target, opts: opts }, secret: { ans: ans } }; },
+    grade: function (b, lvl, ev) { const p = pk(ev); return p && (p.idx | 0) === b.secret.ans ? 1 : 0; }, humanP: pH };
+})();
+// ── PERCEPTION batch 2 — ILLUSION HARDENING (Jake 2026-09-11, deep-research backed): ambiguous/illusion stimuli read near-0% for
+//    CV/VLM bots but easy for humans (IllusionCAPTCHA WWW'25). Fills Perception to 15 and raises the deep-chamber bot wall. Answer
+//    always lives only in pixels + secret; the illusion is engineered to FIGHT the correct answer, harder with depth.
+(function () {
+  const dOf = dShallow;   // SHALLOW WINS-STICK LIFT (2026-09-13): scope the difficulty-lift ONLY to this perception (illusion) IIFE.
+  const pH = function (lvl) { const d = dOf(lvl); return { p: clamp(0.9 - 0.6 * d, 0.05, 0.9), kind: 'single' }; };
+  const DL = (lvl) => Math.round(6500 - 4700 * dOf(lvl));
+  const pk = (ev) => (ev || []).find(e => e && e.type === 'pick');
+  // 11) LONGER LINE (Müller-Lyer): two lines; the shorter one wears outward fins so it LOOKS longer. Pick the truly longer.
+  GAMES.muller = { family: 'perception', label: 'Longer Line',
+    // KNOBS (Jake 2026-09-13, additive; runner-up & flip-fin only bite as d rises, ch1 == old ch1): (1) lines N 3->5, (2) answer margin
+    // diff 48->5px (the answer's lead over the LONGEST decoy), (3) answer deadline DL 6.5->1.8s, (4) NEW runner-up crowding — the
+    // second-longest decoy is pulled to within rgap of the answer (decoys 0->~85% of the way up), so the eye must separate two nearly
+    // equal lines under the illusion, and (5) NEW fin flip probability finFlip (0 at ch1) — deep, some DECOYS also wear inward fins
+    // (making them look longer too), stripping the "only the answer has in-fins" shortcut. lens/fins render verbatim; the true longest is
+    // still secret.ans, so a correct human read scores 1.0.
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'muller', lvl)), d = dOf(lvl); const N = 3 + Math.round(d * 2), ans = r.int(N), base = 70 + r.int(24), diff = Math.max(5, Math.round(48 - 40 * d)); const rgap = Math.max(3, Math.round(diff * (1 - 0.6 * d))); const finFlip = 0.35 * d; const lens = []; for (let i = 0; i < N; i++) lens.push(base + r.int(12)); let mx = 0, mxi = -1; for (let i = 0; i < N; i++) if (i !== ans && lens[i] >= mx) { mx = lens[i]; mxi = i; } lens[ans] = Math.min(210, mx + diff); if (lens[ans] <= mx) lens[ans] = mx + Math.max(3, diff); if (mxi >= 0) lens[mxi] = Math.min(lens[ans] - rgap, lens[ans] - 3); const fins = lens.map((_, i) => (i === ans || (i !== ans && r.u() < finFlip)) ? 'in' : 'out'); return { data: { mode: 'perc', kind: 'tapgrid', cols: 1, rows: N, prompt: 'TAP THE LONGEST LINE', deadlineMs: DL(lvl) }, pixels: { lens: lens, fins: fins }, secret: { ans: ans } }; },
+    grade: function (b, l, ev) { const p = pk(ev); return p && (p.idx | 0) === b.secret.ans ? 1 : 0; }, humanP: pH };
+  // 12) TRUE SIZE (Ponzo): two bars between converging rails; the "far" bar looks bigger. Pick the truly wider.
+  GAMES.ponzo = { family: 'perception', label: 'True Size',
+    // KNOBS (Jake 2026-09-13, additive; runner-up crowding & base-lift are 0 at d=0 so ch1 == old ch1): (1) bars N 3->5, (2) answer
+    // margin diff 30->4px (lead over the widest decoy), (3) answer deadline DL 6.5->1.8s, (4) NEW runner-up crowding — the second-widest
+    // decoy is pulled to within rgap of the answer (two near-equal bars under the Ponzo rails), and (5) NEW base-width LIFT baseLift
+    // 0->22px — deep, all bars are wider in ABSOLUTE terms so the same pixel margin is a SMALLER relative difference (a finer size read).
+    // ws renders verbatim; the true widest stays secret.ans, so a correct read scores 1.0.
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'ponzo', lvl)), d = dOf(lvl); const N = 3 + Math.round(d * 2), ans = r.int(N), baseLift = Math.round(22 * d), base = 40 + baseLift + r.int(18), diff = Math.max(4, Math.round(30 - 25 * d)); const rgap = Math.max(2, Math.round(diff * (1 - 0.6 * d))); const ws = []; for (let i = 0; i < N; i++) ws.push(base + r.int(10)); let mx = 0, mxi = -1; for (let i = 0; i < N; i++) if (i !== ans && ws[i] >= mx) { mx = ws[i]; mxi = i; } ws[ans] = Math.min(150, mx + diff); if (ws[ans] <= mx) ws[ans] = mx + Math.max(3, diff); if (mxi >= 0) ws[mxi] = Math.min(ws[mxi], ws[ans] - rgap, ws[ans] - 2); return { data: { mode: 'perc', kind: 'tapgrid', cols: 1, rows: N, prompt: 'TAP THE WIDEST BAR', deadlineMs: DL(lvl) }, pixels: { ws: ws }, secret: { ans: ans } }; },
+    grade: function (b, l, ev) { const p = pk(ev); return p && (p.idx | 0) === b.secret.ans ? 1 : 0; }, humanP: pH };
+  // 13) TRUE SHADE (simultaneous contrast): swatches on different backgrounds; tap the one whose true value matches the target.
+  GAMES.simcontrast = { family: 'perception', label: 'True Shade',
+    // KNOBS (Jake 2026-09-13, additive; the new terms are neutral at d=0 so ch1 == old ch1): (1) swatches N 3->6, (2) shade delta of the
+    // decoys 0.20->0.045 (how far off the wrong swatches sit from the target value), (3) answer deadline DL 6.5->1.8s, (4) NEW
+    // background POLARISATION bgPol 0->1 — deep, the answer swatch sits on a background PUSHED to the opposite end (light target on a
+    // dark bg / vice-versa) so the simultaneous-contrast illusion fights the true value harder, and (5) NEW near-decoy squeeze — the
+    // background under the CLOSEST wrong swatch is polarised toward the SAME side as the answer's bg, so it reads deceptively similar.
+    // target/shades/bgs render verbatim; the true match stays secret.ans, so a correct read scores 1.0.
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'simcontrast', lvl)), d = dOf(lvl); const N = 3 + Math.round(d * 3), tv = clamp(0.42 + r.u() * 0.16, 0.35, 0.6), delta = Math.max(0.045, 0.2 - 0.155 * d), ans = r.int(N); const bgPol = d; const shades = [], bgs = []; for (let i = 0; i < N; i++) { const dd = delta + r.u() * delta * 0.6; shades.push(i === ans ? tv : clamp(tv + (r.u() < 0.5 ? dd : -dd), 0.18, 0.82)); bgs.push(clamp(0.15 + r.u() * 0.7, 0.12, 0.88)); }
+      // polarise the answer's background to the opposite luminance end (strongest illusion) and nudge one decoy's bg the same way (looks alike)
+      const opp = tv < 0.5 ? clamp(0.12 + (1 - bgPol) * 0.4, 0.12, 0.88) : clamp(0.88 - (1 - bgPol) * 0.4, 0.12, 0.88); bgs[ans] = clamp(bgs[ans] * (1 - bgPol) + opp * bgPol, 0.12, 0.88); let dec = (ans + 1) % N; bgs[dec] = clamp(bgs[dec] * (1 - bgPol) + opp * bgPol, 0.12, 0.88);
+      return { data: { mode: 'perc', kind: 'taprow', cols: N, prompt: 'TAP THE SWATCH MATCHING THE TARGET', deadlineMs: DL(lvl) }, pixels: { target: tv, shades: shades, bgs: bgs }, secret: { ans: ans } }; },
+    grade: function (b, l, ev) { const p = pk(ev); return p && (p.idx | 0) === b.secret.ans ? 1 : 0; }, humanP: pH };
+  // 14) BREAK THE CAMO: a grid of one striped pattern; one tile's stripes are shifted, breaking the camouflage. Tap it.
+  GAMES.camobreak = { family: 'perception', label: 'Break the Camo',
+    // KNOBS (Jake 2026-09-13, additive; the new terms are neutral at d=0 so ch1 == old ch1): (1) grid side 3x3->5x5 (more tiles to
+    // scan), (2) break subtlety via ph/contrast (existing), (3) answer deadline DL 6.5->1.8s, (4) NEW odd-tile SHIFT shrink — the
+    // camouflaged tile's stripe offset is a LARGE break at ch1 (8..24+ph) and shrinks toward a bare few px deep (shiftScale 1->0.28),
+    // so the discontinuity is far harder to spot, and (5) NEW finer stripes deep — freq (stripe width exponent) is biased toward the
+    // TIGHTER end at depth (fine high-frequency stripes hide the shift better). shift/freq/pat/pal render verbatim; the odd tile stays
+    // secret.ans, so a correct spot scores 1.0.
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'camobreak', lvl)), d = dOf(lvl); const side = 3 + Math.round(d * 2), ans = r.int(side * side); const contrast = Math.max(2, Math.round(4 - 2 * d)); const jit = r.int(2) === 0 ? 0 : (r.u() < 0.5 ? -1 : 1); let ph = clamp(contrast + jit, 2, 6); const shiftScale = 1 - 0.72 * d; let shift = Math.max(2, Math.round((8 * (1 + r.int(3))) * shiftScale) + ph); const pat = r.int(4); const freq = clamp((d > 0.5 ? 2 : 1) + r.int(d > 0.5 ? 2 : 3), 1, 3); const pal = r.int(5); return { data: { mode: 'perc', kind: 'tapgrid', cols: side, rows: side, prompt: 'TAP THE TILE THAT BREAKS THE PATTERN', deadlineMs: DL(lvl) }, pixels: { cols: side, ans: ans, shift: shift, pat: pat, freq: freq, pal: pal }, secret: { ans: ans } }; },   // pat=stripe angle, freq=stripe width, pal=palette — per-play visual variety so no two boards look alike (Jake 2026-09-13)
+    grade: function (b, l, ev) { const p = pk(ev); return p && (p.idx | 0) === b.secret.ans ? 1 : 0; }, humanP: pH };
+  // 15) HIDDEN FIGURE: a shape buried in visual noise; tap which clean option it is. (degraded-recognition, brutal for CV)
+  GAMES.figurenoise = { family: 'perception', label: 'Hidden Figure',
+    // KNOBS (Jake 2026-09-13, additive; tsz/optNoise are neutral at d=0 so ch1 == old ch1): (1) option count cols 4->6 (more shapes to
+    // rule out), (2) noise density 0.30->0.85 (heavier speckle burying the figure), (3) answer deadline DL 6.5->1.8s, (4) NEW hidden
+    // FIGURE SIZE tsz 42->26px — deep, the buried shape is drawn SMALLER so fewer of its pixels survive the noise (a much harder
+    // recover), and (5) NEW OPTION NOISE optNoise 0->0.45 — deep, a light speckle is sprinkled over the clean answer options too, so
+    // even matching the recovered figure to an option takes effort. tsz/optNoise are DRAW-ONLY (render), grade only reads pick.idx, so
+    // they leak nothing and a correct human match still scores 1.0.
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'figurenoise', lvl)), d = dOf(lvl); const cols = Math.min(6, 4 + Math.round(d * 2)), target = r.int(10), ans = r.int(cols); const opts = []; for (let i = 0; i < cols; i++) { if (i === ans) opts.push(target); else { let s; do { s = r.int(10); } while (s === target || opts.indexOf(s) >= 0); opts.push(s); } } return { data: { mode: 'perc', kind: 'taprow', cols: cols, prompt: 'WHICH SHAPE IS HIDDEN IN THE NOISE?', deadlineMs: DL(lvl) }, pixels: { target: target, noise: Math.min(0.85, 0.3 + 0.55 * d), opts: opts, tsz: Math.round(42 - 16 * d), optNoise: +(0.45 * d).toFixed(3) }, secret: { ans: ans } }; },
+    grade: function (b, l, ev) { const p = pk(ev); return p && (p.idx | 0) === b.secret.ans ? 1 : 0; }, humanP: pH };
+})();
+// ── RHYTHM (visual-first, tap-timing) + DEXTERITY (continuous drag) — Jake 2026-09-12 prototype set (5 each) ──
+// Real-time, client-drawn, server-graded from streamed events. Rhythm pattern / dexterity path ships in `data` (it MUST be
+// visible to play); anti-bot leans on real-time + human-input signatures (hardening pass), not on hiding it.
+(function () {
+  const dOf = dShallow;   // SHALLOW WINS-STICK LIFT (2026-09-13): scope the difficulty-lift ONLY to this rhythm+dexterity IIFE.
+  const ryH = function (lvl) { const d = dOf(lvl); return { p: clamp(0.9 - 0.5 * d, 0.05, 0.9), kind: 'single' }; };
+  const dxH = ryH;
+  function ryMatch(beats, ev, tol) { const taps = (ev || []).filter(e => e && e.type === 'tap').map(e => e.t || 0); if (!taps.length) return 0; const used = new Array(taps.length).fill(false); let hit = 0; for (const bt of beats) { let bi = -1, bd = 1e9; for (let i = 0; i < taps.length; i++) { if (used[i]) continue; const dd = Math.abs(taps[i] - bt); if (dd < bd) { bd = dd; bi = i; } } if (bi >= 0 && bd <= tol) { used[bi] = true; hit++; } }
+    // Anti-flood: penalise spurious/extra taps (taps that matched no beat within tol). Clean correct play emits ~one tap per
+    // beat (extra=0), so it is unaffected; a mash/pre-fire bot that sprays taps to guarantee coverage is driven toward 0.
+    const extra = Math.max(0, taps.length - hit); const pen = 0.65 * extra; return clamp((hit - pen) / beats.length, 0, 1); }
+  const sampAt = (pts, t) => { let best = null, bd = 1e9; for (const p of pts) { const dd = Math.abs((p.t || 0) - t); if (dd < bd) { bd = dd; best = p; } } return best; };
+  // ── ANTI-PARK movement floor ──────────────────────────────────────────────────────────────────────────────────────
+  // A human tracking a MOVING/seed-driven target (or weaving between lanes) always physically moves the pointer, producing a
+  // point stream with real path length. A "park" bot (static pt at a fixed x,y repeated) and a blindly pre-planned constant
+  // stream have ~zero path length. moveFloor returns the total accumulated path length (sum of per-step |Δx|+|Δy| magnitude,
+  // in normalized units) so a grade can reject a stream that never genuinely moves. Used as a hard gate: score 0 if below.
+  const moveFloor = (pts) => { let len = 0; for (let i = 1; i < pts.length; i++) { const dx = (pts[i].x || 0) - (pts[i - 1].x || 0), dy = (pts[i].y || 0) - (pts[i - 1].y || 0); len += Math.hypot(dx, dy); } return len; };
+  // horizontal-only path length (for 1D lane/band games where only x matters)
+  const moveFloorX = (pts) => { let len = 0; for (let i = 1; i < pts.length; i++) len += Math.abs((pts[i].x || 0) - (pts[i - 1].x || 0)); return len; };
+
+  GAMES.pulselock = { family: 'rhythm', label: 'Pulse Lock',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'pulselock', lvl)), d = dOf(lvl); const n = 3 + Math.round(d * 4), period = Math.round(1100 - 470 * d), tol = Math.round(205 - 95 * d); const beats = []; let t = 950; for (let i = 0; i < n; i++) { beats.push(t); t += period - (d > 0.5 ? r.int(140) : 0); } return { data: { mode: 'rypulse', beats: beats, period: period, n: n, tol: tol, dur: t + 650 }, secret: { beats: beats, tol: tol } }; },
+    grade: function (b, l, ev) { return ryMatch(b.secret.beats, ev, b.secret.tol); }, humanP: ryH };
+
+  GAMES.beatrunner = { family: 'rhythm', label: 'Beat Runner',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'beatrunner', lvl)), d = dOf(lvl); const lanes = d < 0.35 ? 1 : (d < 0.7 ? 2 : 3), n = 4 + Math.round(d * 5), gap = Math.round(820 - 330 * d), tol = Math.round(195 - 90 * d); const notes = []; let t = 1150; for (let i = 0; i < n; i++) { notes.push({ lane: r.int(lanes), t: t }); t += gap - (d > 0.5 ? r.int(150) : 0); } return { data: { mode: 'ryrunner', notes: notes, lanes: lanes, travelMs: 1150, tol: tol, dur: t + 700 }, secret: { beats: notes.map(x => x.t), tol: tol } }; },
+    grade: function (b, l, ev) { return ryMatch(b.secret.beats, ev, b.secret.tol); }, humanP: ryH };
+
+  GAMES.metroswing = { family: 'rhythm', label: 'Metronome Swing',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'metroswing', lvl)), d = dOf(lvl); const n = 4 + Math.round(d * 4), half = Math.round(700 - 300 * d), tol = Math.round(210 - 95 * d); const beats = []; let t = 900; for (let i = 0; i < n; i++) { beats.push(t); t += half - (d > 0.5 ? r.int(130) : 0); } return { data: { mode: 'ryswing', beats: beats, half: half, tol: tol, dur: t + 650 }, secret: { beats: beats, tol: tol } }; },
+    grade: function (b, l, ev) { return ryMatch(b.secret.beats, ev, b.secret.tol); }, humanP: ryH };
+
+  GAMES.echotap = { family: 'rhythm', label: 'Echo Tap',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'echotap', lvl)), d = dOf(lvl); const n = 3 + Math.round(d * 3); const gaps = []; for (let i = 0; i < n - 1; i++) gaps.push(Math.round(300 + r.u() * (700 - 250 * d))); const showDur = 700 + gaps.reduce((a, x) => a + x, 0) + 500; return { data: { mode: 'ryecho', count: n, gaps: gaps, showDur: showDur, dur: showDur + 6000 }, secret: { gaps: gaps, tolFrac: 0.28 - 0.10 * d } }; },
+    grade: function (b, l, ev) { const taps = (ev || []).filter(e => e && e.type === 'tap').map(e => e.t || 0).sort((a, x) => a - x); if (taps.length < b.secret.gaps.length + 1) return 0; const iv = []; for (let i = 1; i <= b.secret.gaps.length; i++) iv.push(taps[i] - taps[i - 1]); let err = 0; for (let i = 0; i < b.secret.gaps.length; i++) err += Math.abs(iv[i] - b.secret.gaps[i]) / b.secret.gaps[i]; err /= b.secret.gaps.length; return clamp(1 - err / b.secret.tolFrac, 0, 1); }, humanP: ryH };
+
+  GAMES.combochain = { family: 'rhythm', label: 'Combo Chain',
+    build: function (seed, lvl) { const d = dOf(lvl); const n = 6 + Math.round(d * 6), tol = Math.round(200 - 92 * d); const beats = []; let t = 900, gap = 780 - 240 * d; for (let i = 0; i < n; i++) { beats.push(Math.round(t)); t += gap; gap *= 0.93; } return { data: { mode: 'rycombo', beats: beats, tol: tol, dur: Math.round(t) + 650 }, secret: { beats: beats, tol: tol } }; },
+    grade: function (b, l, ev) { const taps = (ev || []).filter(e => e && e.type === 'tap').map(e => e.t || 0); let best = 0, cur = 0, matched = 0; for (const bt of b.secret.beats) { let bd = 1e9; for (const tp of taps) bd = Math.min(bd, Math.abs(tp - bt)); if (bd <= b.secret.tol) { cur++; best = Math.max(best, cur); matched++; } else cur = 0; } const extra = Math.max(0, taps.length - matched); const pen = 0.65 * extra; return clamp((best - pen) / b.secret.beats.length, 0, 1); }, humanP: ryH };
+
+  GAMES.wiretrace = { family: 'dexterity', label: 'Wire Trace',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'wiretrace', lvl)), d = dOf(lvl); const amp = +(0.20 + 0.16 * d).toFixed(3), fx = +(3.2 + 4.4 * d).toFixed(3), ph = +(r.u() * 6.28).toFixed(3), tol = +(0.16 - 0.085 * d).toFixed(4); return { data: { mode: 'dxwire', amp: amp, fx: fx, ph: ph, dur: Math.round(6800 - 900 * d) }, secret: { amp: amp, fx: fx, ph: ph, tol: tol } }; },
+    grade: function (b, l, ev) { const pts = (ev || []).filter(e => e && e.type === 'pt'); if (pts.length < 6) return 0; let xmin = 1, xmax = 0, md = 0; for (const p of pts) { const x = clamp(p.x || 0, 0, 1), y = clamp(p.y || 0, 0, 1); xmin = Math.min(xmin, x); xmax = Math.max(xmax, x); const dev = Math.abs(y - (0.5 + b.secret.amp * Math.sin(b.secret.fx * x + b.secret.ph))); if (dev > md) md = dev; } if (xmax - xmin < 0.82) return 0; return clamp(1 - md / b.secret.tol, 0, 1); }, humanP: dxH };
+
+  GAMES.gapthreader = { family: 'dexterity', label: 'Gap Threader',
+    // Anti-bot: gaps are pushed toward the edges (alternating half) so a fixed-center park can't sit in many gaps, and each
+    // wall is graded on the sample NEAREST IN TIME to its arrival (a between-walls no-op no longer scores). Correct play (slide
+    // into each gap by its landing time) still scores ~1.0; empty input scores 0.
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'gapthreader', lvl)), d = dOf(lvl); const n = 5 + Math.round(d * 5), fall = Math.round(1150 - 400 * d), gw = +(0.30 - 0.15 * d).toFixed(3); const walls = []; let t = 1200; for (let i = 0; i < n; i++) { const half = gw / 2 + 0.02; const lo = half + (i % 2 ? 0.42 : 0.0), hi = (i % 2 ? 1 - half : 0.58 - half); const gx = +(clamp(lo + r.u() * Math.max(0.001, hi - lo), half, 1 - half)).toFixed(3); walls.push({ t: t, gx: gx, gw: gw }); t += fall; } return { data: { mode: 'dxgaps', walls: walls, fall: fall, dur: t + 600 }, secret: { walls: walls } }; },
+    grade: function (b, l, ev) { const pts = (ev || []).filter(e => e && e.type === 'pt'); if (pts.length < 4) return 0; if (moveFloorX(pts) < 0.35) return 0; let ok = 0; for (const w of b.secret.walls) { const s = sampAt(pts, w.t); if (s && Math.abs((s.x || 0) - w.gx) <= w.gw / 2) ok++; } return clamp(ok / b.secret.walls.length, 0, 1); }, humanP: dxH };
+
+  GAMES.lasercorridor = { family: 'dexterity', label: 'Laser Corridor',
+    // KNOBS (Jake 2026-09-13, additive; each new knob is 0 at d=0 so ch1 == old ch1): (1) beams n 3->6, (2) base sweep period 1000->620ms,
+    // (3) safe-gap window onFrac 0.42->0.58, (4) time pressure dur 7.0->6.4s, (5) NEW per-laser period SPREAD (perSpread, 0 at ch1) so the
+    // beams DESYNC instead of pulsing in lockstep — a much harder read, and (6) NEW per-laser onFrac JITTER (onJit, 0 at ch1) so each beam's
+    // safe window differs. period+onFrac are ALREADY read per-laser by both the presenter and grade(), so varying them per beam needs no new
+    // wiring and cannot desync the drawn game from the graded game. A correct dark-crossing play still scores ~1.0.
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'lasercorridor', lvl)), d = dOf(lvl); const n = 3 + Math.round(d * 3), period = Math.round(1000 - 380 * d), onFrac = +(0.42 + 0.16 * d).toFixed(3); const perSpread = 0.34 * d, onJit = 0.10 * d; const lasers = []; for (let i = 0; i < n; i++) { const pj = Math.round(period * (1 + (r.u() - 0.5) * perSpread)); const oj = clamp(onFrac + (r.u() - 0.5) * onJit, 0.35, 0.78); lasers.push({ x: +((i + 1) / (n + 1)).toFixed(3), phase: +(r.u()).toFixed(3), period: pj, onFrac: +oj.toFixed(3) }); } return { data: { mode: 'dxlaser', lasers: lasers, dur: Math.round(7000 - 600 * d) }, secret: { lasers: lasers } }; },
+    grade: function (b, l, ev) { const pts = (ev || []).filter(e => e && e.type === 'pt'); if (pts.length < 6) return 0; let xmax = 0; for (const p of pts) xmax = Math.max(xmax, p.x || 0); if (xmax < 0.9) return 0; let safe = 0; for (const L of b.secret.lasers) { let cross = null; for (let i = 1; i < pts.length; i++) { if ((pts[i - 1].x || 0) <= L.x && (pts[i].x || 0) >= L.x) { cross = pts[i]; break; } } if (!cross) continue; const ph = (((cross.t || 0) / L.period) + L.phase) % 1; if (ph >= L.onFrac) safe++; } return clamp(safe / b.secret.lasers.length, 0, 1); }, humanP: dxH };
+
+  GAMES.coilunwind = { family: 'dexterity', label: 'Coil Unwind',
+    // Anti-bot: grade now traces the ACTUAL spiral. The drawn spiral is R0*(1-f) at angle dir*f*turns*2PI (R0=0.36 in
+    // normalized min-axis units); we walk it in fixed angle steps and require the drag to have a sample within `tol` of each
+    // step in ORDER (so a straight edge->center line, a wrong-direction trace, or scattered points all fail). Reaching the
+    // centre and starting at the edge are still required. Correct play (follow the on-screen spiral) scores ~1.0; empty = 0.
+    // KNOBS (Jake 2026-09-13, additive; wobble=0 & the tighter tol floor only bite as d rises, so ch1 == old ch1): (1) spiral turns
+    // 1.5->3.0 (a longer wind), (2) path tolerance tol 0.115->0.085 (floor lowered to 0.07 so tol is a real deep knob), (3) time
+    // pressure dur 7.2->6.3s, (4) NEW coverage requirement covReq 0.8->0.92 (deep runs must trace MORE of the whole spiral, not just
+    // the easy outer arc), and (5) NEW radius WOBBLE (wobA/wobF, 0 at ch1) so the spiral gently breathes in/out — a lazy fixed-pitch
+    // trace drifts off the wobbling line. wobA/wobF/wobP + covReq ship in data AND secret; the presenter reads them to DRAW the same
+    // breathing spiral grade reconstructs, so drawn==graded. A faithful full trace to the centre still scores ~1.0.
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'coilunwind', lvl)), d = dOf(lvl); const turns = +(1.5 + 1.5 * d).toFixed(2), dir = r.int(2) ? 1 : -1, tol = +(0.115 - 0.03 * d).toFixed(4), dur = Math.round(7200 - 900 * d); const wobA = +(0.03 * d).toFixed(4), wobF = +(2.0 + 2.5 * d).toFixed(3), wobP = +(r.u() * 6.28).toFixed(3), covReq = +(0.8 + 0.12 * d).toFixed(3); return { data: { mode: 'dxcoil', turns: turns, dir: dir, dur: dur, wobA: wobA, wobF: wobF, wobP: wobP }, secret: { turns: turns, dir: dir, tol: tol, dur: dur, wobA: wobA, wobF: wobF, wobP: wobP, covReq: covReq } }; },
+    // FIX (Jake 2026-09-13): grade is now PACE-INDEPENDENT. The presenter draws a STATIC spiral traced at the player's own speed, but
+    // the old grade required being at the time-fraction f=t/dur point of the spiral — so any natural pace desynced and scored 0 even
+    // while the on-screen dot showed on-path. Now we match each drag sample to its NEAREST spiral parameter f (not time), reward
+    // COVERAGE of the spiral outer->center + staying on the line + reaching the centre. A static park (near-zero path) still fails via
+    // the move floor + tiny coverage; a straight edge->centre line crosses few spiral bins => low. Genuine spiral trace => ~1.0.
+    grade: function (b, l, ev) { const pts = (ev || []).filter(e => e && e.type === 'pt'); if (pts.length < 8) return 0; if (moveFloor(pts) < 0.5) return 0; const s = b.secret, R0 = 0.36, TT = s.turns * 2 * Math.PI, tol = Math.max(0.07, s.tol), wobA = s.wobA || 0, wobF = s.wobF || 0, wobP = s.wobP || 0, covReq = s.covReq || 0.8;
+      const nearF = (px, py) => { const x = px - 0.5, y = py - 0.5; let bd = 1e9, bf = 0; for (let i = 0; i <= 200; i++) { const f = i / 200, ang = s.dir * f * TT, rad = R0 * (1 - f) * (1 + wobA * Math.sin(f * wobF + wobP)); const dd = Math.hypot(x - Math.cos(ang) * rad, y - Math.sin(ang) * rad); if (dd < bd) { bd = dd; bf = f; } } return { f: bf, d: bd }; };
+      const NB = 24, bins = new Array(NB).fill(false); let onPath = 0, minR = 1e9; const startR = Math.hypot((pts[0].x || 0) - 0.5, (pts[0].y || 0) - 0.5);
+      for (const p of pts) { const px = p.x || 0, py = p.y || 0; minR = Math.min(minR, Math.hypot(px - 0.5, py - 0.5)); const nf = nearF(px, py); if (nf.d <= tol) { onPath++; bins[Math.min(NB - 1, Math.floor(nf.f * NB))] = true; } }
+      const coverage = bins.filter(Boolean).length / NB, onFrac = onPath / pts.length, reached = minR <= 0.14 ? 1 : clamp(1 - (minR - 0.14) / 0.2, 0, 1), startOk = startR >= 0.5 * R0 ? 1 : 0.6;
+      return clamp(clamp(coverage / covReq, 0, 1) * (0.35 + 0.65 * reached) * (0.5 + 0.5 * onFrac) * startOk, 0, 1); }, humanP: dxH };
+
+  GAMES.tiltbalance = { family: 'dexterity', label: 'Tilt Balance',
+    // FIX (was bot-trivial — a fabricated fixed x=0.5 stream scored 1.0): the balance SET-POINT now WANDERS on a seed path
+    // (setAmp/setFx/setPhase in data+secret). The player keeps the ball on the moving set-point; grade measures |x - setpoint(t)|,
+    // so a static 0.5 stream falls outside tolerance and scores ~0. A seed drift force in the presenter also pushes the ball,
+    // so idle play drifts off. `tol` is shipped so the drawn band matches the graded band.
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'tiltbalance', lvl)), d = dOf(lvl); const grav = +(0.00120 + 0.00060 * d).toFixed(6), tol = +(0.16 - 0.07 * d).toFixed(3), drift = +(0.00030 + 0.00040 * d).toFixed(6), driftPhase = +(r.u() * 6.28).toFixed(3), driftFreq = +(0.0016 + 0.0010 * d).toFixed(6), setAmp = +(0.24 + 0.06 * d).toFixed(4), setFx = +(0.00060 + 0.00030 * d).toFixed(6), setPhase = +(r.u() * 6.28).toFixed(3); return { data: { mode: 'dxtilt', grav: grav, tol: tol, drift: drift, driftPhase: driftPhase, driftFreq: driftFreq, setAmp: setAmp, setFx: setFx, setPhase: setPhase, dur: Math.round(6500 + 1500 * d) }, secret: { tol: tol, setAmp: setAmp, setFx: setFx, setPhase: setPhase } }; },
+    grade: function (b, l, ev) { const pts = (ev || []).filter(e => e && e.type === 'pt'); if (pts.length < 10) return 0; const s = b.secret; if (moveFloorX(pts) < 0.35) return 0; let inZone = 0; for (const p of pts) { const sp = 0.5 + s.setAmp * Math.sin((p.t || 0) * s.setFx + s.setPhase); if (Math.abs((p.x || 0) - sp) <= s.tol) inZone++; }
+      // Anti-sweep: the setpoint oscillates, so a human keeps x NEAR sp(t) — their x(t) is strongly correlated with sp(t) across the
+      // run. A blind constant-speed sweep (monotonic x ramp) has ~zero correlation with an oscillating sp(t). We use POSITION
+      // correlation (not per-step velocity, which per-sample hand jitter swamps): averaged over all samples it is robust to noise —
+      // human ~+1, ramp ~0. Gate the in-zone fraction by it so a pre-planned path can't harvest coincidental band crossings.
+      let sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0, n = pts.length; for (const p of pts) { const ix = (p.x || 0); const sp = 0.5 + s.setAmp * Math.sin((p.t || 0) * s.setFx + s.setPhase); sx += ix; sy += sp; sxx += ix * ix; syy += sp * sp; sxy += ix * sp; }
+      const cov = sxy - sx * sy / n, vx = sxx - sx * sx / n, vy = syy - sy * sy / n; const corr = (vx > 1e-9 && vy > 1e-9) ? cov / Math.sqrt(vx * vy) : 0; const trackFrac = clamp(corr, 0, 1);
+      return clamp((inZone / pts.length) * (0.15 + 0.85 * trackFrac), 0, 1); }, humanP: dxH };
+
+  // ── NEW RHYTHM (10) — Jake 2026-09-12 expansion to 15 ──
+  GAMES.sustainhold = { family: 'rhythm', label: 'Sustain Hold',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'sustainhold', lvl)), d = dOf(lvl); const n = 2 + Math.round(d * 3), tol = Math.round(230 - 100 * d), holdMin = Math.round(700 - 250 * d); const holds = []; let t = 950; for (let i = 0; i < n; i++) { const len = holdMin + Math.round(r.u() * (600 - 200 * d)); holds.push({ down: t, up: t + len }); t += len + Math.round(520 - 160 * d); } return { data: { mode: 'rysustain', holds: holds, tol: tol, dur: t + 650 }, secret: { holds: holds, tol: tol } }; },
+    grade: function (b, l, ev) { const downs = (ev || []).filter(e => e && e.type === 'down').map(e => e.t || 0); const ups = (ev || []).filter(e => e && e.type === 'up').map(e => e.t || 0); const holds = b.secret.holds, tol = b.secret.tol; if (!downs.length || !ups.length) return 0; const usedD = new Array(downs.length).fill(false), usedU = new Array(ups.length).fill(false); let hit = 0; for (const H of holds) { let di = -1, dd = 1e9; for (let i = 0; i < downs.length; i++) { if (usedD[i]) continue; const x = Math.abs(downs[i] - H.down); if (x < dd) { dd = x; di = i; } } let ui = -1, ud = 1e9; for (let i = 0; i < ups.length; i++) { if (usedU[i]) continue; const x = Math.abs(ups[i] - H.up); if (x < ud) { ud = x; ui = i; } } if (di >= 0 && ui >= 0 && dd <= tol && ud <= tol) { usedD[di] = true; usedU[ui] = true; hit++; } } return clamp(hit / holds.length, 0, 1); }, humanP: ryH };
+
+  GAMES.offbeat = { family: 'rhythm', label: 'Off Beat',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'offbeat', lvl)), d = dOf(lvl); const n = 4 + Math.round(d * 4), period = Math.round(1000 - 420 * d), tol = Math.round(200 - 92 * d); const ticks = [], beats = []; let t = 950; for (let i = 0; i < n + 1; i++) { ticks.push(t); if (i < n) beats.push(t + Math.round(period / 2)); t += period; } return { data: { mode: 'ryoffbeat', ticks: ticks, offs: beats, period: period, tol: tol, dur: t + 500 }, secret: { beats: beats, tol: tol } }; },
+    grade: function (b, l, ev) { return ryMatch(b.secret.beats, ev, b.secret.tol); }, humanP: ryH };
+
+  GAMES.accentonly = { family: 'rhythm', label: 'Accent Only',
+    // SUBTLE-LOUDNESS ACCENTS (Jake 2026-09-12): accents are NOT "every Nth" (memorisable) and NOT a huge size jump (crude-CV-obvious).
+    // Each pulse carries an amp; accents sit a CLEAR-to-a-human but modest step above the baseline (a loudness/size read), and the step
+    // SHRINKS with depth so a coarse size-threshold bot can't cleanly separate them. The anti-flood penalty (below) is kept so a spray of
+    // taps on every pulse nets out low. amp ships in data so the presenter draws the size/loudness; the accent times are secret-graded.
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'accentonly', lvl)), d = dOf(lvl); const n = 6 + Math.round(d * 5), period = Math.round(760 - 300 * d), tol = Math.round(195 - 88 * d); const pulses = [], accents = []; let t = 950;
+      const baseAmp = 0.42, accStep = +(0.40 - 0.20 * d).toFixed(3);   // accent is baseAmp+accStep vs non-accent ~baseAmp; step is clear ch1, subtle ch10
+      for (let i = 0; i < n; i++) { const acc = r.u() < 0.42; const amp = +clamp((acc ? baseAmp + accStep : baseAmp) + (r.u() - 0.5) * 0.06, 0.2, 1).toFixed(3); pulses.push({ t: t, acc: acc, amp: amp }); if (acc) accents.push(t); t += period; }
+      if (!accents.length) { pulses[0].acc = true; pulses[0].amp = +clamp(baseAmp + accStep, 0.2, 1).toFixed(3); accents.push(pulses[0].t); }
+      return { data: { mode: 'ryaccent', pulses: pulses, period: period, tol: tol, dur: t + 500 }, secret: { accents: accents, nonAccents: pulses.filter(p => !p.acc).map(p => p.t), tol: tol } }; },
+    grade: function (b, l, ev) { const taps = (ev || []).filter(e => e && e.type === 'tap').map(e => e.t || 0); if (!taps.length) return 0; const s = b.secret, used = new Array(taps.length).fill(false); let hit = 0; for (const at of s.accents) { let bi = -1, bd = 1e9; for (let i = 0; i < taps.length; i++) { if (used[i]) continue; const dd = Math.abs(taps[i] - at); if (dd < bd) { bd = dd; bi = i; } } if (bi >= 0 && bd <= s.tol) { used[bi] = true; hit++; } }
+      // ANTI-FLOOD: a human taps about ONCE PER ACCENT (total taps ~= accents.length). A spray taps far MORE than there are accents. So the
+      // flood signature is total taps in EXCESS of the accent count — penalise that, not a human's single narrow miss (which would unfairly
+      // double-count). extra = max(0, totalTaps - accents.length); each excess tap costs 0.8 on the accent scale so a full-pulse or 130ms
+      // spray nets ~0, while clean one-tap-per-accent play (extra=0) is untouched.
+      const extra = Math.max(0, taps.length - s.accents.length); const pen = 0.8 * extra; return clamp((hit - pen) / s.accents.length, 0, 1); }, humanP: ryH };
+
+  GAMES.twinstrike = { family: 'rhythm', label: 'Twin Strike',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'twinstrike', lvl)), d = dOf(lvl); const n = 4 + Math.round(d * 4), period = Math.round(980 - 380 * d), tol = Math.round(210 - 96 * d), dbl = Math.round(210 - 60 * d); const cues = []; let t = 950; for (let i = 0; i < n; i++) { const isDbl = r.u() < 0.45; cues.push({ t: t, count: isDbl ? 2 : 1, gap: dbl }); t += period; } return { data: { mode: 'rytwin', cues: cues, dblGap: dbl, tol: tol, dur: t + 500 }, secret: { cues: cues, tol: tol } }; },
+    grade: function (b, l, ev) { const taps = (ev || []).filter(e => e && e.type === 'tap').map(e => e.t || 0).sort((a, x) => a - x); if (!taps.length) return 0; const s = b.secret, used = new Array(taps.length).fill(false); let score = 0, matched = 0, expected = 0; for (const c of s.cues) { expected += c.count; let got = 0; for (let k = 0; k < c.count; k++) { const center = c.t + (c.count === 2 ? k * c.gap : 0); let bi = -1, bd = 1e9; for (let i = 0; i < taps.length; i++) { if (used[i]) continue; const dd = Math.abs(taps[i] - center); if (dd < bd) { bd = dd; bi = i; } } if (bi >= 0 && bd <= s.tol) { used[bi] = true; got++; matched++; } } score += got / c.count; }
+      // Anti-flood (mirror of ryMatch): each tap pairs to at most one cue-beat; taps matching NO beat within tol are spurious. A
+      // fixed-tempo spray bot emits far more taps than beats, so its excess drives the score down. Penalty is on the CUE scale
+      // (0.65 per extra tap, rescaled by cues/expected-beats) so clean 1-tap-per-beat play (extra=0) is unaffected. expected>0 (taps.length>0 => cues exist).
+      const extra = Math.max(0, taps.length - matched); const pen = 0.65 * extra * (s.cues.length / expected); return clamp((score - pen) / s.cues.length, 0, 1); }, humanP: ryH };
+
+  GAMES.rampup = { family: 'rhythm', label: 'Ramp Up',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'rampup', lvl)), d = dOf(lvl); const n = 8 + Math.round(d * 6), tol = Math.round(200 - 90 * d); const gapMax = 820 - 220 * d, gapMin = 340 - 120 * d; const beats = []; let t = 950; for (let i = 0; i < n; i++) { beats.push(Math.round(t)); const f = i / (n - 1); const gap = gapMax + (gapMin - gapMax) * Math.sin(f * Math.PI); t += gap; } return { data: { mode: 'ryramp', beats: beats, tol: tol, dur: Math.round(t) + 550 }, secret: { beats: beats, tol: tol } }; },
+    grade: function (b, l, ev) { return ryMatch(b.secret.beats, ev, b.secret.tol); }, humanP: ryH };
+
+  GAMES.laneswitch = { family: 'rhythm', label: 'Lane Switch',
+    // FAKE-OUT LANES (Jake 2026-09-12): the beats no longer strictly alternate L/R — the LIT lane occasionally jumps off the expected
+    // alternation. You must tap the ACTUAL glowing side each beat, not a memorised L,R,L,R spray. A fixed-tempo spray that assumes the
+    // pattern (or omits the lane) mistimes and mis-picks; a human reading the lit lane still clears. Window is a touch tighter too.
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'laneswitch', lvl)), d = dOf(lvl); const n = 5 + Math.round(d * 5), period = Math.round(880 - 340 * d), tol = Math.round(205 - 80 * d); const cues = []; let t = 950;
+      // The lit side is CHOSEN FRESH each beat (~50% either side) — NOT a memorisable L,R,L,R. A human reads whichever side is actually
+      // lit; a bot assuming alternation is a coin-flip on lane. Window (tol) stays generous so a genuine on-beat, correct-lane tap always lands.
+      for (let i = 0; i < n; i++) { cues.push({ t: t, side: r.int(2) }); t += period; }
+      return { data: { mode: 'rylane', cues: cues, period: period, tol: tol, dur: t + 500 }, secret: { cues: cues, tol: tol } }; },
+    grade: function (b, l, ev) { const taps = (ev || []).filter(e => e && e.type === 'tap').map(e => ({ t: e.t || 0, lane: e.lane })); if (!taps.length) return 0; const s = b.secret, used = new Array(taps.length).fill(false); let hit = 0; for (const c of s.cues) { let bi = -1, bd = 1e9; for (let i = 0; i < taps.length; i++) { if (used[i]) continue; const dd = Math.abs(taps[i].t - c.t); if (dd < bd) { bd = dd; bi = i; } } if (bi >= 0 && bd <= s.tol) { used[bi] = true; if (taps[bi].lane === c.side) hit += 1; /* must tap the correct LIT side; no partial for a laneless/wrong tap */ } }
+      // SIDE is a fresh coin-flip per beat, so a bot that guesses/alternates the lane averages ~half correct. A LINEAR hits/cues would hand
+      // that bot ~0.5 (a soft lane). Instead apply a threshold curve: a human who READS the lit side gets nearly all lanes right (frac ~1),
+      // a coin-flip guesser (~0.5) collapses to 0. frac<=0.5 => 0; ramps to 1 by frac=0.95. Correct human play stays ~1.0.
+      const frac = hit / s.cues.length; return clamp((frac - 0.5) / 0.45, 0, 1); }, humanP: ryH };
+
+  GAMES.echoreverse = { family: 'rhythm', label: 'Echo Reverse',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'echoreverse', lvl)), d = dOf(lvl); const n = 3 + Math.round(d * 3); const gaps = []; for (let i = 0; i < n - 1; i++) gaps.push(Math.round(320 + r.u() * (680 - 240 * d))); const rev = gaps.slice().reverse(); const showDur = 700 + gaps.reduce((a, x) => a + x, 0) + 500; return { data: { mode: 'ryechorev', count: n, gaps: gaps, showDur: showDur, dur: showDur + 6000 }, secret: { rev: rev, tolFrac: 0.30 - 0.10 * d } }; },
+    grade: function (b, l, ev) { const taps = (ev || []).filter(e => e && e.type === 'tap').map(e => e.t || 0).sort((a, x) => a - x); const rev = b.secret.rev; if (taps.length < rev.length + 1) return 0; const iv = []; for (let i = 1; i <= rev.length; i++) iv.push(taps[i] - taps[i - 1]); let err = 0; for (let i = 0; i < rev.length; i++) err += Math.abs(iv[i] - rev[i]) / rev[i]; err /= rev.length; return clamp(1 - err / b.secret.tolFrac, 0, 1); }, humanP: ryH };
+
+  GAMES.gatepulse = { family: 'rhythm', label: 'Gate Pulse',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'gatepulse', lvl)), d = dOf(lvl); const n = 4 + Math.round(d * 4), period = Math.round(1000 - 400 * d), win = Math.round(360 - 180 * d); const beats = []; let t = 1000; for (let i = 0; i < n; i++) { beats.push(t); t += period; } return { data: { mode: 'rygate', beats: beats, win: win, dur: t + 500 }, secret: { beats: beats, tol: win } }; },
+    grade: function (b, l, ev) { return ryMatch(b.secret.beats, ev, b.secret.tol); }, humanP: ryH };
+
+  GAMES.stepladder = { family: 'rhythm', label: 'Step Ladder',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'stepladder', lvl)), d = dOf(lvl); const n = 5 + Math.round(d * 4), period = Math.round(820 - 320 * d), tol = Math.round(200 - 90 * d); const rungs = []; let t = 950; for (let i = 0; i < n; i++) { rungs.push({ t: t, rung: i }); t += period - (d > 0.5 ? r.int(120) : 0); } return { data: { mode: 'ryladder', rungs: rungs, n: n, tol: tol, dur: t + 550 }, secret: { beats: rungs.map(x => x.t), tol: tol } }; },
+    grade: function (b, l, ev) { return ryMatch(b.secret.beats, ev, b.secret.tol); }, humanP: ryH };
+
+  GAMES.heartbeat = { family: 'rhythm', label: 'Heartbeat',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'heartbeat', lvl)), d = dOf(lvl); const n = 3 + Math.round(d * 3), period = Math.round(1200 - 420 * d), lubdub = Math.round(230 - 70 * d), tol = Math.round(185 - 82 * d); const thumps = []; let t = 1000; for (let i = 0; i < n; i++) { thumps.push(t); thumps.push(t + lubdub); t += period; } return { data: { mode: 'ryheart', thumps: thumps, lubdub: lubdub, period: period, tol: tol, dur: t + 500 }, secret: { beats: thumps, tol: tol } }; },
+    grade: function (b, l, ev) { return ryMatch(b.secret.beats, ev, b.secret.tol); }, humanP: ryH };
+
+  // ── NEW DEXTERITY (10) — Jake 2026-09-12 expansion to 15 ──
+  GAMES.mazerun = { family: 'dexterity', label: 'Maze Run',
+    // KNOBS (Jake 2026-09-13, additive; the extra bends only appear as d rises and ch1 keeps the SAME 2-bend L-path + same width, so
+    // ch1 == old ch1): (1) corridor width corr 0.16->0.10 (narrower), (2) time pressure dur 8.0->7.1s, (3) NEW BENDS — a deep maze
+    // adds an S-jog (an extra turn pair) so the traverse is a longer, twistier corridor, not a simple L, (4) NEW endpoint tolerance
+    // tol 0.10->0.055 (must land more precisely on the exit deep), and (5) NEW width TAPER — the final corridor to the exit narrows
+    // extra so the last approach is the tightest. corridors[] + start/exit + tol are read verbatim by BOTH the presenter (draws each
+    // rect + start/exit marks + inside-check) and grade() (inside-fraction + reached-exit against tol), so more rects / a tighter tol
+    // stay perfectly in sync. A corridor-follower still stays inside and lands on the exit => ~1.0.
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'mazerun', lvl)), d = dOf(lvl); const corr = +(0.16 - 0.06 * d).toFixed(3); const tol = +(0.10 - 0.045 * d).toFixed(4); const start = { x: 0.10, y: 0.10 }, exit = { x: 0.90, y: 0.90 }; const midY = +(0.35 + r.u() * 0.3).toFixed(3), midX = +(0.35 + r.u() * 0.3).toFixed(3);
+      let path; if (d >= 0.34) { const jogY = +(0.55 + r.u() * 0.25).toFixed(3), jogX = +(0.55 + r.u() * 0.2).toFixed(3); path = [start, { x: midX, y: start.y }, { x: midX, y: midY }, { x: jogX, y: midY }, { x: jogX, y: jogY }, { x: exit.x, y: jogY }, exit]; } else { path = [start, { x: midX, y: start.y }, { x: midX, y: midY }, { x: exit.x, y: midY }, exit]; }
+      const nSeg = path.length - 1, walls = []; for (let seg = 0; seg < nSeg; seg++) { const a = path[seg], b = path[seg + 1]; const taper = (seg === nSeg - 1) ? (1 - 0.28 * d) : 1; const cw = corr * taper; const x0 = Math.min(a.x, b.x) - cw / 2, x1 = Math.max(a.x, b.x) + cw / 2, y0 = Math.min(a.y, b.y) - cw / 2, y1 = Math.max(a.y, b.y) + cw / 2; walls.push({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 }); } return { data: { mode: 'dxmaze', start: start, exit: exit, corridors: walls, dur: Math.round(8000 - 900 * d) }, secret: { start: start, exit: exit, corridors: walls, tol: tol } }; },
+    // ANTI-PARK/FIXED (Jake 2026-09-12): a park bot sits inside one corridor cell (contacts~0) and, on the old grade, harvested the
+    // 0.3 non-reach floor. Now the score requires REAL TRAVERSAL: (a) moveFloor(pts) >= a genuine start->exit path-length floor
+    // (a static or barely-moving stream => 0), AND (b) the drag actually ARRIVES at the exit (endpoint proximity). Either failing => 0.
+    // A human weaving corridor->exit racks up path length ~1.6 and lands on the exit, so correct play stays ~1.0.
+    grade: function (b, l, ev) { const pts = (ev || []).filter(e => e && e.type === 'pt'); if (pts.length < 6) return 0; const s = b.secret; if (moveFloor(pts) < 0.80) return 0; const inside = p => { for (const c of s.corridors) { if (p.x >= c.x && p.x <= c.x + c.w && p.y >= c.y && p.y <= c.y + c.h) return true; } return false; }; let contacts = 0; for (const p of pts) if (!inside(p)) contacts++; const lastP = pts[pts.length - 1]; const reached = Math.hypot((lastP.x || 0) - s.exit.x, (lastP.y || 0) - s.exit.y) <= s.tol * 1.6; if (!reached) return 0; const inFrac = 1 - contacts / pts.length; if (inFrac < 0.80) return 0;   // GATE (not a curve): must stay MOSTLY inside the corridor. A plausible straight-diagonal "fixed" path clips the corners (inFrac ~0.4-0.75) => 0; a corridor-follower stays >0.85 inside and keeps its full 1-contacts score (so a real human isn't newly penalised deep). Reaching the exit alone is not enough.
+      return clamp(inFrac, 0, 1); }, humanP: dxH };
+
+  GAMES.orbitring = { family: 'dexterity', label: 'Orbit Ring',
+    // Presenter draws the ring as an ellipse (rad*w, rad*h) centred at (0.5,0.5), so a correct trace yields hypot(x-0.5,y-0.5)===rad
+    // in the same per-axis normalized space grade uses — fixes the aspect-ratio "traced-right-but-lost" failure. Radius spans a
+    // wider band (0.24..0.40) so a blind fixed-radius bot can't camp one guess; the ring is drawn (a CV bot reading it is left to
+    // the humanness layer, as with the whole dexterity family).
+    // KNOBS (Jake 2026-09-13, additive; laps=1 & wobble=0 at d=0 so ch1 == old ch1): (1) ring trace tolerance tol 0.10->0.055,
+    // (2) time pressure dur 7.5->6.6s, (3) random radius band (existing anti-camp), (4) NEW laps 1->2 (deeper needs MORE than one full
+    // revolution — cover is scored against 2*PI*laps), (5) NEW radius WOBBLE (radAmp/radFx, 0 at ch1) so the ring gently breathes in/out
+    // and a fixed-radius camp drifts off-band, and (6) NEW net-direction gate (deep runs must sweep MOSTLY one way, not scrub back and forth).
+    // The presenter reads rad/radAmp/radFx/laps so the drawn ring matches the graded ring; a genuine multi-lap trace scores ~1.0.
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'orbitring', lvl)), d = dOf(lvl); const rad = +(0.20 + r.u() * 0.22).toFixed(3), tol = +(0.10 - 0.045 * d).toFixed(4); const laps = 1 + Math.round(d); const radAmp = +(0.04 * d).toFixed(4), radFx = +(0.00070 + 0.00040 * d).toFixed(6), radPhase = +(r.u() * 6.28).toFixed(3); return { data: { mode: 'dxorbit', rad: rad, radAmp: radAmp, radFx: radFx, radPhase: radPhase, laps: laps, dur: Math.round(7500 - 900 * d) }, secret: { rad: rad, tol: tol, radAmp: radAmp, radFx: radFx, radPhase: radPhase, laps: laps } }; },
+    grade: function (b, l, ev) { const pts = (ev || []).filter(e => e && e.type === 'pt'); if (pts.length < 10) return 0; const s = b.secret; const laps = s.laps || 1; let onRing = 0, prevA = null, cover = 0, net = 0; for (const p of pts) { const dx = (p.x || 0) - 0.5, dy = (p.y || 0) - 0.5, rr = Math.hypot(dx, dy); const ringR = s.rad + (s.radAmp || 0) * Math.sin((p.t || 0) * (s.radFx || 0) + (s.radPhase || 0)); if (Math.abs(rr - ringR) <= s.tol) onRing++; const a = Math.atan2(dy, dx); if (prevA != null) { let da = a - prevA; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI; cover += Math.abs(da); net += da; } prevA = a; } const ringFrac = onRing / pts.length, turnFrac = clamp(cover / (2 * Math.PI * laps), 0, 1); const dirFrac = cover > 1e-6 ? clamp(Math.abs(net) / cover, 0, 1) : 0; const dirGate = 0.5 + 0.5 * dirFrac; return clamp(ringFrac * turnFrac * dirGate, 0, 1); }, humanP: dxH };
+
+  GAMES.pinchgap = { family: 'dexterity', label: 'Pinch Gap',
+    // The band is drawn (so its centre is inherently visible — this is a keep-in-the-visible-band game, not a hidden-answer one).
+    // Anti-bot: centre is pushed to an OFF-centre band (0.18..0.38 or 0.62..0.82) and the start band is narrower, so a naive
+    // fixed x=0.5 hold sits OUTSIDE the band from the start and scores ~0. Correct play (track the closing band) scores ~1.0.
+    // ANTI-PARK (Jake 2026-09-12): the band centre now WANDERS on a seed path (centreAmp/centreFx/centrePhase, mirroring
+    // tiltbalance's setpoint). A static park — even one parked at the START centre — drifts OUT of the moving+closing band and
+    // scores ~0. grade() measures |x - movingCentre(t)| against the closing half-width AND requires a moveFloorX traversal floor.
+    // The presenter reads the SAME fields so the drawn band matches the graded band; a human tracking the visible band clears ~1.0.
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'pinchgap', lvl)), d = dOf(lvl); const dur = Math.round(7200 - 900 * d); const startBand = +(0.34 - 0.06 * d).toFixed(3), endBand = +(0.14 - 0.06 * d).toFixed(3), center = +((r.u() < 0.5 ? 0.18 + r.u() * 0.20 : 0.62 + r.u() * 0.20)).toFixed(3); const centreAmp = +(0.08 + 0.05 * d).toFixed(4), centreFx = +(0.00055 + 0.00035 * d).toFixed(6), centrePhase = +(r.u() * 6.28).toFixed(3); return { data: { mode: 'dxpinch', startBand: startBand, endBand: endBand, center: center, centreAmp: centreAmp, centreFx: centreFx, centrePhase: centrePhase, dur: dur }, secret: { startBand: startBand, endBand: endBand, center: center, centreAmp: centreAmp, centreFx: centreFx, centrePhase: centrePhase, dur: dur } }; },
+    grade: function (b, l, ev) { const pts = (ev || []).filter(e => e && e.type === 'pt'); if (pts.length < 10) return 0; const s = b.secret; if (moveFloorX(pts) < 0.35) return 0; let inBand = 0; for (const p of pts) { const t = p.t || 0; const f = clamp(t / s.dur, 0, 1); const half = (s.startBand + (s.endBand - s.startBand) * f) / 2; const cen = clamp(s.center + s.centreAmp * Math.sin(t * s.centreFx + s.centrePhase), 0.05, 0.95); if (Math.abs((p.x || 0) - cen) <= half) inBand++; } return clamp(inBand / pts.length, 0, 1); }, humanP: dxH };
+
+  GAMES.cranklever = { family: 'dexterity', label: 'Crank Lever',
+    // KNOBS (Jake 2026-09-13, additive; every new gate is neutral at d=0 so ch1 == old ch1): (1) full rotations turns 2->4, (2) time
+    // pressure dur 7.5->6.6s, (3) NEW min-grip radius rMin 0.05->0.17 (deep = must make BIG circles, not tiny wrist flicks at the hub —
+    // samples inside rMin don't count and reset the angle chain, exactly like the existing <0.05 deadzone but wider), (4) NEW outer band
+    // rMax 0.60->0.42 (deep = grip must stay in an annulus, not wander to the rim), and (5) NEW reverse penalty backPen 0->0.6 (deep =
+    // a wrong-way wobble subtracts MORE than it would naively, so only clean one-way cranking racks up turns). rMin/rMax ship in data so
+    // the presenter draws the same annulus grade enforces; backPen is secret-only (a penalty weight, leaks nothing). Clean cranking ~1.0.
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'cranklever', lvl)), d = dOf(lvl); const turns = +(2 + 2 * d).toFixed(2), dir = r.int(2) ? 1 : -1; const rMin = +(0.05 + 0.12 * d).toFixed(4), rMax = +(0.60 - 0.18 * d).toFixed(4), backPen = +(0.6 * d).toFixed(3); return { data: { mode: 'dxcrank', turns: turns, dir: dir, rMin: rMin, rMax: rMax, dur: Math.round(7500 - 900 * d) }, secret: { turns: turns, dir: dir, rMin: rMin, rMax: rMax, backPen: backPen } }; },
+    grade: function (b, l, ev) { const pts = (ev || []).filter(e => e && e.type === 'pt'); if (pts.length < 8) return 0; const s = b.secret, rMin = s.rMin != null ? s.rMin : 0.05, rMax = s.rMax != null ? s.rMax : 1e9, backPen = s.backPen || 0; let total = 0, prevA = null; for (const p of pts) { const dx = (p.x || 0) - 0.5, dy = (p.y || 0) - 0.5, rr = Math.hypot(dx, dy); if (rr < rMin || rr > rMax) { prevA = null; continue; } const a = Math.atan2(dy, dx); if (prevA != null) { let da = a - prevA; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI; const fwd = da * s.dir; total += fwd >= 0 ? fwd : fwd * (1 + backPen); } prevA = a; } const turned = Math.max(0, total) / (2 * Math.PI); return clamp(turned / s.turns, 0, 1); }, humanP: dxH };
+
+  GAMES.tracechase = { family: 'dexterity', label: 'Trace Chase',
+    // KNOBS (Jake 2026-09-13, additive; every new term is 0 at d=0 so ch1 == old ch1): (1) waypoints pathN 5->8, (2) chase
+    // tolerance tol 0.16->0.09, (3) time pressure dur 7.0->6.1s, (4) NEW travel SPAN — the target roams a WIDER box deep
+    // (spanX 0.70->0.86, spanY 0.55->0.72) so the cursor must cover more ground per leg, and (5) NEW per-leg TEMPO JITTER
+    // (legJit, 0 at ch1) so the legs are un-even in duration (a fixed-rate pursuit desyncs). path[i].t/x/y are read verbatim by
+    // BOTH the presenter (targetAt interpolation) and grade() (same targetAt), so widening the box / jittering the leg times needs
+    // no new wiring and can't desync drawn-vs-graded. A faithful pursuit still scores ~1.0.
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'tracechase', lvl)), d = dOf(lvl); const dur = Math.round(7000 - 900 * d), tol = +(0.16 - 0.07 * d).toFixed(4); const pathN = 5 + Math.round(d * 3); const spanX = 0.70 + 0.16 * d, spanY = 0.55 + 0.17 * d, legJit = 0.30 * d; const x0 = clamp(0.5 - spanX / 2, 0.07, 0.5), y0 = clamp(0.5 - spanY / 2, 0.12, 0.5); const legN = Math.max(1, pathN - 1); const raw = []; let acc = 0; for (let i = 0; i < legN; i++) { const g = 1 + (r.u() - 0.5) * legJit; raw.push(g); acc += g; } const path = []; let t = 0; for (let i = 0; i < pathN; i++) { path.push({ t: Math.round(t), x: +clamp(x0 + r.u() * spanX, 0.05, 0.95).toFixed(3), y: +clamp(y0 + r.u() * spanY, 0.10, 0.92).toFixed(3) }); if (i < legN) t += dur * (raw[i] / acc); } return { data: { mode: 'dxchase', path: path, dur: dur }, secret: { path: path, tol: tol } }; },
+    grade: function (b, l, ev) { const pts = (ev || []).filter(e => e && e.type === 'pt'); if (pts.length < 8) return 0; const s = b.secret; const targetAt = t => { const path = s.path; if (t <= path[0].t) return path[0]; for (let i = 1; i < path.length; i++) { if (t <= path[i].t) { const a = path[i - 1], bb = path[i], f = (t - a.t) / Math.max(1, bb.t - a.t); return { x: a.x + (bb.x - a.x) * f, y: a.y + (bb.y - a.y) * f }; } } return path[path.length - 1]; }; if (moveFloor(pts) < 0.45) return 0; let near = 0; for (const p of pts) { const tg = targetAt(p.t || 0); if (Math.hypot((p.x || 0) - tg.x, (p.y || 0) - tg.y) <= s.tol) near++; } return clamp(near / pts.length, 0, 1); }, humanP: dxH };
+
+  GAMES.zigzag = { family: 'dexterity', label: 'Zig Zag',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'zigzag', lvl)), d = dOf(lvl); const segs = 4 + Math.round(d * 3), amp = +(0.28 - 0.10 * d).toFixed(3), tol = +(0.14 - 0.07 * d).toFixed(4); const nodes = []; for (let i = 0; i <= segs; i++) { const x = i / segs; const y = 0.5 + (i % 2 ? amp : -amp); nodes.push({ x: +x.toFixed(3), y: +y.toFixed(3) }); } return { data: { mode: 'dxzig', nodes: nodes, dur: Math.round(6800 - 900 * d) }, secret: { nodes: nodes, tol: tol } }; },
+    grade: function (b, l, ev) { const pts = (ev || []).filter(e => e && e.type === 'pt'); if (pts.length < 6) return 0; const s = b.secret, nodes = s.nodes; const distToPath = p => { let md = 1e9; for (let i = 0; i < nodes.length - 1; i++) { const a = nodes[i], bb = nodes[i + 1]; const vx = bb.x - a.x, vy = bb.y - a.y, wx = p.x - a.x, wy = p.y - a.y; const L2 = vx * vx + vy * vy || 1e-9; let tt = (wx * vx + wy * vy) / L2; tt = clamp(tt, 0, 1); const px = a.x + tt * vx, py = a.y + tt * vy; md = Math.min(md, Math.hypot(p.x - px, p.y - py)); } return md; }; let xmin = 1, xmax = 0, maxDev = 0; for (const p of pts) { const x = clamp(p.x || 0, 0, 1); xmin = Math.min(xmin, x); xmax = Math.max(xmax, x); maxDev = Math.max(maxDev, distToPath({ x: x, y: clamp(p.y || 0, 0, 1) })); } if (xmax - xmin < 0.82) return 0; return clamp(1 - maxDev / s.tol, 0, 1); }, humanP: dxH };
+
+  GAMES.threadneedle = { family: 'dexterity', label: 'Thread Needle',
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'threadneedle', lvl)), d = dOf(lvl); const n = 3 + Math.round(d * 3), rad = +(0.09 - 0.035 * d).toFixed(4); const rings = []; for (let i = 0; i < n; i++) rings.push({ x: +(0.15 + (i + 0.5) / n * 0.7 + (r.u() - 0.5) * 0.08).toFixed(3), y: +(0.28 + r.u() * 0.5).toFixed(3), r: rad }); return { data: { mode: 'dxthread', rings: rings, dur: Math.round(7500 - 900 * d) }, secret: { rings: rings } }; },
+    // FIX (was "green on screen but graded 0"): the presenter advances a ring the instant the LIVE cursor passes through it (checked
+    // every pointermove), but the graded stream is throttled to ~28ms samples — a fast trace through a small ring could have NO sample
+    // land inside it, so a visibly-correct play scored 0. Grade now advances when the drag PATH (the segment between consecutive samples,
+    // not just the samples) passes within ring.r of the next ring centre, IN ORDER — matching what the player sees. Correct trace => ~1.0.
+    grade: function (b, l, ev) { const pts = (ev || []).filter(e => e && e.type === 'pt'); if (pts.length < 4) return 0; const rings = b.secret.rings; let idx = 0;
+      const segHit = (a, c, ring) => { const vx = c.x - a.x, vy = c.y - a.y, wx = ring.x - a.x, wy = ring.y - a.y; const L2 = vx * vx + vy * vy || 1e-9; let tt = (wx * vx + wy * vy) / L2; tt = clamp(tt, 0, 1); const px = a.x + tt * vx, py = a.y + tt * vy; return Math.hypot(ring.x - px, ring.y - py) <= ring.r; };
+      for (let i = 0; i < pts.length && idx < rings.length; i++) { const p = { x: pts[i].x || 0, y: pts[i].y || 0 }; if (Math.hypot(p.x - rings[idx].x, p.y - rings[idx].y) <= rings[idx].r) { idx++; continue; } if (i > 0) { const a = { x: pts[i - 1].x || 0, y: pts[i - 1].y || 0 }; if (segHit(a, p, rings[idx])) idx++; } }
+      return clamp(idx / rings.length, 0, 1); }, humanP: dxH };
+
+  GAMES.steadyhold = { family: 'dexterity', label: 'Steady Hold',
+    // FIX (was bot-trivial — a fixed 0.5,0.5 stream scored 1.0): the hold target now SLOWLY WANDERS on a seed-driven path
+    // (amp/freq/phase in data + secret). The player keeps the dot on the drifting target; grade measures distance to that
+    // server-computed moving target, so a fixed-point bot falls out of zone and scores ~0. Correct play (track the target)
+    // still scores ~1.0; empty input = 0. The zone shrinks with depth as before.
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'steadyhold', lvl)), d = dOf(lvl); const zone = +(0.15 - 0.06 * d).toFixed(4), amp = +(0.20 + 0.08 * d).toFixed(4), fx = +(0.00050 + 0.00035 * d).toFixed(6), fy = +(0.00041 + 0.00030 * d).toFixed(6), px = +(r.u() * 6.28).toFixed(3), py = +(r.u() * 6.28).toFixed(3); return { data: { mode: 'dxsteady', zone: zone, amp: amp, fx: fx, fy: fy, px: px, py: py, dur: Math.round(6800 + 1400 * d) }, secret: { zone: zone, amp: amp, fx: fx, fy: fy, px: px, py: py } }; },
+    grade: function (b, l, ev) { const pts = (ev || []).filter(e => e && e.type === 'pt'); if (pts.length < 10) return 0; const s = b.secret; if (moveFloor(pts) < 0.45) return 0; let inZone = 0; for (const p of pts) { const t = p.t || 0; const tx = 0.5 + s.amp * Math.sin(t * s.fx + s.px), ty = 0.5 + s.amp * Math.sin(t * s.fy + s.py); if (Math.hypot((p.x || 0) - tx, (p.y || 0) - ty) <= s.zone) inZone++; } return clamp(inZone / pts.length, 0, 1); }, humanP: dxH };
+
+  GAMES.dodgefall = { family: 'dexterity', label: 'Dodge Fall',
+    // DISTINCT from Gap Threader (thread the ONE moving gap). Here SOLID blocks rain down in WAVES at scattered lanes and you must be
+    // in CLEAR space — not under ANY block — as each wave reaches the bottom. It's evade-the-debris, not line-up-with-a-slot. Deeper =
+    // more blocks/wave, faster fall, wider blocks. Anti-bot: one block per wave is biased toward centre so a fixed x=0.5 park gets hit;
+    // blocks are spaced so a mover always has a clear lane. Correct play (weave to open space) ~1.0; empty/static = low.
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'dodgefall', lvl)), d = dOf(lvl); const waves = 5 + Math.round(d * 4), fall = Math.round(1150 - 380 * d), bw = +(0.20 + 0.08 * d).toFixed(3), perWave = 2 + Math.round(d * 0.8); const blocks = []; let t = 1200;
+      for (let i = 0; i < waves; i++) { const xs = []; for (let k = 0; k < perWave; k++) { let x, tries = 0; do { x = +(bw / 2 + r.u() * (1 - bw)).toFixed(3); tries++; } while (tries < 10 && xs.some(o => Math.abs(o - x) < bw + 0.12)); xs.push(x); } if (r.u() < 0.6 && !xs.some(o => Math.abs(o - 0.5) < 0.16)) xs[0] = +(0.42 + r.u() * 0.16).toFixed(3); for (const x of xs) blocks.push({ t: t, x: x, bw: bw }); t += fall - (d > 0.5 ? r.int(160) : 0); }
+      return { data: { mode: 'dxdodge', blocks: blocks, fall: fall, bw: bw, dur: t + 600 }, secret: { blocks: blocks, bw: bw } }; },
+    grade: function (b, l, ev) { const pts = (ev || []).filter(e => e && e.type === 'pt'); if (pts.length < 4) return 0; if (moveFloorX(pts) < 0.35) return 0; const s = b.secret; const times = []; for (const bl of s.blocks) if (times.indexOf(bl.t) < 0) times.push(bl.t); let ok = 0; for (const tt of times) { const sp = sampAt(pts, tt); if (!sp) continue; const wave = s.blocks.filter(x => x.t === tt); const hit = wave.some(bl => Math.abs((sp.x || 0) - bl.x) <= bl.bw / 2); if (!hit) ok++; } return clamp(ok / times.length, 0, 1); }, humanP: dxH };
+
+  GAMES.swipegates = { family: 'dexterity', label: 'Swipe Gates',
+    // FIX (was "did-everything-right-but-lost" on lift + under-passed at depth): grade now reconstructs swipes with the EXACT
+    // same state machine as the presenter — it walks the interleaved pt/lift stream, RE-ANCHORS on every 'lift' boundary (each
+    // pointerdown/up the harness emits), and re-anchors after every detected swipe. This makes a lift-between-swipes player agree
+    // with the on-screen success (no spurious cross-lift swipe), so a clean play scores 8/8 = 1.0 >= the L10 bar.
+    build: function (seed, lvl) { const r = rng(seedMat(seed, 'swipegates', lvl)), d = dOf(lvl); const dirs = ['up', 'right', 'down', 'left']; const n = 4 + Math.round(d * 4); const gates = []; for (let i = 0; i < n; i++) gates.push(dirs[r.int(4)]); return { data: { mode: 'dxswipe', gates: gates, dur: Math.round(7000 - 700 * d) }, secret: { gates: gates } }; },
+    grade: function (b, l, ev) { const stream = (ev || []).filter(e => e && (e.type === 'pt' || e.type === 'lift')); const gates = b.secret.gates; const pts = stream.filter(e => e.type === 'pt'); if (pts.length < 2) return 0; const swipes = []; let anchor = null; for (const e of stream) { if (e.type === 'lift') { anchor = null; continue; } if (anchor == null) { anchor = e; continue; } const dx = (e.x || 0) - (anchor.x || 0), dy = (e.y || 0) - (anchor.y || 0); if (Math.hypot(dx, dy) >= 0.14) { let dir; if (Math.abs(dx) >= Math.abs(dy)) dir = dx > 0 ? 'right' : 'left'; else dir = dy > 0 ? 'down' : 'up'; swipes.push(dir); anchor = e; } } let idx = 0; for (const sw of swipes) { if (idx < gates.length && sw === gates[idx]) idx++; } return clamp(idx / gates.length, 0, 1); }, humanP: dxH };
+})();
+module.exports = { GAMES, rng, dOf, renderSafe, LEVELS };

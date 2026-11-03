@@ -1,0 +1,11 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Vault Robbers — Reveal</title>
+<style>body{background:#0c0e12;color:#c7ccd6;font-family:ui-monospace,monospace;max-width:720px;margin:40px auto;padding:0 18px;line-height:1.6}h1{color:#d9b24a}a{color:#6fb0ff}code{background:#15181e;padding:2px 6px;border-radius:4px}</style></head>
+<body><h1>Vault Robbers — Reveal Service</h1>
+<p>Progressive, provably-fair reveal for the 1,000 Vault Robbers on Robinhood Chain.</p>
+<p>A token's art and metadata unseal only once its tokenId is minted. Unminted tokens return a sealed placeholder, so no one can preview upcoming mints.</p>
+<ul>
+<li><a href="status">/status</a> — live revealed / startingIndex / totalMinted</li>
+<li><a href="provenance.json">/provenance.json</a> — SHA-256 provenance of the final art order</li>
+<li><code>/meta/&lt;art&gt;.json</code> — token metadata (gated)</li>
+<li><code>/img/&lt;art&gt;.png</code> — token image (gated)</li>
+</ul></body></html>

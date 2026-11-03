@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vault Robbers</title>
+<meta name="description" content="A real-money heist game, a 1,000-piece mask collection, and the ROBINVAULT token, all in one world. Launching Halloween.">
+<meta name="theme-color" content="#f3e3ca">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Vault Robbers">
+<meta property="og:description" content="Fill the vault, light the fuse, be the last robber standing. The game, the mask, and the token. Launching Halloween.">
+<meta property="og:image" content="og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Vault Robbers">
+<meta name="twitter:description" content="Fill the vault, light the fuse, be the last robber standing. Launching Halloween.">
+<meta name="twitter:image" content="og.png">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Londrina+Solid:wght@400;900&family=Patrick+Hand&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f3e3ca;--paper2:#eedaba;--ink:#17130d;--muted:#7c6f5a;
+    --blue:#6d84c6;--blue-d:#54699f;--tee:#fbfaf6;--ember:#e07a3c;
+    --gold:#d4af37;--grn:#3f9b57;--red:#c6472e;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  html,body{margin:0}
+  body{
+    min-height:100vh;overflow-x:hidden;color:var(--ink);
+    background:radial-gradient(135% 120% at 50% -8%,#f8ecd6 0%,var(--paper) 50%,#e6cfa6 100%);
+    font:16px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  }
+  body:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.045;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+  a{color:var(--blue-d)}
+  .wrap{position:relative;z-index:2;max-width:860px;margin:0 auto;padding:0 16px}
+
+  /* floating background masks */
+  .bg{position:fixed;inset:-40px;overflow:hidden;z-index:0;pointer-events:none}
+  .gm{position:absolute;width:150px;height:150px;border-radius:50%;background:var(--blue);border:3px solid var(--ink);opacity:.07}
+  .gm:before,.gm:after{content:"";position:absolute;top:38%;width:16%;height:18%;background:var(--tee);border:2px solid var(--ink);border-radius:50%}
+  .gm:before{left:24%}.gm:after{right:24%}
+  .gm1{left:5%;top:14%;animation:drift1 24s ease-in-out infinite}
+  .gm2{width:92px;height:92px;right:8%;top:22%;animation:drift2 19s ease-in-out infinite}
+  .gm3{width:210px;height:210px;right:3%;bottom:10%;animation:drift1 28s ease-in-out infinite}
+  .gm4{width:72px;height:72px;left:11%;bottom:16%;animation:drift2 16s ease-in-out infinite}
+  @keyframes drift1{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-26px) rotate(4deg)}}
+  @keyframes drift2{0%,100%{transform:translateY(0) rotate(5deg)}50%{transform:translateY(22px) rotate(-5deg)}}
+
+  /* top bar */
+  .nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(6px);
+    background:linear-gradient(180deg,rgba(243,227,202,.96),rgba(243,227,202,.82));
+    border-bottom:3px solid var(--ink)}
+  .nav .in{max-width:860px;margin:0 auto;padding:9px 16px;display:flex;align-items:center;gap:12px}
+  .brandmark{display:flex;align-items:center;gap:9px;text-decoration:none;color:var(--ink)}
+  .brandmark img{width:30px;height:30px;display:block}
+  .brandmark b{font-family:'Londrina Solid',sans-serif;font-weight:900;font-size:20px;letter-spacing:.5px}
+  .navlinks{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+  .navlinks a{font-family:'Patrick Hand',cursive;font-size:15px;text-decoration:none;color:var(--ink);
+    border:2px solid transparent;border-radius:9px;padding:4px 10px}
+  .navlinks a:hover{border-color:var(--ink);background:var(--tee)}
+  @media(max-width:620px){.navlinks{display:none}}
+
+  /* hero */
+  .hero{text-align:center;padding:40px 0 26px}
+  .kick{display:inline-flex;align-items:center;gap:8px;font-family:'Patrick Hand',cursive;font-size:14px;letter-spacing:3px;
+    text-transform:uppercase;color:var(--ink);background:var(--gold);border:2.5px solid var(--ink);border-radius:999px;
+    padding:5px 14px;box-shadow:3px 3px 0 var(--ink);margin-bottom:20px}
+  .heromask{position:relative;width:148px;height:148px;margin:0 auto 6px}
+  .dial{position:absolute;inset:-14px;border-radius:50%;border:3px dashed var(--ink);opacity:.4;animation:spin 26s linear infinite}
+  .dial:before{content:"";position:absolute;top:-7px;left:50%;width:10px;height:10px;margin-left:-5px;border-radius:50%;background:var(--blue);border:2px solid var(--ink)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .face{width:148px;height:148px;display:block;animation:bob 4.4s ease-in-out infinite;filter:drop-shadow(5px 7px 0 rgba(23,19,13,.22))}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+  h1{font-family:'Londrina Solid',sans-serif;font-weight:900;font-size:clamp(44px,12vw,92px);line-height:.9;
+    margin:16px 0 4px;letter-spacing:1px;transform:rotate(-1deg);text-shadow:3px 3px 0 rgba(0,0,0,.12)}
+  .tagline{font-family:'Patrick Hand',cursive;font-size:clamp(19px,4.6vw,26px);color:var(--blue-d);
+    max-width:560px;margin:8px auto 22px}
+  .herobtns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:14px}
+  .launch{font-family:'Patrick Hand',cursive;font-size:15px;color:var(--muted)}
+  .launch b{color:var(--ink)}
+
+  /* buttons */
+  .btn{display:inline-block;font-family:'Londrina Solid',sans-serif;font-weight:900;font-size:19px;letter-spacing:.5px;
+    padding:13px 26px;border:3px solid var(--ink);border-radius:14px;text-decoration:none;color:var(--ink);
+    background:var(--gold);box-shadow:5px 6px 0 var(--ink);transition:transform .07s,box-shadow .07s;cursor:pointer}
+  .btn:active{transform:translate(5px,6px);box-shadow:0 0 0 var(--ink)}
+  .btn.blue{background:var(--blue);color:var(--tee)}
+  .btn.ghost{background:var(--tee)}
+  .btn.sm{font-size:16px;padding:10px 18px;box-shadow:4px 4px 0 var(--ink)}
+
+  /* sections + sticker cards */
+  section{padding:30px 0}
+  .shead{display:flex;align-items:baseline;gap:12px;margin:0 0 14px;flex-wrap:wrap}
+  .shead .no{font-family:'Londrina Solid',sans-serif;font-weight:900;font-size:16px;color:var(--tee);
+    background:var(--ink);border-radius:9px;padding:2px 11px;transform:rotate(-2deg)}
+  .shead h2{font-family:'Londrina Solid',sans-serif;font-weight:900;font-size:clamp(28px,7vw,42px);margin:0;letter-spacing:.5px}
+  .shead .pin{font-family:'Patrick Hand',cursive;font-size:15px;color:var(--muted)}
+  .card{position:relative;background:var(--tee);border:3px solid var(--ink);border-radius:18px;
+    box-shadow:5px 6px 0 var(--ink);padding:20px;margin:0 0 16px}
+  .card.gold{background:linear-gradient(180deg,#fff6e0,#f6e6bf)}
+  .card.blue{background:linear-gradient(180deg,#eef2fb,#dde4f5)}
+  .card p{margin:0 0 10px}
+  .card p:last-child{margin-bottom:0}
+  .lead{font-size:17px}
+  .label{font-family:'Patrick Hand',cursive;text-transform:uppercase;letter-spacing:2px;font-size:13px;color:var(--muted)}
+
+  /* steps */
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:4px}
+  @media(max-width:620px){.steps{grid-template-columns:1fr}}
+  .step{background:var(--paper);border:2.5px solid var(--ink);border-radius:14px;padding:14px;box-shadow:3px 4px 0 var(--ink)}
+  .step .n{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:2.5px solid var(--ink);
+    border-radius:10px;background:var(--gold);font-family:'Londrina Solid',sans-serif;font-weight:900;font-size:18px;margin-bottom:8px}
+  .step h3{font-family:'Londrina Solid',sans-serif;font-weight:900;font-size:19px;margin:0 0 5px}
+  .step p{font-size:14.5px;margin:0;color:var(--ink)}
+
+  /* feature chips */
+  .chips{display:flex;flex-wrap:wrap;gap:9px;margin-top:14px}
+  .chip{font-family:'Patrick Hand',cursive;font-size:15px;background:var(--paper2);border:2.5px solid var(--ink);
+    border-radius:11px;padding:6px 12px;box-shadow:3px 3px 0 var(--ink)}
+  .chip b{color:var(--blue-d)}
+
+  /* NFT split */
+  .split{display:grid;grid-template-columns:1.1fr 1fr;gap:18px;align-items:center}
+  @media(max-width:620px){.split{grid-template-columns:1fr}}
+  .nftart{border:3px solid var(--ink);border-radius:16px;box-shadow:5px 6px 0 var(--ink);overflow:hidden;background:var(--paper2)}
+  .nftart img{display:block;width:100%;height:auto}
+  .util{list-style:none;margin:12px 0 0;padding:0}
+  .util li{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1.5px dashed rgba(23,19,13,.2);font-size:15.5px}
+  .util li:last-child{border-bottom:none}
+  .util .tick{flex:0 0 auto;width:24px;height:24px;border:2.5px solid var(--ink);border-radius:8px;background:var(--grn);
+    color:var(--tee);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px}
+
+  /* token flywheel */
+  .flywheel{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:4px}
+  @media(max-width:620px){.flywheel{grid-template-columns:1fr}}
+  .fw{border:2.5px solid var(--ink);border-radius:14px;padding:15px;box-shadow:3px 4px 0 var(--ink);background:var(--paper)}
+  .fw.buy{background:linear-gradient(180deg,#e7edfa,#d6def2)}
+  .fw.burn{background:linear-gradient(180deg,#fde7dc,#f8d2c0)}
+  .fw.earn{background:linear-gradient(180deg,#e2f1e6,#cfe8d6)}
+  .fw .w{font-family:'Londrina Solid',sans-serif;font-weight:900;font-size:24px;letter-spacing:1px}
+  .fw p{font-size:14.5px;margin:6px 0 0}
+
+  /* burn stat */
+  .burnstat{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:14px;
+    background:var(--paper);border:2.5px solid var(--ink);border-radius:14px;padding:14px 16px;box-shadow:3px 4px 0 var(--ink)}
+  .burnstat .big{font-family:'Londrina Solid',sans-serif;font-weight:900;font-size:clamp(30px,8vw,46px);line-height:1;
+    color:var(--red);text-shadow:0 0 14px rgba(224,122,60,.4)}
+  .burnstat .meta{font-family:'Patrick Hand',cursive;font-size:15px;color:var(--muted)}
+  .live{display:inline-flex;align-items:center;gap:7px;font-family:'Patrick Hand',cursive;font-size:13px;
+    text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--red);box-shadow:0 0 0 0 rgba(198,71,46,.6);animation:pulse 1.7s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(198,71,46,.6)}70%{box-shadow:0 0 0 9px rgba(198,71,46,0)}100%{box-shadow:0 0 0 0 rgba(198,71,46,0)}}
+
+  /* contract rows */
+  .caddr{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:9px 0}
+  .caddr .k{font-weight:700;min-width:150px}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;word-break:break-all;
+    background:var(--paper2);border:1.5px solid var(--ink);border-radius:7px;padding:3px 7px}
+  .cp{cursor:pointer;border:2px solid var(--ink);border-radius:8px;background:var(--blue);color:#fff;font-weight:700;
+    font-size:12px;padding:3px 10px;box-shadow:2px 2px 0 var(--ink);white-space:nowrap;font-family:inherit}
+  .cp:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--ink)}
+  .cp.ok{background:var(--grn)}
+
+  /* footer */
+  footer{position:relative;z-index:2;border-top:3px solid var(--ink);margin-top:20px;
+    background:var(--ink);color:var(--paper)}
+  footer .in{max-width:860px;margin:0 auto;padding:30px 16px 40px}
+  footer a{color:var(--paper)}
+  .social{display:flex;gap:12px;flex-wrap:wrap;margin:6px 0 20px}
+  .sbtn{display:inline-flex;align-items:center;gap:8px;font-family:'Patrick Hand',cursive;font-size:16px;
+    padding:10px 18px;border:2.5px solid var(--paper);border-radius:12px;text-decoration:none;color:var(--ink);
+    background:var(--paper);box-shadow:4px 4px 0 rgba(0,0,0,.4);transition:transform .06s,box-shadow .06s}
+  .sbtn:active{transform:translate(4px,4px);box-shadow:0 0 0 rgba(0,0,0,.4)}
+  .sbtn .ic{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;
+    background:var(--ink);color:var(--paper);font-weight:700;font-size:13px}
+  footer .faddr{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:7px 0;font-size:13px}
+  footer code{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.25);color:var(--paper)}
+  .chainline{font-family:'Patrick Hand',cursive;font-size:15px;opacity:.85}
+  .fbottom{margin-top:22px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
+    font-family:'Patrick Hand',cursive;font-size:14px;opacity:.75}
+
+  /* reveal on scroll */
+  .reveal{opacity:0;transform:translateY(22px)}
+  .reveal.in{opacity:1;transform:none;transition:opacity .6s ease,transform .6s ease}
+
+  /* motion guard */
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none!important;scroll-behavior:auto!important}
+    .reveal{opacity:1!important;transform:none!important;transition:none!important}
+  }
+</style>
+</head>
+<body>
+<div class="bg" aria-hidden="true"><div class="gm gm1"></div><div class="gm gm2"></div><div class="gm gm3"></div><div class="gm gm4"></div></div>
+
+<nav class="nav">
+  <div class="in">
+    <a class="brandmark" href="#top"><img src="favicon.svg" alt=""><b>Vault Robbers</b></a>
+    <div class="navlinks">
+      <a href="#game">Game</a>
+      <a href="#nft">NFT</a>
+      <a href="#token">Token</a>
+      <a href="https://standoff.vaultrobbers.com" target="_blank" rel="noopener">Play</a>
+    </div>
+  </div>
+</nav>
+
+<div class="wrap" id="top">
+
+  <!-- HERO -->
+  <header class="hero">
+    <div class="kick">🎭 Launching Halloween · October 31</div>
+    <div class="heromask">
+      <div class="dial" aria-hidden="true"></div>
+      <svg class="face" viewBox="0 0 120 140" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Vault Robber mask">
+        <path d="M60 8 C95 8 108 36 108 70 L108 132 L12 132 L12 70 C12 36 25 8 60 8 Z" fill="#17130d"/>
+        <ellipse cx="60" cy="64" rx="34" ry="38" fill="#fbfaf6" stroke="#17130d" stroke-width="3"/>
+        <rect x="24" y="52" width="72" height="26" rx="9" fill="#6d84c6" stroke="#17130d" stroke-width="3"/>
+        <ellipse cx="46" cy="65" rx="8" ry="9" fill="#fbfaf6" stroke="#17130d" stroke-width="2.5"/>
+        <ellipse cx="74" cy="65" rx="8" ry="9" fill="#fbfaf6" stroke="#17130d" stroke-width="2.5"/>
+        <circle cx="46" cy="65" r="3" fill="#17130d"/><circle cx="74" cy="65" r="3" fill="#17130d"/>
+        <path d="M58 85 l2 -6 l2 6 z" fill="#17130d"/>
+        <g stroke="#17130d" stroke-width="2"><line x1="50" y1="95" x2="70" y2="95"/><line x1="56" y1="93" x2="56" y2="99"/><line x1="64" y1="93" x2="64" y2="99"/></g>
+      </svg>
+    </div>
+    <h1>VAULT ROBBERS</h1>
+    <p class="tagline">Fill the vault, light the fuse, and be the last robber standing.</p>
+    <div class="herobtns">
+      <a class="btn blue" href="https://standoff.vaultrobbers.com" target="_blank" rel="noopener">Play Vault Standoff</a>
+      <a class="btn ghost" href="#nft">Mint a Robber</a>
+    </div>
+    <div class="launch">One world: the game, the mask, and the token, all on <b>Robinhood Chain</b>.</div>
+  </header>
+
+  <!-- GAME -->
+  <section id="game" class="reveal">
+    <div class="shead"><span class="no">01</span><h2>The Game</h2><span class="pin">Vault Standoff</span></div>
+    <div class="card gold">
+      <p class="label">Push your luck · real money</p>
+      <p class="lead">A standoff heist where robbers crowd into a vault together. Buy in with ROBINVAULT, or pay with any token and it is converted for you. The pot fills, the fuse lights, and each chamber every robber picks a door. The most crowded door busts. Keep your nerve, outlast the crew, and the last robber standing takes the pot.</p>
+      <div class="steps">
+        <div class="step"><div class="n">1</div><h3>Buy in</h3><p>Join a round with ROBINVAULT, or pay any token and it auto-converts into your entry.</p></div>
+        <div class="step"><div class="n">2</div><h3>Pick a door</h3><p>Every chamber you choose a door with the crew. The most crowded door busts and those robbers are out.</p></div>
+        <div class="step"><div class="n">3</div><h3>Take the pot</h3><p>Outlast everyone to be the last robber standing and walk with the whole vault, paid in ROBINVAULT.</p></div>
+      </div>
+      <div class="chips">
+        <div class="chip">Pay <b>any token</b>, auto-converted</div>
+        <div class="chip">Only a <b>5% rake</b></div>
+        <div class="chip">Winner takes the <b>full pot</b></div>
+        <div class="chip">Settles <b>on chain</b></div>
+      </div>
+      <div style="margin-top:18px">
+        <a class="btn blue" href="https://standoff.vaultrobbers.com" target="_blank" rel="noopener">Play now</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- NFT -->
+  <section id="nft" class="reveal">
+    <div class="shead"><span class="no">02</span><h2>The NFT</h2><span class="pin">Vault Robbers collection</span></div>
+    <div class="card blue">
+      <div class="split">
+        <div>
+          <p class="label">1,000 masks · Robinhood Chain</p>
+          <p class="lead">Vault Robbers are the characters of this world. Hold one and the vault treats you differently. Every mint also feeds the buy-and-burn that tightens ROBINVAULT supply, so the collection and the token pull in the same direction.</p>
+          <ul class="util">
+            <li><span class="tick">%</span><div><b>50% off every game entry</b>, for as long as you hold a Robber.</div></li>
+            <li><span class="tick">🔥</span><div>Each mint <b>feeds the buy-and-burn</b> behind ROBINVAULT.</div></li>
+            <li><span class="tick">★</span><div>The <b>main characters</b> of a growing on-chain world.</div></li>
+          </ul>
+          <div style="margin-top:16px">
+            <a class="btn" href="/pub/main/vaultrobbers-mint/" target="_blank" rel="noopener">Mint a Robber</a>
+          </div>
+        </div>
+        <div class="nftart"><img src="art/robber-1.jpg" alt="A Vault Robber from the collection" loading="lazy"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TOKEN -->
+  <section id="token" class="reveal">
+    <div class="shead"><span class="no">03</span><h2>The Token</h2><span class="pin">ROBINVAULT</span></div>
+    <div class="card gold">
+      <p class="label">Buy · Burn · Earn</p>
+      <p class="lead">ROBINVAULT is the currency of the whole ecosystem and the pot every round is played for. Winnings are paid in ROBINVAULT, and a share is burned forever, so supply tightens as the game runs.</p>
+      <div class="flywheel">
+        <div class="fw buy"><div class="w">Buy</div><p>Players buy ROBINVAULT to play, and a share of creator fees buys more on the open market to fill the pot.</p></div>
+        <div class="fw burn"><div class="w">Burn</div><p>A share of every pot is burned forever, removing ROBINVAULT from supply run after run.</p></div>
+        <div class="fw earn"><div class="w">Earn</div><p>The last robber standing is paid the pot in ROBINVAULT, drawing the next crew in to play.</p></div>
+      </div>
+
+      <div class="burnstat">
+        <div>
+          <div class="live"><span class="dot" aria-hidden="true"></span> Burned so far</div>
+          <div class="big" id="burnTotal">—</div>
+        </div>
+        <div class="meta" id="burnMeta">Reading supply from Robinhood Chain.</div>
+      </div>
+
+      <div style="margin-top:16px">
+        <a class="btn sm ghost" href="https://dexscreener.com/robinhood/0x77061B45C5E4D440bd681B5F72BD0F4231a6fC04" target="_blank" rel="noopener">View the chart</a>
+        <a class="btn sm ghost" href="https://explorer.mainnet.chain.robinhood.com/token/0x77061B45C5E4D440bd681B5F72BD0F4231a6fC04" target="_blank" rel="noopener">View on explorer</a>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="in">
+    <div class="chainline">🎭 Built on Robinhood Chain (4663). Powered by Emblem.</div>
+
+    <div class="social">
+      <a class="sbtn" href="https://x.com/EmblemAgent" target="_blank" rel="noopener"><span class="ic">𝕏</span> Follow on X</a>
+      <a class="sbtn" href="https://t.me/EmblemAI" target="_blank" rel="noopener"><span class="ic">✈</span> Telegram</a>
+      <a class="sbtn" href="https://standoff.vaultrobbers.com" target="_blank" rel="noopener"><span class="ic">▶</span> Play</a>
+    </div>
+
+    <div class="faddr">
+      <span class="k">ROBINVAULT token</span>
+      <code id="caTok">0x77061B45C5E4D440bd681B5F72BD0F4231a6fC04</code>
+      <button class="cp" data-cp="caTok">Copy</button>
+    </div>
+    <div class="faddr">
+      <span class="k">Vault Robbers NFT</span>
+      <code id="caNft">0xABC6c4F5d1F31326b419c2645C981743a845313a</code>
+      <button class="cp" data-cp="caNft">Copy</button>
+    </div>
+
+    <div class="fbottom">
+      <span>Fair. Human. On chain.</span>
+      <span><a href="https://explorer.mainnet.chain.robinhood.com" target="_blank" rel="noopener">Blockscout explorer</a></span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  var $=function(id){return document.getElementById(id);};
+
+  // copy contract addresses
+  document.querySelectorAll('.cp[data-cp]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var el=$(b.getAttribute('data-cp')); if(!el)return;
+      try{ navigator.clipboard.writeText(el.textContent.trim());
+        var o=b.textContent; b.textContent='Copied'; b.classList.add('ok');
+        setTimeout(function(){ b.textContent=o; b.classList.remove('ok'); },1000);
+      }catch(e){}
+    });
+  });
+
+  // reveal-on-scroll (reduced-motion users see everything immediately via CSS)
+  (function(){
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+    var items = document.querySelectorAll('.reveal');
+    if(reduce || !('IntersectionObserver' in window)){ items.forEach(function(el){el.classList.add('in');}); return; }
+    var io = new IntersectionObserver(function(es){
+      es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+    },{threshold:0.12});
+    items.forEach(function(el){ io.observe(el); });
+  })();
+
+  // live burn stat, proxied server-side (relative path). Page is fine if it fails.
+  var fmt=function(n){ n=n||0; var a=Math.abs(n);
+    if(a>=1e9)return (n/1e9).toFixed(2)+'B';
+    if(a>=1e6)return (n/1e6).toFixed(2)+'M';
+    if(a>=1e3)return (n/1e3).toFixed(1)+'K';
+    return Math.round(n).toLocaleString(); };
+  fetch('api/burn').then(function(r){ if(!r.ok) throw 0; return r.json(); }).then(function(b){
+    if(!b || b.total==null || b.total<=0) throw 0;
+    $('burnTotal').textContent=fmt(b.total)+' RVLT';
+    $('burnMeta').textContent=(b.totalPct?b.totalPct.toFixed(b.totalPct>=1?1:2)+'% of supply gone forever':'removed from supply forever');
+  }).catch(function(){
+    $('burnTotal').textContent='Burning';
+    $('burnMeta').textContent='Every round removes ROBINVAULT from supply forever.';
+  });
+</script>
+</body>
+</html>

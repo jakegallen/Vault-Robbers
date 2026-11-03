@@ -1,0 +1,43 @@
+# Dependencies / build
+node_modules/
+.esm-cache/
+out/
+cache/
+broadcast/
+# Secrets & local config — NEVER commit
+.env
+.env.*
+*.key
+*.key.enc
+*.pk
+*.pem
+*.keystore
+*.wallet
+.gate-secret
+.cookie-secret
+.bridge-token
+.escrow-signer.key.enc
+.escrow.local.json
+.gas-drip.json
+proxy-secret.json
+.vs-store/
+# Platform data / caches / backups (may contain user data)
+.emblem_build/
+*.log
+.imgcache/
+.vol-cache.json
+.crew-cache.json
+.det-*.json
+.vs-port
+*.bak.*
+*.promote-bak
+*_prepromo_bak
+# Generated art output
+_vr-art/
+**/render-out/
+**/_snapshots/
+.DS_Store
+
+
+# keep the documented template (names only, no values)
+!.env.example

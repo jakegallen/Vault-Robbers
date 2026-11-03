@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vault Robbers · Design Lab</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Londrina+Solid:wght@400;900&family=Patrick+Hand&display=swap" rel="stylesheet">
+<style>
+  :root{--paper:#f3e3ca;--paper2:#eedaba;--ink:#17130d;--muted:#7c6f5a;--blue:#6d84c6;--blue-d:#54699f;--tee:#fbfaf6;--red:#c2432f;--green:#2f8f4e}
+  *{box-sizing:border-box}html,body{margin:0}
+  body{background:var(--paper);color:var(--ink);font:15.5px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:900px;margin:0 auto;padding:26px 18px 90px}
+  h1{font-family:'Londrina Solid',cursive;font-weight:900;font-size:40px;letter-spacing:1px;margin:0;transform:rotate(-1deg)}
+  h2{font-family:'Londrina Solid',cursive;font-weight:900;font-size:26px;margin:34px 0 4px}
+  h3{font-family:'Patrick Hand',cursive;font-size:20px;margin:18px 0 6px}
+  .kick{font-family:'Patrick Hand',cursive;font-size:18px;color:var(--muted);margin:4px 0 0}
+  .lead{font-size:17px;margin:14px 0}
+  .card{background:var(--tee);border:2.5px solid var(--ink);border-radius:16px;box-shadow:5px 5px 0 var(--ink);padding:20px;margin:16px 0}
+  .tag{font-family:'Londrina Solid',cursive;color:var(--tee);background:var(--blue);display:inline-block;padding:2px 12px;border:2.5px solid var(--ink);border-radius:9px;box-shadow:3px 3px 0 var(--ink);transform:rotate(-1deg);font-size:18px}
+  .tag.g{background:var(--green)} .tag.r{background:var(--red)} .tag.k{background:var(--ink)}
+  ul{margin:8px 0;padding-left:20px} li{margin:5px 0}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
+  .box{background:var(--paper);border:2px solid var(--ink);border-radius:12px;padding:12px 14px;box-shadow:3px 3px 0 var(--ink)}
+  .box .k{font-family:'Patrick Hand',cursive;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  .box .v{font-family:'Londrina Solid',cursive;font-size:22px}
+  .pt{border-left:5px solid var(--red);padding:4px 0 4px 14px;margin:12px 0}
+  .pt .risk{font-weight:700} .pt .fix{color:var(--blue-d)}
+  .fix b{color:var(--green)}
+  .flow{background:var(--paper2);border:2px dashed var(--ink);border-radius:12px;padding:14px;font-family:'Patrick Hand',cursive;font-size:16px}
+  code{background:var(--paper2);border:1px solid var(--ink);border-radius:5px;padding:1px 5px;font-size:13px}
+  .rec{background:var(--blue);color:var(--tee);border:2.5px solid var(--ink);border-radius:14px;box-shadow:5px 5px 0 var(--ink);padding:18px;margin:16px 0}
+  .rec h2,.rec h3{color:var(--tee)}
+  nav{position:sticky;top:0;background:var(--paper);border-bottom:2.5px solid var(--ink);padding:10px 0;margin:-26px 0 0;z-index:5;display:flex;flex-wrap:wrap;gap:6px}
+  nav a{font-family:'Patrick Hand',cursive;font-size:14px;text-decoration:none;color:var(--ink);border:2px solid var(--ink);border-radius:8px;padding:4px 9px;background:var(--tee)}
+  .muted{color:var(--muted)} .stamp{font-family:'Patrick Hand',cursive;color:var(--muted);font-size:13px;margin-top:6px}
+  hr{border:0;border-top:2px dotted rgba(23,19,13,.25);margin:24px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>VAULT ROBBERS</h1>
+  <div class="kick">Design Lab · the next game · internal working doc</div>
+  <div class="stamp">v0.1 · 2026-09-21 · pressure-tested draft, not final</div>
+
+  <nav>
+    <a href="#standoff" style="background:var(--blue);color:var(--tee)">★ Standoff</a><a href="#bet">The Bet</a><a href="#money">Money</a><a href="#sim">Simulator</a><a href="#research">Research</a><a href="#ten">10 Games</a><a href="#games">Front-runners</a>
+    <a href="#pressure">Pressure Tests</a><a href="#nft">The NFT</a><a href="#agents">Agents</a>
+    <a href="#decisions">Decisions</a><a href="#build">Build</a><a href="#plan">Plan</a>
+  </nav>
+
+  <div class="card" id="bet">
+    <span class="tag k">The core bet</span>
+    <p class="lead">Kill the house. In V1/V2 the game was player-vs-house, so any good bot could farm the house pot, and we paid for that with a permanent anti-bot arms race. V3 makes the money <b>player-vs-player</b>: pots are funded by players, prizes go to players, and the studio only takes a cut of activity. A bot can no longer beat a house because there is no house, it just becomes another competitor (more rake) or a headline feature (the agent league).</p>
+    <p class="muted">Everything else, deflation, volume, the NFT, the lore, hangs off that one decision.</p>
+  </div>
+
+  <div class="rec" id="standoff">
+    <span class="tag k" style="background:#17130d">★ Lead concept</span>
+    <h2 style="margin-top:8px">THE VAULT STANDOFF</h2>
+    <p class="lead">A once-a-day, all-against-all heist where you survive by out-reading the crowd, not out-clicking a machine. One champion crowned every 24h. Built on the one mechanic agents genuinely cannot farm.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:12px">
+      <a href="standoff-proto.html" style="font-family:'Patrick Hand',cursive;font-size:17px;background:#f5a623;color:#1a1205;border:2.5px solid #17130d;border-radius:12px;padding:10px 20px;text-decoration:none;box-shadow:4px 4px 0 #17130d">▶ Solo prototype</a>
+      <a href="https://build-fdb6259277d28616cd0aa5a0.emblem.build/pub/main/vaultstandoff-dev/" target="_blank" rel="noopener" style="font-family:'Patrick Hand',cursive;font-size:17px;background:#6d84c6;color:#fbfaf6;border:2.5px solid #17130d;border-radius:12px;padding:10px 20px;text-decoration:none;box-shadow:4px 4px 0 #17130d">▶ Phase 1 live MVP (multiplayer)</a>
+      <a href="onepager.html" style="font-family:'Patrick Hand',cursive;font-size:17px;background:#fbfaf6;color:#17130d;border:2.5px solid #17130d;border-radius:12px;padding:10px 20px;text-decoration:none;box-shadow:4px 4px 0 #17130d">One-pager</a>
+    </div>
+  </div>
+
+  <h2>How a day plays (async, the day IS the game)</h2>
+  <div class="card">
+    <p class="muted" style="margin-top:0">Not a live esport, nobody has to be online at the same time. The 24h cycle is one heist you dip into whenever you want.</p>
+    <ul>
+      <li><b>The vault opens for 24h.</b> The heist is a sequence of <b>4-6 chambers</b> that <b>lock at spaced times through the day</b> (e.g. one every few hours), not all at once.</li>
+      <li><b>$10 buy-in, pay in any coin.</b> Your entry routes through Relay to <b>buy ROBINVAULT on-market, and that bought token IS the pot</b> (winner-take-all). Every entry is daily buy pressure; winners are paid in ROBINVAULT (one-click swap to ETH at cash-out if they prefer). <b>Field is capped (~100);</b> Vault Robbers get a <b>discount + priority access</b> to the limited seats. Team takes a 2% rake.</li>
+      <li><b>Each chamber:</b> pick one of a few routes any time in its window. A <b>live fuzzy crowd heatmap</b> shows where the field is leaning; you can change your pick until it locks.</li>
+      <li><b>Blind final window:</b> the heatmap freezes ~30 min before lock, so the last stretch is committed under uncertainty (kills last-second stampede manipulation, creates the nerve moment).</li>
+      <li><b>At lock:</b> the <b>most-crowded route trips the alarm</b> and those robbers bust. Survivors carry to the next chamber. Repeat to one champion.</li>
+      <li><b>Greed layer:</b> any chamber you may BANK a small guaranteed cut and walk, or PUSH deeper. The pot concentrates on the bold.</li>
+      <li><b>Champion</b> → winner-take-all + small finalist split + a Vault Champion streak on their Robber's on-chain record.</li>
+    </ul>
+    <div class="grid" style="margin-top:6px">
+      <div class="box"><div class="k">Set &amp; forget</div><div class="v">one and done</div><div class="muted">pre-commit your whole path + a rule ("if doomed, bank"), walk away.</div></div>
+      <div class="box"><div class="k">Play through the day</div><div class="v">check in</div><div class="muted">read the heatmap as each chamber opens, adjust, lock.</div></div>
+      <div class="box"><div class="k">Play &amp; wait</div><div class="v">watch reveals</div><div class="muted">make moves early, watch the field collapse via push/TG pings.</div></div>
+    </div>
+    <p class="muted" style="margin-top:10px">Why the crowd-read survives async: the heatmap is <b>reflexive</b>, pile onto the "safe" route and it visibly becomes the death route, all day. Predicting a live human crowd reacting to itself is the anti-inductive, agent-proof core, stretched over 24h of slow-burn drama. The blind window stops agents sniping the final state.</p>
+  </div>
+
+  <h2>Why an agent can't cheat it</h2>
+  <div class="card">
+    <ul>
+      <li><b>Anti-inductive by design.</b> The outcome depends on the distribution of ~100 humans' secret choices. If a strategy gets popular it <b>becomes the herd and busts</b>. There is no fixed optimum for a bot to solve.</li>
+      <li><b>Agents entering make it safer for humans.</b> Bots clustering on the "optimal" route are the crowd, so they eliminate themselves.</li>
+      <li><b>Bluffing is second-order theory-of-mind</b>, the documented weakest area for LLM agents.</li>
+      <li><b>Daily novelty.</b> Route counts, rules, prize, and crowd change every day, nothing static to train against.</li>
+      <li><b>Truly all-vs-all.</b> Your result is purely a function of what everyone else does, there is no solo task to grind.</li>
+    </ul>
+  </div>
+
+  <h2>The economy (two currencies, two jobs)</h2>
+  <div class="grid">
+    <div class="box"><div class="k">ROBINVAULT = fuel</div><div class="v">burns fast</div><div class="muted">fungible, spent to play, burned daily. High velocity.</div></div>
+    <div class="box"><div class="k">Vault Robbers = membership</div><div class="v">1,000 cap</div><div class="muted">scarce ERC-721; at launch = 25% discount + priority entry.</div></div>
+    <div class="box"><div class="k">Creator fees (RVLT)</div><div class="v">100% burn</div><div class="muted">the promise + the loudest deflation on the biggest stream.</div></div>
+    <div class="box"><div class="k">NFT royalties (ETH)</div><div class="v">100% burn</div><div class="muted">ETH → buys ROBINVAULT → burned. Every Robber trade shrinks the token.</div></div>
+  </div>
+  <div class="flow" style="margin-top:12px">Mint = <b>2× the contract's RVLT cost</b>: the base buys ROBINVAULT to mint the Robber, the <b>100% premium converts to ETH → treasury</b> (fuels game bonuses / guaranteed pots) → daily Standoff: <b>$10 entries (any coin) BUY ROBINVAULT = the pot</b> → winner paid in ROBINVAULT → those buys generate creator fees → <b>100% buyback-burn</b>, and <b>NFT royalties 100% buyback-burn</b> too → supply down → the ~100 seats stay scarce → Robbers trade → more royalties burn → repeat. Team takes a 2% rake. Nothing minted after the 1,000; supply only falls.</div>
+  <div class="rec" style="margin-top:12px"><b>Why anyone holds ROBINVAULT:</b> the game is a daily buy engine — every $10 entry buys it (it's the pot), winners are paid in it, and 100% of creator fees + royalties buy-and-burn it. Demand from play + winners, supply only shrinking. Paying prizes in ETH instead would decouple the token; we keep the pot in ROBINVAULT and let winners swap to ETH at cash-out.</div>
+
+  <h2>Vault Robber perks</h2>
+  <div class="card">
+    <p class="muted" style="margin-top:0">The NFT is an edge, not a gate. <b>At launch, exactly two perks:</b></p>
+    <div class="grid">
+      <div class="box"><div class="k">Discount</div><div class="v">25% off</div><div class="muted">25% off the buy-in, every day</div></div>
+      <div class="box"><div class="k">Priority entry</div><div class="v">reserved</div><div class="muted">priority access to the capped ~100 seats</div></div>
+    </div>
+    <p class="muted" style="margin:12px 0 4px"><b>Ideas for later (NOT in v1)</b></p>
+    <ul>
+      <li>Rake-share / real yield for holders.</li>
+      <li>One-time gameplay charms (survive a bust, re-pick, heatmap peek).</li>
+      <li>Champion streaks etched on the tokenId.</li>
+      <li>Burn-for-power (sacrifice a Robber for a heavy edge).</li>
+    </ul>
+  </div>
+
+  <h2 id="dsim">Daily economy simulator</h2>
+  <p class="muted">The Standoff-specific model. Drag to see daily burn, prize size, treasury runway, and yearly deflation move together. Defaults: 100% creator-fee burn, prize from entries + ETH royalties.</p>
+  <div class="card">
+    <div id="dctrls"></div>
+    <hr>
+    <div class="grid" id="dout"></div>
+    <p class="stamp" id="dnote"></p>
+  </div>
+
+  <h2>Integrity: sybil &amp; collusion on open entry</h2>
+  <div class="card">
+    <p class="muted" style="margin-top:0">Open entry shifts the risk from "bots beat a house" to "one person floods the field, or a group coordinates to herd others." The minority core is naturally hostile to both; we layer defenses on top.</p>
+    <p class="muted"><b>Why the mechanic already fights sybils</b></p>
+    <ul>
+      <li>Every entry costs real money, burns ROBINVAULT, and pays rake, so flooding the field is <b>expensive and revenue-positive for the studio.</b></li>
+      <li>A flood is <b>self-exposed:</b> pile many identities onto one route to make it "hot" and your own pile busts on that route.</li>
+      <li><b>Winner-take-all + skill dilutes ticket-buying:</b> your extra entries compete with each other and still have to out-read the crowd.</li>
+      <li>A large bloc <b>telegraphs itself</b> in the heatmap, so the rest of the field routes around it.</li>
+    </ul>
+    <p class="muted"><b>Defenses we add</b></p>
+    <div class="grid">
+      <div class="box"><div class="k">Superlinear entry pricing</div><div class="v">Nth costs more</div><div class="muted">1st entry cheap; each extra from one wallet costs progressively more → flooding is brutal, one entry stays fair. On-chain, no KYC.</div></div>
+      <div class="box"><div class="k">Hidden + blind picks</div><div class="v">anti-collusion</div><div class="muted">secret simultaneous choices + anonymized seats + blind final window → a group can't reliably herd others (and self-busts if it tries).</div></div>
+      <div class="box"><div class="k">Personhood on payout</div><div class="v">claim gate</div><div class="muted">light proof-of-humanity to CLAIM a prize on the human lane → farms can enter but can't cleanly cash out.</div></div>
+      <div class="box"><div class="k">Collusion detection</div><div class="v">graph flags</div><div class="muted">cluster wallets by funding source + co-pick correlation + never-bust-each-other; flag, void, ban.</div></div>
+    </div>
+    <p class="muted">Honest limit: no single defense is perfect (identities are cheap). The point is <b>layered cost + detection</b> so attacks are expensive, self-defeating, and traceable, and every attempt still burns ROBINVAULT and pays the house.</p>
+  </div>
+
+  <h2 id="money">How the studio makes money giving 85-90% back</h2>
+  <p>Not from players' losses (house edge). From <b>volume</b> (rake + fees + royalties). Poker-room / exchange model, not casino.</p>
+  <div class="grid">
+    <div class="box"><div class="k">Rake</div><div class="v">5-15% / pot</div><div class="muted">bounded by entries, un-drainable; bots just add rake</div></div>
+    <div class="box"><div class="k">Creator fees</div><div class="v">token volume</div><div class="muted">game forces buying + moving ROBINVAULT → perpetual fee stream</div></div>
+    <div class="box"><div class="k">NFT</div><div class="v">mint + royalty</div><div class="muted">primary + ERC-2981 secondary</div></div>
+    <div class="box"><div class="k">Deflation</div><div class="v">burn</div><div class="muted">entry burns + fee buyback-burn → treasury value accrual</div></div>
+  </div>
+  <h3>Worked example, one daily arena</h3>
+  <div class="flow">1,000 players × 1,000 ROBINVAULT = <b>1,000,000</b> pot →
+   85% (850k) to top finishers · 10% (100k) rake → buyback-burn · 5% (50k) burned.<br>
+   Studio nets 100k rake, zero payout risk (prizes bounded by entries), and every entrant had to <b>buy</b> ROBINVAULT to play.</div>
+  <h3>The flywheel</h3>
+  <div class="flow">acquire ROBINVAULT to play → burn on entry → fees from that buying → buyback-and-burn → supply down + price support → NFT holders earn fee share → more mint demand → more players → more volume → repeat.</div>
+
+  <h2 id="sim">Economic simulator</h2>
+  <p class="muted">Live model. Drag to see how entry, rake, burn, and turnout drive studio revenue, token burned, and player payouts. Nothing here is committed, it's for tuning.</p>
+  <div class="card">
+    <div id="sctrls"></div>
+    <hr>
+    <div class="grid" id="sout"></div>
+    <p class="stamp" id="snote"></p>
+  </div>
+
+  <h2 id="research">What the deep research says</h2>
+  <p class="muted">Distilled from four parallel research passes (on-chain PvP economies, novel multiplayer mechanics, agent-native design, deflationary tokenomics). These are the load-bearing findings shaping the concepts below.</p>
+  <div class="card">
+    <ul>
+      <li><b>Rake-only never risks the studio.</b> DFS/poker return ~85% and take a fixed ~10-15% off a player-funded pot; the operator never has money on the outcome. This is our no-drainable-house model, made concrete.</li>
+      <li><b>Top-heavy prize curves drive entries.</b> ~50/20/10/20 to the top ~10% maximizes the "one big score" pull, which is exactly our heist brand. Fixed rake regardless.</li>
+      <li><b>Buyback-burn only works if burn &gt; emissions.</b> Hyperliquid (~99% of fees into automated buy-and-burn) and Raydium (12% of fees) actually shrank supply because revenue is real; ~10 of 11 "deflationary" tokens fail this. Route rake into automated, on-chain, published buy-and-burn, and keep faucets below it.</li>
+      <li><b>Guaranteed-pot overlay bootstraps liquidity.</b> DFS operators temporarily top up under-filled pots as a budgeted acquisition cost (real +EV for players). Use ROBINVAULT-denominated guaranteed pots at launch, retire once organic entries fill them.</li>
+      <li><b>Agents fail at hidden-info, second-order theory-of-mind, and novelty (OOD).</b> They excel at reaction/optimization. So human-edge formats lean on discovery, social reads, and fast mechanic rotation; agent-friendly formats lean into BYO-bot leagues + spectator markets.</li>
+      <li><b>PvP integrity replaces the anti-bot arms race.</b> Bonds + slashing, proof-of-personhood only on the human payout lane, frozen-briefing info symmetry, and collusion/sybil detection. Commit-reveal proves integrity, not fairness, so the rubric must be published.</li>
+      <li><b>Protect the fish.</b> A game with no casual players has no game: rake caps, skill-tier matchmaking, and free practice ladders keep recreational players entering. Fun first, token second (dead projects over-invested in tokenomics and under-invested in fun).</li>
+    </ul>
+  </div>
+
+  <h2 id="ten">The full slate: 10 experimental concepts</h2>
+  <p class="muted">Each uses a deliberately <b>different economic model</b> so we can compare, all no-house, all deflationary, all wearing the heist skin. Tags show format · economic model · agent stance. ★ = current front-runner.</p>
+
+  <div class="card"><span class="tag">1 · THE SCORE ★</span><span class="muted"> async daily heist · flat rake+burn GPP · dual ladder</span>
+    <p>Everyone runs the same daily server-seed heist; top ~10% split the pot on a 50/20/10/20 curve. <b>Econ:</b> 85% prizes / 10% rake→buyback-burn / 5% burn; launch overlay to guarantee early pots. <b>NFT/token:</b> Robber = identity + on-chain heist record; holders get a 2nd attempt + rake discount + fee share. <b>Unique:</b> zero-friction global skill ladder. <b>Risk:</b> whales multi-entering, seed exploits → entry caps + per-player seed variation.</p></div>
+
+  <div class="card"><span class="tag">2 · GHOST PROTOCOL ★</span><span class="muted"> BYO-bot arena + spectator market · entry-fee + parimutuel revenue · agents welcome</span>
+    <p>Developers submit autonomous "ghost" robbers over an API that run the same frozen-briefing heist; humans bet parimutuel on which bot clears deepest. <b>Econ:</b> the bot's entry fee IS the margin + rake on the spectator pool; every bot posts a slashable bond. <b>NFT/token:</b> a Robber = an agent license/slot; its win record lives on the tokenId → champion bots become blue-chip. <b>Unique:</b> turns the farming threat into two revenue lines. <b>Risk:</b> one super-agent dominates → rotating rulesets + calibration scoring.</p></div>
+
+  <div class="card"><span class="tag">3 · CREWS &amp; TURF ★</span><span class="muted"> persistent territory world · zero-sum turf yield + ve-lock · async</span>
+    <p>The 1,000 Robbers are districts of a persistent city; crews stake Robbers to hold turf and run skill raids to take rivals' turf (attack live, defend passively). <b>Econ:</b> turf income is strictly zero-sum among crews, fed by raid burns + a capped fee allocation, never a guaranteed house yield; lock a Robber to a district for a defense boost (light ve, no bribe wrapper). <b>Unique:</b> emergent alliances/betrayal, offline consequences. <b>Risk:</b> yield drifting into ponzi → hard-cap payout to inflows only.</p></div>
+
+  <div class="card"><span class="tag">4 · THE RAT</span><span class="muted"> social deduction heist · winner-take-pot · human-edge (agent-resistant)</span>
+    <p>4-6 Robbers run a job; a hidden informant wins if the crew fails. No elimination (busted players stay in), and each survivor's cut balloons as the heist deepens. <b>Econ:</b> flat rake on a pooled entry; crew splits the haul by secret objectives, the Rat takes the pot on sabotage. <b>NFT/token:</b> Robber traits seed roles; reputation for "never gets ratted." <b>Unique:</b> theory-of-mind is a durable human moat. <b>Risk:</b> collusion/win-trading → detection + shuffled lobbies.</p></div>
+
+  <div class="card"><span class="tag">5 · LAST CREW STANDING</span><span class="muted"> battle-royale heist · pooled survivor split · positioning skill</span>
+    <p>N crews drop into the vault complex; a shrinking "police cordon" (paced by player count, not a timer) forces confrontation; last crews standing split the pooled stakes. <b>Econ:</b> entry stakes pool, top survivors split minus rake. <b>NFT/token:</b> Robber cosmetics + record; entry burns a slice. <b>Unique:</b> rewards planning/positioning over twitch → more bot-resistant than reflex. <b>Risk:</b> dead late-game → variable shrink + ghost fills.</p></div>
+
+  <div class="card"><span class="tag">6 · THE VAULT DOOR</span><span class="muted"> Dutch-auction nerve game · dynamic pricing · real-time PvP</span>
+    <p>A loot lot's reward ticks up (risk rises) while its "grab price" ticks down each block, until someone dives, grab early and overpay, wait and a rival snatches it. <b>Econ:</b> payments route into the pot; pure nerve/timing against a live shared clock; small rake. <b>NFT/token:</b> holders get a one-block "head start" perk. <b>Unique:</b> auction dynamics AS the entire game. <b>Risk:</b> latency fairness → server-authoritative tick + signed settlement.</p></div>
+
+  <div class="card"><span class="tag">7 · SEALED SCORE</span><span class="muted"> sealed-bid job draft · commit-reveal, bids burned · high deflation</span>
+    <p>Each round, crews blind-bid ROBINVAULT (commit-reveal) to claim the richer vault; over-commit and you bust, under-bid and a rival takes it. <b>Econ:</b> winning bids are largely <b>burned</b> (max deflation), losers refunded minus a small rake; non-revealers auto-default to a loss (anti-grief). <b>NFT/token:</b> Robber = a bid seat; reputation for reading the room. <b>Unique:</b> valuation skill + the heaviest burn of the slate. <b>Risk:</b> reveal-griefing → forfeitable deposits + timed self-reveal.</p></div>
+
+  <div class="card"><span class="tag">8 · INSIDE MAN</span><span class="muted"> fluid-role / crown rotates · pot = banked haul · one-vs-many</span>
+    <p>One player is the runner on the vault floor; everyone else are ghosts possessing cameras/guards/traps. Bust the runner and you <b>become</b> the runner. <b>Econ:</b> the pot is whatever the current runner has banked; whoever holds the crown at time-out takes it, minus rake, so there's no fixed state for a bot to farm. <b>NFT/token:</b> Robber perks tune trap/ability loadouts. <b>Unique:</b> the target is always moving. <b>Risk:</b> role balance → rock-paper-scissors counters + heavy playtest.</p></div>
+
+  <div class="card"><span class="tag">9 · THE HEIST FLOOR</span><span class="muted"> spectator-as-director world event · holder real-yield fee-share · broadcast</span>
+    <p>A marquee live heist where the 1,000 Robber holders (and ROBINVAULT stakers) are "the cops watching the cameras", voting in real time to drop obstacles or open shortcuts for the running crew. <b>Econ:</b> spectator stakes route into the pot; a real-yield slice of rake/fees pays the director-holders (GMX/LooksRare style, capped). <b>Unique:</b> every heist becomes a streamable community event; deepest NFT-holder utility. <b>Risk:</b> collusion between directors + crew → hidden votes + rate limits.</p></div>
+
+  <div class="card"><span class="tag">10 · THE LEDGER</span><span class="muted"> back-a-robber prediction market · parimutuel · speculation on the 1,000</span>
+    <p>A season-long parimutuel where anyone backs which Robber/crew clears deepest; pools pay pro-rata minus rake, one-sided pools auto-refund (never house-paid). <b>Econ:</b> pure parimutuel rake; ties directly to each Robber's on-chain reputation. <b>NFT/token:</b> a strong record makes a Robber a "proven earner" others pay to back → NFT price discovery. <b>Unique:</b> a speculative market layered on the fixed 1,000 for non-players. <b>Risk:</b> wash-trading records → weight by fee-paid ranked play only.</p></div>
+
+  <h2 id="games">Front-runners, in detail</h2>
+
+  <div class="card">
+    <span class="tag">1 · THE SCORE</span><span class="muted"> — daily heist leaderboard (the backbone)</span>
+    <p><b>Lore:</b> every day the vault reseals with a new layout. The whole crew runs the same heist; the cleanest cracks split the take.</p>
+    <ul>
+      <li><b>Skill:</b> V2 seed-not-answer chambers, one shared daily seed → pure skill.</li>
+      <li><b>No house:</b> top X% split the pot; studio only rakes.</li>
+      <li><b>NFT (721):</b> your Robber is your identity; its heist record accrues on its tokenId. Holders get a 2nd attempt, lower rake, fee share. "Proven earner" Robbers gain resale value.</li>
+      <li><b>Token:</b> entry in ROBINVAULT · 85% prizes / 10% rake→buyback-burn / 5% burn.</li>
+      <li><b>Speculation:</b> Robber reputation, daily pot, season standings.</li>
+      <li><b>Why first:</b> reuses the proven engine, simplest economy to validate rake.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <span class="tag">2 · CREWS &amp; TURF</span><span class="muted"> — clan territory control (retention + NFT depth)</span>
+    <p><b>Lore:</b> the vault is a sprawl of chambers. Crews stake Robbers to claim turf; rivals raid to take it. Hold turf, hold a cut of what flows through it.</p>
+    <ul>
+      <li><b>Skill + coordination:</b> members run skill heists to attack/defend; results aggregate to the crew.</li>
+      <li><b>No house:</b> turf income is <b>zero-sum among crews and fed by fees + raid burns</b>, never a guaranteed yield. What one crew earns, another lost.</li>
+      <li><b>NFT (721):</b> traits = roles (cracker / lookout / muscle) with distinct bonuses → assembling a complementary crew is the strategy. Deepest 721 utility.</li>
+      <li><b>Token:</b> raids cost token (burn), turf yield paid in token, optional parimutuel on raids.</li>
+      <li><b>Speculation:</b> turf markets, role scarcity, crew reputation.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <span class="tag">3 · GHOST PROTOCOL</span><span class="muted"> — agent-native arena (the flagship experiment)</span>
+    <p><b>Lore:</b> the vault grew a warden. Crews deploy autonomous "ghost" robbers to out-think it and each other.</p>
+    <ul>
+      <li><b>Format:</b> bring-your-own-agent; dev-submitted API robbers compete agent-vs-agent and human-vs-agent in brackets; spectators stake.</li>
+      <li><b>No house:</b> prizes from entries + spectator pools; studio rakes both.</li>
+      <li><b>NFT (721):</b> a Robber = the license/slot to field an autonomous player; the agent's record lives on the tokenId. Champions become blue-chip.</li>
+      <li><b>Token:</b> entry burns + rake + spectator parimutuel + token prizes = highest continuous volume (matches run 24/7).</li>
+      <li><b>Speculation:</b> champion-Robber markets, live spectator betting.</li>
+      <li><b>The point:</b> converts the MT-Agent arms race from our biggest cost into the product. A genuinely new on-chain medium.</li>
+    </ul>
+  </div>
+
+  <h2 id="pressure">Pressure tests (where these break, and the fix)</h2>
+
+  <h3>Model-wide</h3>
+  <div class="pt"><div class="risk">Cold start: PvP is dead without players; empty arenas = tiny pots = churn.</div>
+    <div class="fix"><b>Fix:</b> async formats need no simultaneous players; <b>seed pots from creator fees</b> as a time-boxed launch subsidy (guaranteed minimum pot) so early arenas feel full without a house risking capital.</div></div>
+  <div class="pt"><div class="risk">Negative-sum for the average player: 15% taken (rake+burn) means most players lose over time. Why keep playing?</div>
+    <div class="fix"><b>Fix:</b> skill-tier matchmaking (play peers, not sharks), free practice ladders, non-monetary season progression + cosmetics, and NFT/reputation upside. Frame honestly as a skill contest (like DFS/poker), not "everyone wins."</div></div>
+  <div class="pt"><div class="risk">Prize-in-token vs appreciation: if the token moons, entry cost prices players out; if it dumps, prizes feel worthless.</div>
+    <div class="fix"><b>Fix:</b> peg entry to a <b>USD-target</b> in token terms (dynamic token amount) so accessibility stays stable while all flows remain in-token.</div></div>
+  <div class="pt"><div class="risk">Regulatory: real-money PvP can read as gambling.</div>
+    <div class="fix"><b>Fix:</b> lean on <b>skill-contest</b> framing (outcomes determined by skill), geofence/KYC-lite where needed, keep parimutuel spectator betting clearly separated and jurisdiction-aware. Get counsel before launch.</div></div>
+  <div class="pt"><div class="risk">PvP integrity: collusion, sybil/multi-account, smurfing replace the anti-bot problem.</div>
+    <div class="fix"><b>Fix:</b> entry cost makes sybil expensive, skill tiers stop smurf-farming, collusion detection on correlated play. More tractable than the old arms race.</div></div>
+  <div class="pt"><div class="risk">Reputation gaming: wash-trading a Robber's record, sandbagging on alt Robbers.</div>
+    <div class="fix"><b>Fix:</b> reputation only counts fee-paid, ranked matches; decay stale records; weight by opponents' tier.</div></div>
+
+  <h3>Per game</h3>
+  <div class="pt"><div class="risk">THE SCORE: a single exploit in the day's seed lets one player dominate; whales buy many entries.</div>
+    <div class="fix"><b>Fix:</b> per-player procedural variation inside a shared difficulty band (V2 did this); cap entries or apply diminishing returns per wallet/Robber.</div></div>
+  <div class="pt"><div class="risk">CREWS &amp; TURF: the turf "yield" quietly becomes a house/ponzi if fees dry up; whale crews wall off all turf.</div>
+    <div class="fix"><b>Fix:</b> hard-cap turf payout to (raid burns + allocated fees) only, never promised; turf tiers + matchmaking so new crews have contestable ground.</div></div>
+  <div class="pt"><div class="risk">GHOST PROTOCOL: one superior agent wins everything → winner-take-all kills the market; needs a dev community to exist at all.</div>
+    <div class="fix"><b>Fix:</b> rotating rulesets + fog/novelty per season, agent-class handicaps, prize curves that reward the field; launch <b>after</b> THE SCORE has an audience to draw agent builders.</div></div>
+
+  <h2 id="nft">The NFT (ERC-721) as connective tissue</h2>
+  <ul>
+    <li><b>Uniqueness → reputation:</b> each Robber carries its lifetime record on its tokenId across all three games. This is the asset that makes Robbers speculative beyond art.</li>
+    <li><b>Not required to play:</b> open entry with the token; holding/renting a Robber adds edge + fee share + identity. Keeps "everyone participates" true.</li>
+    <li><b>Rental/delegation market:</b> lets a capped 1,000 supply serve unlimited players.</li>
+    <li><b>Mint-size lever (needs contract review):</b> if max supply is extendable 1,000→2,000, sell new "recruits" priced in ROBINVAULT with a burn cut (a supply + volume lever). If immutable, keep 1,000 as scarce prestige + rentals.</li>
+  </ul>
+
+  <h2 id="agents">Agents: two ladders, run both</h2>
+  <div class="grid">
+    <div class="box"><div class="k">Open League</div><div class="v">agents welcome</div><div class="muted">bring-your-own-bot; humans + agents together; bots just redistribute the pot while studio rakes. This is where GHOST PROTOCOL lives.</div></div>
+    <div class="box"><div class="k">Verified-Human</div><div class="v">humans only</div><div class="muted">light proof-of-humanity + separate pool; V2 seed-not-answer + hidden-info formats where agents are weakest.</div></div>
+  </div>
+  <p class="muted">Segregation means agents never get the upper hand over humans who didn't opt in, and we still get the agent-vs-agent spectacle.</p>
+
+  <h2 id="decisions">Open decisions (need Jake)</h2>
+  <ul>
+    <li>Rake % and burn % (draft: 10% rake / 5% burn / 85% prizes).</li>
+    <li>Entry pricing: fixed token amount vs USD-pegged token amount.</li>
+    <li>Chain + prize custody: Robinhood 4663 again? escrow contract vs Safe vs streaming.</li>
+    <li>Skill grading: server-authoritative with on-chain attestation vs fully on-chain.</li>
+    <li>Mint-size: extend to 2,000 (if contract allows) or keep 1,000 + rentals.</li>
+    <li>Fee-router contract: split creator fees across buyback-burn / prize-seed / NFT-staker share.</li>
+    <li>Launch jurisdiction + KYC posture.</li>
+  </ul>
+
+  <h2 id="build">Build plan + contract sketch</h2>
+  <div class="card">
+    <p class="muted" style="margin-top:0">Chain: <b>Robinhood 4663</b> (ROBINVAULT + Vault Robbers already live there; reuse Relay for any-coin entry). Server-authoritative game engine (like V2) with on-chain settlement.</p>
+    <div class="sect">Contracts</div>
+    <ul>
+      <li><b>EntryRouter</b> — takes the $10 buy-in in any coin (via Relay) → <b>buys ROBINVAULT on-market into the DailyVault pot</b>, takes the <b>2% team rake</b>, and applies the Vault Robber discount + priority (reads NFT balance) + superlinear per-wallet pricing. Emits an Entry event (the "seat").</li>
+      <li><b>DailyVault (escrow)</b> — holds the day's <b>ROBINVAULT pot</b> (the entries themselves). Collateralized by construction; <b>pull-based payout</b> to the champion (+ small finalist split), paid in ROBINVAULT; personhood gate on claim. One cycle id per day. Optional treasury overlay to guarantee a floor early on.</li>
+      <li><b>FeeRouter</b> — <b>100% of ROBINVAULT creator fees AND 100% of ETH royalties → buy-and-burn ROBINVAULT.</b> Both streams pure deflation, no prize plumbing to reconcile.</li>
+      <li><b>Mint (existing NFT contract + hub logic)</b> — user pays <b>2× the contract's RVLT cost</b>: the base buys ROBINVAULT to mint the Robber; the <b>100% premium → ETH → treasury</b> (fuels game bonuses). v1 perks (discount + priority) read straight from NFT balance, no extra contract.</li>
+      <li class="muted"><b>Later (not v1):</b> RobberRegistry (champion streaks on tokenId) and RobberStake (holder yield) — deferred.</li>
+    </ul>
+    <div class="sect">Off-chain (game server)</div>
+    <ul>
+      <li>Async round engine: chamber windows, the reflexive live heatmap, blind window, most-crowded-busts resolution, bank/push, final-table Last Door.</li>
+      <li>Server-authoritative grading with a <b>published seed + rules</b>; posts a signed daily result (merkle root of survivors/winner) the escrow verifies → provably-fair-ish, offline-reproducible.</li>
+      <li>Collusion/sybil detection (funding graph + co-pick correlation), notifications (push/TG), spectator feed.</li>
+    </ul>
+    <div class="sect">Settlement + fairness</div>
+    <ul>
+      <li><b>Commit → play → reveal:</b> server commits the daily seed hash up front; resolves each chamber at its lock; publishes seed + full pick log at close so anyone can recompute the busts.</li>
+      <li>Prize is escrowed before the day starts (guaranteed-minimum overlay from the mint-seeded treasury), so payouts are always solvent; winners pull their claim.</li>
+    </ul>
+  </div>
+
+  <div class="rec" id="plan">
+    <h2>Phased roadmap</h2>
+    <h3>Phase 0 — Prototype (done)</h3>
+    <p>Token-free playable core (crowd cull + Last Door) to prove the fun. Live in this lab.</p>
+    <h3>Phase 1 — Testnet MVP</h3>
+    <p>Server round engine + testnet EntryRouter / DailyVault / FeeRouter, fake money, full daily loop with a handful of humans + sims. Prove settlement, heatmap, and fairness.</p>
+    <h3>Phase 2 — Closed beta (mainnet, capped)</h3>
+    <p>Real ROBINVAULT + Relay any-coin entry, small guaranteed pots from the mint-seeded treasury, invite the crowd. Watch burn, prize, and integrity live.</p>
+    <h3>Phase 3 — Public launch</h3>
+    <p>Open on vaultrobbers.com. Mint funds treasury + burns; creator-fee burn + royalty→prize flywheel running; seasons + champion streaks.</p>
+  </div>
+
+  <div class="stamp">Living document. Everything here is a proposal to shoot holes in, not a commitment.</div>
+</div>
+<script>
+(function(){
+  var CIRC = 539000000; // approx circulating ROBINVAULT
+  var CTRLS = [
+    ['players','Players / arena',50,5000,50,1000],
+    ['entry','Entry (ROBINVAULT)',100,20000,100,1000],
+    ['price','Token price (USD)',0.00005,0.005,0.00001,0.000267],
+    ['rake','Rake %',0,20,1,10],
+    ['burn','Burn %',0,20,1,5],
+    ['paid','Paid finishers %',1,50,1,15],
+    ['arenas','Arenas / day',1,50,1,3]
+  ];
+  var S={};
+  var host=document.getElementById('sctrls');
+  var PRESETS=[['Volume play',{rake:3,burn:2,paid:20}],['Standard GPP',{rake:10,burn:5,paid:10}],['Max burn',{rake:5,burn:20,paid:12}],['Parimutuel',{rake:8,burn:2,paid:30}],['Sealed-bid (burn-heavy)',{rake:3,burn:20,paid:5}],['Bot league',{rake:12,burn:3,paid:8}]];
+  var BAR='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">'+PRESETS.map(function(p,i){return '<button data-pi="'+i+'" class="preset" style="font-family:\'Patrick Hand\',cursive;font-size:13px;border:2px solid #17130d;border-radius:8px;padding:4px 9px;background:#eedaba;box-shadow:2px 2px 0 #17130d;cursor:pointer">'+p[0]+'</button>';}).join('')+'</div>';
+  host.innerHTML=BAR+CTRLS.map(function(c){
+    return '<div style="margin:10px 0"><label style="font-family:\'Patrick Hand\',cursive;font-size:15px;display:flex;justify-content:space-between">'+
+      '<span>'+c[1]+'</span><b id="lab_'+c[0]+'" style="color:#54699f"></b></label>'+
+      '<input type="range" id="in_'+c[0]+'" min="'+c[2]+'" max="'+c[3]+'" step="'+c[4]+'" value="'+c[5]+'" style="width:100%">'+
+      '</div>';
+  }).join('');
+  function fmt(n){ n=n||0; var a=Math.abs(n);
+    if(a>=1e9)return (n/1e9).toFixed(2)+'B'; if(a>=1e6)return (n/1e6).toFixed(2)+'M';
+    if(a>=1e3)return (n/1e3).toFixed(1)+'k'; return Math.round(n).toLocaleString(); }
+  function usd(n){ n=n||0; if(Math.abs(n)>=1e6)return '$'+(n/1e6).toFixed(2)+'M'; if(Math.abs(n)>=1e3)return '$'+(n/1e3).toFixed(1)+'k'; return '$'+n.toFixed(2); }
+  function box(k,v,sub){ return '<div class="box"><div class="k">'+k+'</div><div class="v">'+v+'</div>'+(sub?'<div class="muted">'+sub+'</div>':'')+'</div>'; }
+  function calc(){
+    CTRLS.forEach(function(c){ S[c[0]]=parseFloat(document.getElementById('in_'+c[0]).value); document.getElementById('lab_'+c[0]).textContent = (c[0]==='price')?('$'+S.price.toFixed(6)):(c[0]==='rake'||c[0]==='burn'||c[0]==='paid')?(S[c[0]]+'%'):fmt(S[c[0]]); });
+    var prizePct = Math.max(0,100 - S.rake - S.burn);
+    var pot = S.players*S.entry;
+    var prizes = pot*prizePct/100, rake = pot*S.rake/100, burned = pot*S.burn/100;
+    var winners = Math.max(1, Math.round(S.players*S.paid/100));
+    var avgWin = prizes/winners, mult = avgWin/S.entry;
+    var burnedYr = burned*S.arenas*365, rakeYr = rake*S.arenas*365, volYr = pot*S.arenas*365;
+    var out=document.getElementById('sout');
+    out.innerHTML =
+      box('Pot / arena', fmt(pot), usd(pot*S.price)) +
+      box('Prize pool ('+prizePct+'%)', fmt(prizes), usd(prizes*S.price)) +
+      box('Studio rake / day', fmt(rake*S.arenas), usd(rake*S.arenas*S.price)) +
+      box('Studio rake / yr', fmt(rakeYr), usd(rakeYr*S.price)) +
+      box('Burned / yr', fmt(burnedYr), (burnedYr/CIRC*100).toFixed(1)+'% of circulating') +
+      box('Token volume / yr', fmt(volYr), usd(volYr*S.price)+' buy pressure') +
+      box('Avg winner take', fmt(avgWin), mult.toFixed(2)+'x entry ('+usd(avgWin*S.price)+')') +
+      box('Net-positive players', S.paid+'%', 'the rest pay to compete (skill contest)');
+    var yrs = burnedYr>0 ? (CIRC/burnedYr) : Infinity;
+    document.getElementById('snote').textContent =
+      'Prize % = 100 - rake - burn = '+prizePct+'%. At this pace, entry burns alone retire the circulating supply in ~'+(isFinite(yrs)?yrs.toFixed(1):'∞')+' years (before fee buyback-burn, which adds more). Winners need to finish top '+S.paid+'% to profit; average winner makes '+mult.toFixed(2)+'x their entry.';
+  }
+  CTRLS.forEach(function(c){ document.getElementById('in_'+c[0]).addEventListener('input',calc); });
+  Array.prototype.forEach.call(document.querySelectorAll('.preset'),function(b){ b.addEventListener('click',function(){ var pv=PRESETS[+b.getAttribute('data-pi')][1]; for(var k in pv){ var el=document.getElementById('in_'+k); if(el) el.value=pv[k]; } calc(); }); });
+  calc();
+})();
+</script>
+<script>
+/* THE VAULT STANDOFF — daily economy simulator */
+(function(){
+  var CIRC=539000000;
+  var C=[
+    ['ent','Players / day (cap ~100)',10,2000,10,100],
+    ['entryUsd','Buy-in (USD, any coin)',1,50,1,10],
+    ['price','ROBINVAULT price (USD)',0.00005,0.005,0.00001,0.000267],
+    ['rake','Team rake %',0,10,0.5,2],
+    ['winner','Winner take % (net pot)',50,100,5,85],
+    ['holderPct','Players holding a Robber %',0,100,5,20],
+    ['disc','Robber discount %',0,50,5,20],
+    ['cfee','Creator fees burned / day (RVLT)',0,3000000,50000,550000],
+    ['roy','NFT royalties / day (ETH → burn)',0,2,0.01,0.05],
+    ['eth','ETH price (USD)',1000,6000,100,3000],
+    ['mints','Mints / day',0,100,1,10],
+    ['mintcost','Mint cost (RVLT, from contract)',5000,80000,2500,25000]
+  ];
+  var S={}, host=document.getElementById('dctrls');
+  host.innerHTML=C.map(function(c){
+    return '<div style="margin:10px 0"><label style="font-family:\'Patrick Hand\',cursive;font-size:15px;display:flex;justify-content:space-between">'+
+      '<span>'+c[1]+'</span><b id="dl_'+c[0]+'" style="color:#54699f"></b></label>'+
+      '<input type="range" id="di_'+c[0]+'" min="'+c[2]+'" max="'+c[3]+'" step="'+c[4]+'" value="'+c[5]+'" style="width:100%"></div>';
+  }).join('');
+  function fmt(n){ n=n||0; var a=Math.abs(n); if(a>=1e9)return (n/1e9).toFixed(2)+'B'; if(a>=1e6)return (n/1e6).toFixed(2)+'M'; if(a>=1e3)return (n/1e3).toFixed(1)+'k'; return Math.round(n).toLocaleString(); }
+  function usd(n){ n=n||0; if(Math.abs(n)>=1e6)return '$'+(n/1e6).toFixed(2)+'M'; if(Math.abs(n)>=1e3)return '$'+(n/1e3).toFixed(1)+'k'; return '$'+n.toFixed(2); }
+  function box(k,v,sub){ return '<div class="box"><div class="k">'+k+'</div><div class="v">'+v+'</div>'+(sub?'<div class="muted">'+sub+'</div>':'')+'</div>'; }
+  function calc(){
+    C.forEach(function(c){ S[c[0]]=parseFloat(document.getElementById('di_'+c[0]).value);
+      var lab=(c[0]==='price')?('$'+S.price.toFixed(6)):(c[0]==='entryUsd')?('$'+S.entryUsd.toFixed(2)):(c[0]==='eth')?('$'+S.eth):(c[0]==='roy')?(S.roy+' ETH'):(c[0]==='rake'||c[0]==='winner'||c[0]==='holderPct'||c[0]==='disc')?(S[c[0]]+'%'):fmt(S[c[0]]);
+      document.getElementById('dl_'+c[0]).textContent=lab; });
+    var holders=S.ent*S.holderPct/100, nonh=S.ent-holders;
+    var grossUsd=nonh*S.entryUsd + holders*S.entryUsd*(1-S.disc/100);              // entries buy ROBINVAULT = the pot
+    var potRVLT=grossUsd/S.price;                                                  // daily buy pressure
+    var rakeRVLT=potRVLT*S.rake/100, netPot=potRVLT-rakeRVLT;
+    var winnerRVLT=netPot*S.winner/100, finalistRVLT=netPot-winnerRVLT;
+    var royUsd=S.roy*S.eth, royBurnRVLT=royUsd/S.price;                            // NFT royalties 100% burn
+    var mintBurnRVLT=S.mints*S.mintcost, treasuryUsd=S.mints*S.mintcost*S.price;  // base buys+burns RVLT; 100% premium → ETH treasury
+    var dailyBurn=S.cfee+royBurnRVLT+mintBurnRVLT;                                 // fees + royalties + mint (entries recycle to winner)
+    var studioDayUsd=rakeRVLT*S.price + treasuryUsd;                              // 2% rake + mint treasury
+    var burnYrPct=dailyBurn*365/CIRC*100, yrs=dailyBurn>0?(CIRC/(dailyBurn*365)):Infinity;
+    var out=document.getElementById('dout');
+    out.innerHTML=
+      box('Players', fmt(S.ent), Math.round(holders)+' hold a Robber (priority + '+S.disc+'% off)') +
+      box('Daily pot (buy pressure)', usd(grossUsd), 'every entry buys ROBINVAULT = the pot') +
+      box('Winner takes ('+S.winner+'%)', usd(winnerRVLT*S.price), fmt(winnerRVLT)+' RVLT') +
+      box('Finalist split', usd(finalistRVLT*S.price), 'last table shares this') +
+      box('Team rake / day', usd(rakeRVLT*S.price), S.rake+'% of entries') +
+      box('Team rake / year', usd(rakeRVLT*S.price*365), '+ mint treasury') +
+      box('Daily ROBINVAULT burned', fmt(dailyBurn), usd(dailyBurn*S.price)+' (fees+royalties+mint)') +
+      box('Burned / year', fmt(dailyBurn*365), burnYrPct.toFixed(1)+'% of circulating') +
+      box('Supply retired in', (isFinite(yrs)?yrs.toFixed(1)+' yrs':'—'), 'at this daily burn');
+    document.getElementById('dnote').textContent=
+      'Simple model: $'+S.entryUsd+' buy-in (any coin) buys ROBINVAULT = the pot; winner-take-all, paid in ROBINVAULT (swap to ETH at cash-out). Team takes '+S.rake+'% rake. 100% of creator fees AND 100% of NFT royalties buy-and-burn ROBINVAULT. Robber holders get priority seats + '+S.disc+'% off. Deflation = fees + royalties + mint; entries recycle to the winner.';
+  }
+  C.forEach(function(c){ document.getElementById('di_'+c[0]).addEventListener('input',calc); });
+  calc();
+})();
+</script>
+</body>
+</html>

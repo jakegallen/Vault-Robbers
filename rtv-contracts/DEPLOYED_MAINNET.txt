@@ -1,0 +1,44 @@
+RVLT MAINNET DEPLOY RESULT — Robbing the Vault
+Chain: Robinhood Chain mainnet (chainId 4663)
+RPC: https://rpc.mainnet.chain.robinhood.com
+Deployer: 0x8444149B8E5eD771607452FB133d8803A3F02D0e
+
+=== STEP 0 — KEY CHECK: PASS ===
+DEPLOYER_PRIVATE_KEY_2 -> 0x8444149B8E5eD771607452FB133d8803A3F02D0e  PASS
+OPERATOR_PK            -> 0x90DE561c63192AdcA8e5b81Bd9caa8ff8D95b3c5  PASS
+ROBBERS_SIGNER_PK      -> 0xa6b827aB57907f394704c08a17F737C1da3417C9  PASS
+Deployer gas balance (pre-deploy): 0.019860146889092824 ETH  (> 0, PASS)
+
+=== STEP 1 — GAME VAULT (RobbingTheVault, UUPS) ===
+Impl:        0xbbb78959687c1557272317eF3ff2ffd5BC2CCF29
+VAULT_PROXY: 0x254DBcB680ECdF534eC0Dafb7aC476Bc768C77C1
+Impl deploy tx:  0x5355ee8f450004bc1e7c26edc50576a140e238d8c25dc99d96eb6e0a43f3e2d5
+Proxy deploy tx: 0xcc1418b2919bef86e368eb7d4ddd02cfd339152bca885dbe7626191405e450fc
+
+=== STEP 2 — RobberSAC + Vault Robbers ===
+RobberSAC impl: 0x621Fc3874B834BA88Ef9eA03D990422D32151F62
+VaultRobbers:   0x0741A47CE1A25419335dD4a39059Ec63Ba336f69
+(deploy-mainnet.mjs self-asserted deployer+chain, transferred ownership to Safe,
+ verified inline, wrote deployment.mainnet.json. Per-tx hashes not persisted by
+ the ethers deploy script; contract addresses + on-chain reads below confirm success.)
+
+=== STEP 3 — ON-CHAIN VERIFICATION (read-only) ===
+GAME VAULT 0x254DBcB680ECdF534eC0Dafb7aC476Bc768C77C1
+  owner()    = 0x2aA3936C0312f3604982B2504BeE7ad8c88e9397  (Safe)        PASS
+  operator() = 0x90DE561c63192AdcA8e5b81Bd9caa8ff8D95b3c5                PASS
+  fee()      = 1000000000000000000000                                    PASS
+  gameEnd()  = 1793462400                                                PASS
+  rvlt()     = 0x77061B45C5E4D440bd681B5F72BD0F4231a6fC04                PASS
+
+VAULT ROBBERS 0x0741A47CE1A25419335dD4a39059Ec63Ba336f69
+  owner()    = 0x2aA3936C0312f3604982B2504BeE7ad8c88e9397  (Safe)        PASS
+  sink()     = 0xe8886FD4863855884D5F1FFfA38F8C1c8502Ec8c                PASS
+  signer()   = 0xa6b827aB57907f394704c08a17F737C1da3417C9                PASS
+  royaltyInfo(1,10000) = (0x96bcfdb15b65245F5B9796C7A0587b3649f52432, 200) PASS
+  mintActive() = false                                                   PASS
+
+ALL 10 VERIFICATIONS: PASS
+
+=== NOT DONE (Safe's to do later, per hard rules) ===
+No reserveMint, setMintActive, reveal, setTransferValidator, or any other write
+function called. No TransferValidator deployed.

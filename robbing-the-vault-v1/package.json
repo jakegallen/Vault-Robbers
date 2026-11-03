@@ -1,0 +1,42 @@
+{
+  "name": "robbing-the-vault",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Robbing the Vault — an on-chain heist game for the RobinVault (RVLT) token on Robinhood Chain. Prototype.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ethers": "^6.17.0",
+    "express": "^4.22.2"
+  },
+  "emblem_build": {
+    "_note": "RETIRED 2026-09-15 (Jake): V1 permanently retired, never to be republished (pre-hardening leaky engine, security risk). Manifest repurposed to the V1 ARCHIVE tables so backup_artifact_db produces a durable, restorable V1-stats dump (.emblem_build/db-backup.sql) that never touches the live V2 tables. Historical record: 1918 runs, 108 players, Sep 7-13 2026, 1 core crack, 13.0955 ETH robbed, 945,500 RVLT burned, 3,135,448 RVLT won.",
+    "tables": [
+      {
+        "name": "rtv_runs_v1archive",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_runs_v1archive (id INT, player TEXT, stake REAL, depth INT, outcome TEXT, won_rvlt REAL, burned_rvlt REAL, robbed_eth REAL, server_seed TEXT, server_hash TEXT, client_seed TEXT, ts TEXT, net INT)"
+      },
+      {
+        "name": "rtv_state_v1archive",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_state_v1archive (id TEXT, jackpot_eth REAL, pot_rvlt REAL, burned_rvlt REAL, plays INT, robs INT, updated_at TEXT, seeded_rvlt REAL)"
+      },
+      {
+        "name": "rtv_door_picks_v1archive",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_door_picks_v1archive (kind TEXT, net INT, n INT)"
+      },
+      {
+        "name": "rtv_visits_v1archive",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_visits_v1archive (id TEXT, device TEXT, net INT, ts TEXT)"
+      },
+      {
+        "name": "rtv_arcade_pass_v1archive",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_arcade_pass_v1archive (wallet TEXT, tx TEXT, net INT, paid_at TEXT, fee_paid INT)"
+      }
+    ]
+  },
+  "main": "server.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

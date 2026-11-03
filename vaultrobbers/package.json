@@ -1,0 +1,11 @@
+{
+  "name": "vaultrobbers",
+  "version": "1.0.0",
+  "private": true,
+  "description": "vaultrobbers.com ecosystem brand hub: the game (Vault Standoff), the NFT (Vault Robbers), and the token (RVLT). Mostly static with one server-proxied read-only live burn stat.",
+  "scripts": { "start": "node server.js" },
+  "dependencies": {
+    "express": "^4.21.0",
+    "ethers": "6.13.0"
+  }
+}

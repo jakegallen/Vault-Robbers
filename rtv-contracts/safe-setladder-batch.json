@@ -1,0 +1,126 @@
+{
+  "version": "1.0",
+  "chainId": "4663",
+  "createdAt": 0,
+  "meta": {
+    "name": "RVLT V2 ladder retune (1/3/10/20/30%)",
+    "description": "setLadder ch5-9"
+  },
+  "transactions": [
+    {
+      "to": "0x254DBcB680ECdF534eC0Dafb7aC476Bc768C77C1",
+      "value": "0",
+      "data": "0x8b78bde900000000000000000000000000000000000000000000000000000000000000050000000000000000000000000000000000000000000000000000000000000064",
+      "contractMethod": {
+        "inputs": [
+          {
+            "name": "stage",
+            "type": "uint8"
+          },
+          {
+            "name": "bps",
+            "type": "uint16"
+          }
+        ],
+        "name": "setLadder",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "stage": "5",
+        "bps": "100"
+      }
+    },
+    {
+      "to": "0x254DBcB680ECdF534eC0Dafb7aC476Bc768C77C1",
+      "value": "0",
+      "data": "0x8b78bde90000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000012c",
+      "contractMethod": {
+        "inputs": [
+          {
+            "name": "stage",
+            "type": "uint8"
+          },
+          {
+            "name": "bps",
+            "type": "uint16"
+          }
+        ],
+        "name": "setLadder",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "stage": "6",
+        "bps": "300"
+      }
+    },
+    {
+      "to": "0x254DBcB680ECdF534eC0Dafb7aC476Bc768C77C1",
+      "value": "0",
+      "data": "0x8b78bde9000000000000000000000000000000000000000000000000000000000000000700000000000000000000000000000000000000000000000000000000000003e8",
+      "contractMethod": {
+        "inputs": [
+          {
+            "name": "stage",
+            "type": "uint8"
+          },
+          {
+            "name": "bps",
+            "type": "uint16"
+          }
+        ],
+        "name": "setLadder",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "stage": "7",
+        "bps": "1000"
+      }
+    },
+    {
+      "to": "0x254DBcB680ECdF534eC0Dafb7aC476Bc768C77C1",
+      "value": "0",
+      "data": "0x8b78bde9000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000007d0",
+      "contractMethod": {
+        "inputs": [
+          {
+            "name": "stage",
+            "type": "uint8"
+          },
+          {
+            "name": "bps",
+            "type": "uint16"
+          }
+        ],
+        "name": "setLadder",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "stage": "8",
+        "bps": "2000"
+      }
+    },
+    {
+      "to": "0x254DBcB680ECdF534eC0Dafb7aC476Bc768C77C1",
+      "value": "0",
+      "data": "0x8b78bde900000000000000000000000000000000000000000000000000000000000000090000000000000000000000000000000000000000000000000000000000000bb8",
+      "contractMethod": {
+        "inputs": [
+          {
+            "name": "stage",
+            "type": "uint8"
+          },
+          {
+            "name": "bps",
+            "type": "uint16"
+          }
+        ],
+        "name": "setLadder",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "stage": "9",
+        "bps": "3000"
+      }
+    }
+  ]
+}

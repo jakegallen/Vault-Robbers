@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Vault Robbers Experimental Set</title>
+<style>
+  :root { --bg:#070708; --panel:#101014; --line:#1e1e26; --ink:#e9e9ee; --muted:#9a9aa6;
+    --accent:#4ea3ff; --gold:#d9a528; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  header { padding:40px 32px 18px; border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#0b0b0f,transparent); }
+  h1 { margin:0 0 6px; font-size:26px; letter-spacing:-0.02em; }
+  header p { margin:0; color:var(--muted); max-width:720px; }
+  .legend { display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
+  .pill { font-size:12px; padding:4px 10px; border-radius:999px; border:1px solid var(--line); color:var(--muted); }
+  .pill b { color:var(--ink); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:20px; padding:28px 32px 56px; }
+  .card { margin:0; background:var(--panel); border:1px solid var(--line); border-radius:14px; overflow:hidden;
+    transition:border-color .2s ease, transform .2s ease; }
+  .card:hover { border-color:#30303c; transform:translateY(-2px); }
+  @media (prefers-reduced-motion: reduce) { .card { transition:none; } .card:hover { transform:none; } }
+  .imgwrap { aspect-ratio:1/1; background:#0c0c10; }
+  .imgwrap img { width:100%; height:100%; object-fit:contain; display:block; }
+  figcaption { padding:12px 14px 14px; border-top:1px solid var(--line); }
+  .head { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .n { font-weight:600; letter-spacing:0.02em; }
+  .tier { font-size:11px; font-weight:600; padding:3px 9px; border-radius:999px; text-transform:uppercase; letter-spacing:0.05em; }
+  .tier.common { background:#1a1f27; color:#9fb4c9; }
+  .tier.rare { background:#13233a; color:var(--accent); }
+  .tier.ultra { background:#2a2007; color:var(--gold); }
+  ul.attrs { list-style:none; margin:0; padding:0; display:grid; gap:3px; }
+  ul.attrs li { display:flex; justify-content:space-between; gap:12px; font-size:12.5px; }
+  ul.attrs li span { color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Vault Robbers experimental set</h1>
+  <p>Sixteen robbers from the experimental pool on the live compositing pipeline, every one on the single legless hooded body with the expanded masks, heads, eyes, apparel and headwear.</p>
+  <div class="legend">
+    <span class="pill"><b>16</b> samples</span>
+    <span class="pill"><b>5</b> Common</span>
+    <span class="pill"><b>6</b> Rare</span>
+    <span class="pill"><b>5</b> Ultra</span>
+  </div>
+</header>
+<main class="grid">
+    <figure class="card">
+      <div class="imgwrap"><img src="sample-01.png" alt="Vault Robber experimental sample 1" loading="lazy"/></div>
+      <figcaption>
+        <div class="head"><span class="n">#1</span><span class="tier rare">Rare</span></div>
+        <ul class="attrs"><li><span>Background</span>Vault Door</li><li><span>Body</span>Hooded Ghost</li><li><span>Head</span>Brute Skull</li><li><span>Clothes</span>Navy Peacoat</li><li><span>Mask</span>Crimson Domino</li><li><span>Eyes</span>X Out</li><li><span>Hat</span>Olive Beanie</li></ul>
+      </figcaption>
+    </figure>
+    <figure class="card">
+      <div class="imgwrap"><img src="sample-02.png" alt="Vault Robber experimental sample 2" loading="lazy"/></div>
+      <figcaption>
+        <div class="head"><span class="n">#2</span><span class="tier rare">Rare</span></div>
+        <ul class="attrs"><li><span>Background</span>Vault Door</li><li><span>Body</span>Hooded Ghost</li><li><span>Head</span>Brute Skull</li><li><span>Clothes</span>Blood Bomber</li><li><span>Mask</span>Navy Bandana</li><li><span>Eyes</span>Half Lidded</li><li><span>Hat</span>Rust Newsboy</li></ul>
+      </figcaption>
+    </figure>
+    <figure class="card">
+      <div class="imgwrap"><img src="sample-03.png" alt="Vault Robber experimental sample 3" loading="lazy"/></div>
+      <figcaption>
+        <div class="head"><span class="n">#3</span><span class="tier ultra">Ultra</span></div>
+        <ul class="attrs"><li><span>Background</span>Searchlight</li><li><span>Body</span>Hooded Ghost</li><li><span>Head</span>Chrome Skull</li><li><span>Clothes</span>Slate Peacoat</li><li><span>Mask</span>Opera Mask</li><li><span>Eyes</span>Green Glow</li><li><span>Hat</span>Beanie</li></ul>
+      </figcaption>
+    </figure>
+    <figure class="card">
+      <div class="imgwrap"><img src="sample-04.png" alt="Vault Robber experimental sample 4" loading="lazy"/></div>
+      <figcaption>
+        <div class="head"><span class="n">#4</span><span class="tier common">Common</span></div>
+        <ul class="attrs"><li><span>Background</span>Searchlight</li><li><span>Body</span>Hooded Ghost</li><li><span>Head</span>Grey Wolf Skull</li><li><span>Clothes</span>Grey Hoodie</li><li><span>Mask</span>Neon Domino</li><li><span>Eyes</span>X Out</li><li><span>Hat</span>Rust Newsboy</li></ul>
+      </figcaption>
+    </figure>
+    <figure class="card">
+      <div class="imgwrap"><img src="sample-05.png" alt="Vault Robber experimental sample 5" loading="lazy"/></div>
+      <figcaption>
+        <div class="head"><span class="n">#5</span><span class="tier common">Common</span></div>
+        <ul class="attrs"><li><span>Background</span>Vault Door</li><li><span>Body</span>Hooded Ghost</li><li><span>Head</span>Gold Cracked Skull</li><li><span>Clothes</span>Ice Puffer</li><li><span>Mask</span>Crimson Domino</li><li><span>Hat</span>Fedora</li></ul>
+      </figcaption>
+    </figure>
+    <figure class="card">
+      <div class="imgwrap"><img src="sample-06.png" alt="Vault Robber experimental sample 6" loading="lazy"/></div>
+      <figcaption>
+        <div class="head"><span class="n">#6</span><span class="tier ultra">Ultra</span></div>
+        <ul class="attrs"><li><span>Background</span>Vault Door</li><li><span>Body</span>Hooded Ghost</li><li><span>Head</span>Cracked Skull</li><li><span>Clothes</span>Tan Trench</li><li><span>Mask</span>Balaclava</li><li><span>Eyes</span>Heart Eyes</li><li><span>Hat</span>Top Hat</li></ul>
+      </figcaption>
+    </figure>
+    <figure class="card">
+      <div class="imgwrap"><img src="sample-07.png" alt="Vault Robber experimental sample 7" loading="lazy"/></div>
+      <figcaption>
+        <div class="head"><span class="n">#7</span><span class="tier ultra">Ultra</span></div>
+        <ul class="attrs"><li><span>Background</span>Corner</li><li><span>Body</span>Hooded Ghost</li><li><span>Head</span>Brute Skull</li><li><span>Clothes</span>Oxblood Trench</li><li><span>Mask</span>Scarf Wrap</li><li><span>Hat</span>Rust Beanie</li></ul>
+      </figcaption>
+    </figure>
+    <figure class="card">
+      <div class="imgwrap"><img src="sample-08.png" alt="Vault Robber experimental sample 8" loading="lazy"/></div>
+      <figcaption>
+        <div class="head"><span class="n">#8</span><span class="tier rare">Rare</span></div>
+        <ul class="attrs"><li><span>Background</span>Searchlight</li><li><span>Body</span>Hooded Ghost</li><li><span>Head</span>Cracked Skull</li><li><span>Clothes</span>Pinstripe Suit</li><li><span>Mask</span>Neon Domino</li><li><span>Eyes</span>Gold Glow</li></ul>
+      </figcaption>
+    </figure>
+    <figure class="card">
+      <div class="imgwrap"><img src="sample-09.png" alt="Vault Robber experimental sample 9" loading="lazy"/></div>
+      <figcaption>
+        <div class="head"><span class="n">#9</span><span class="tier ultra">Ultra</span></div>
+        <ul class="attrs"><li><span>Background</span>Searchlight</li><li><span>Body</span>Hooded Ghost</li><li><span>Head</span>Brute Skull</li><li><span>Clothes</span>Charcoal Trench</li><li><span>Mask</span>Black Domino</li><li><span>Eyes</span>Shifty Eyes</li><li><span>Hat</span>Cap</li></ul>
+      </figcaption>
+    </figure>
+    <figure class="card">
+      <div class="imgwrap"><img src="sample-10.png" alt="Vault Robber experimental sample 10" loading="lazy"/></div>
+      <figcaption>
+        <div class="head"><span class="n">#10</span><span class="tier rare">Rare</span></div>
+        <ul class="attrs"><li><span>Background</span>Corner</li><li><span>Body</span>Hooded Ghost</li><li><span>Head</span>Golden Skull</li><li><span>Clothes</span>Denim Jacket</li><li><span>Mask</span>Black Domino</li><li><span>Eyes</span>Heart Eyes</li><li><span>Hat</span>Rust Newsboy</li></ul>
+      </figcaption>
+    </figure>
+    <figure class="card">
+      <div class="imgwrap"><img src="sample-11.png" alt="Vault Robber experimental sample 11" loading="lazy"/></div>
+      <figcaption>
+        <div class="head"><span class="n">#11</span><span class="tier rare">Rare</span></div>
+        <ul class="attrs"><li><span>Background</span>Corner</li><li><span>Body</span>Hooded Ghost</li><li><span>Head</span>Chrome Skull</li><li><span>Clothes</span>Blood Bomber</li><li><span>Mask</span>Red Bandana</li><li><span>Hat</span>Newsboy</li></ul>
+      </figcaption>
+    </figure>
+    <figure class="card">
+      <div class="imgwrap"><img src="sample-12.png" alt="Vault Robber experimental sample 12" loading="lazy"/></div>
+      <figcaption>
+        <div class="head"><span class="n">#12</span><span class="tier common">Common</span></div>
+        <ul class="attrs"><li><span>Background</span>Corner</li><li><span>Body</span>Hooded Ghost</li><li><span>Head</span>Grey Wolf Skull</li><li><span>Clothes</span>Ice Puffer</li><li><span>Mask</span>Visor Slit</li><li><span>Hat</span>Hood Up</li></ul>
+      </figcaption>
+    </figure>
+    <figure class="card">
+      <div class="imgwrap"><img src="sample-13.png" alt="Vault Robber experimental sample 13" loading="lazy"/></div>
+      <figcaption>
+        <div class="head"><span class="n">#13</span><span class="tier common">Common</span></div>
+        <ul class="attrs"><li><span>Background</span>Searchlight</li><li><span>Body</span>Hooded Ghost</li><li><span>Head</span>Gold Cracked Skull</li><li><span>Clothes</span>Tactical Vest</li><li><span>Mask</span>Visor Slit</li><li><span>Hat</span>Camo Bucket</li></ul>
+      </figcaption>
+    </figure>
+    <figure class="card">
+      <div class="imgwrap"><img src="sample-14.png" alt="Vault Robber experimental sample 14" loading="lazy"/></div>
+      <figcaption>
+        <div class="head"><span class="n">#14</span><span class="tier common">Common</span></div>
+        <ul class="attrs"><li><span>Background</span>Vault Door</li><li><span>Body</span>Hooded Ghost</li><li><span>Head</span>Brute Skull</li><li><span>Clothes</span>Grey Hoodie</li><li><span>Mask</span>Black Domino</li><li><span>Eyes</span>Shades</li><li><span>Hat</span>Camo Bucket</li></ul>
+      </figcaption>
+    </figure>
+    <figure class="card">
+      <div class="imgwrap"><img src="sample-15.png" alt="Vault Robber experimental sample 15" loading="lazy"/></div>
+      <figcaption>
+        <div class="head"><span class="n">#15</span><span class="tier rare">Rare</span></div>
+        <ul class="attrs"><li><span>Background</span>Searchlight</li><li><span>Body</span>Hooded Ghost</li><li><span>Head</span>Brute Skull</li><li><span>Clothes</span>Ash Hoodie</li><li><span>Mask</span>Neon Domino</li><li><span>Eyes</span>Monocle</li></ul>
+      </figcaption>
+    </figure>
+    <figure class="card">
+      <div class="imgwrap"><img src="sample-16.png" alt="Vault Robber experimental sample 16" loading="lazy"/></div>
+      <figcaption>
+        <div class="head"><span class="n">#16</span><span class="tier ultra">Ultra</span></div>
+        <ul class="attrs"><li><span>Background</span>Searchlight</li><li><span>Body</span>Hooded Ghost</li><li><span>Head</span>Grey Wolf Skull</li><li><span>Clothes</span>Tactical Vest</li><li><span>Mask</span>Star Kerchief</li><li><span>Eyes</span>Wide Eyes</li><li><span>Hat</span>Backwards Cap</li></ul>
+      </figcaption>
+    </figure>
+</main>
+</body>
+</html>

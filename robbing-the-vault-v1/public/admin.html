@@ -1,0 +1,277 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Robbing the Vault · Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#cdead9;--muted:#4e6857;--neon:#3dff8f;--gold:#e8c66a;--sky:#9fd0ff;--red:#e8756a}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{background:#000308;color:var(--ink);font-family:'Space Mono',monospace;overflow-x:hidden}
+  /* ambient layers (match the Loot Ledger) */
+  .fog{position:fixed;z-index:0;pointer-events:none;filter:blur(75px);mix-blend-mode:screen}
+  .fog.a{width:70vw;height:70vw;left:-16vw;bottom:-26vw;background:radial-gradient(circle,rgba(40,190,105,.26),transparent 62%);animation:drift1 26s ease-in-out infinite}
+  .fog.b{width:62vw;height:62vw;right:-16vw;top:-22vw;background:radial-gradient(circle,rgba(20,120,66,.22),transparent 62%);animation:drift2 32s ease-in-out infinite}
+  @keyframes drift1{50%{transform:translate(7vw,-5vw) scale(1.18)}}
+  @keyframes drift2{50%{transform:translate(-8vw,4vw) scale(1.12)}}
+  .vignette{position:fixed;inset:0;z-index:1;pointer-events:none;background:radial-gradient(circle at 50% 26%,transparent 34%,rgba(0,0,0,.5) 82%,#000 100%)}
+  .grain{position:fixed;inset:-60%;z-index:2;pointer-events:none;opacity:.045;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");animation:grain .5s steps(3) infinite}
+  @keyframes grain{0%{transform:translate(0,0)}33%{transform:translate(-6%,4%)}66%{transform:translate(4%,-5%)}100%{transform:translate(-3%,2%)}}
+  .shaft{position:fixed;z-index:1;pointer-events:none;width:52vw;height:200vh;top:-46vh;background:linear-gradient(90deg,transparent,rgba(61,255,143,.05),transparent);filter:blur(22px);mix-blend-mode:screen}
+  .shaft.s1{left:4vw;transform:rotate(13deg);animation:sh1 22s ease-in-out infinite}
+  .shaft.s2{right:4vw;transform:rotate(-13deg);animation:sh2 28s ease-in-out infinite}
+  @keyframes sh1{50%{transform:rotate(6deg) translateX(9vw)}}
+  @keyframes sh2{50%{transform:rotate(-6deg) translateX(-9vw)}}
+
+  .wrap{position:relative;z-index:5;max-width:860px;margin:0 auto;padding:34px 18px 72px}
+  /* hero */
+  .hero{text-align:center;margin-bottom:6px}
+  .top{font-size:10px;letter-spacing:.32em;text-transform:uppercase;color:var(--muted)}
+  .top .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--neon);box-shadow:0 0 10px var(--neon);animation:pulse 2s infinite;margin-right:7px;vertical-align:middle}
+  @keyframes pulse{50%{opacity:.28}}
+  h1{font-family:'Cinzel',serif;font-weight:900;font-size:clamp(26px,5.4vw,42px);letter-spacing:.05em;margin:8px 0 0;color:#eafff3;text-shadow:0 0 26px rgba(61,255,143,.4),0 2px 0 rgba(0,0,0,.6)}
+  .kick{font-family:'Cinzel',serif;font-weight:500;letter-spacing:.32em;text-transform:uppercase;font-size:clamp(9px,2vw,11px);color:var(--neon);opacity:.72;margin-top:8px}
+  .net{display:inline-block;margin-top:12px;font-size:10px;letter-spacing:.18em;text-transform:uppercase;padding:4px 13px;border-radius:999px;border:1px solid rgba(61,255,143,.28);color:var(--muted)}
+  .net.main{color:var(--gold);border-color:rgba(232,198,106,.5)} .net.test{color:var(--neon);border-color:rgba(61,255,143,.5)}
+
+  .sec{font-family:'Cinzel',serif;font-weight:700;letter-spacing:.24em;text-transform:uppercase;color:var(--neon);opacity:.85;font-size:12px;margin:32px 0 14px;display:flex;align-items:center;gap:14px}
+  .sec .ln{flex:1;height:1px;background:linear-gradient(90deg,rgba(61,255,143,.3),transparent)}
+
+  .card{position:relative;background:linear-gradient(180deg,rgba(8,22,15,.8),rgba(4,12,8,.7));border:1px solid rgba(61,255,143,.16);border-radius:14px;padding:18px 20px;overflow:hidden}
+  .card::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(61,255,143,.05),transparent 42%);pointer-events:none}
+  .card>*{position:relative}
+  .card+.card{margin-top:14px}
+  .card .desc{color:var(--muted);font-size:12px;line-height:1.5;margin:0 0 14px}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+  .stat{position:relative;background:linear-gradient(180deg,rgba(8,22,15,.7),rgba(4,12,8,.6));border:1px solid rgba(61,255,143,.14);border-radius:12px;padding:14px 16px;overflow:hidden}
+  .stat .k{font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+  .stat .v{font-family:'Cinzel',serif;font-weight:900;font-size:clamp(20px,3.4vw,30px);margin-top:8px;line-height:1;color:#eafff3;text-shadow:0 0 22px rgba(61,255,143,.3);word-break:break-word}
+  .stat .v.gold{color:var(--gold);text-shadow:0 0 22px rgba(232,198,106,.4)}
+  .stat .v.neon{color:var(--neon)} .stat .v.sky{color:var(--sky)}
+  .stat .v.addr{font-family:'Space Mono',monospace;font-weight:700;font-size:13px;text-shadow:none;letter-spacing:.01em}
+
+  label{display:block;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin:2px 0 6px}
+  input{width:100%;background:rgba(0,0,0,.34);border:1px solid rgba(61,255,143,.18);border-radius:10px;color:var(--ink);padding:12px 13px;font-family:'Space Mono',monospace;font-size:15px;transition:border-color .15s,box-shadow .15s}
+  input:focus{outline:none;border-color:rgba(61,255,143,.5);box-shadow:0 0 0 3px rgba(61,255,143,.08)}
+  .balrow{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .balrow .bal{font-size:10px;letter-spacing:.05em;color:var(--muted)} .balrow .bal b{color:var(--ink);font-weight:700}
+  .maxbtn{all:unset;cursor:pointer;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--neon);border:1px solid rgba(61,255,143,.4);border-radius:6px;padding:2px 9px;margin-left:9px;transition:.12s}
+  .maxbtn:hover{background:rgba(61,255,143,.12)}
+  .hist{margin-top:16px;border-top:1px solid rgba(61,255,143,.1);padding-top:12px}
+  .hist .htitle{font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+  .hrow{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px dashed rgba(61,255,143,.08);font-size:12px}
+  .hrow:last-child{border-bottom:none}
+  .hrow .ha{font-weight:700;flex:0 0 auto} .hrow.ethrow .ha{color:var(--gold)} .hrow.rvltrow .ha{color:var(--neon)}
+  .hrow .ht{color:var(--muted);font-size:10px;flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hrow .hx{flex:0 0 auto;font-size:10px;color:var(--sky);text-decoration:none;border-bottom:1px dashed rgba(159,208,255,.4)}
+  .hrow .hx:hover{color:#dfffff;border-bottom-color:rgba(159,208,255,.8)}
+  .hist .hempty{font-size:11px;color:var(--muted);opacity:.7}
+
+  .cta{all:unset;box-sizing:border-box;text-align:center;cursor:pointer;font-family:'Cinzel',serif;font-weight:700;letter-spacing:.12em;text-transform:uppercase;font-size:13px;background:linear-gradient(180deg,#79ffb4,#3dff8f);color:#03130b;border-radius:12px;padding:13px 24px;margin-top:14px;box-shadow:0 0 26px rgba(61,255,143,.32);transition:transform .15s,box-shadow .15s,opacity .15s}
+  .cta:hover{transform:translateY(-2px)} .cta:active{transform:translateY(0)}
+  .cta.gold{background:linear-gradient(180deg,#ffe6a2,#e8c66a);color:#1e1403;box-shadow:0 0 26px rgba(232,198,106,.34)}
+  .cta.ghost{background:transparent;border:1px solid rgba(61,255,143,.32);color:var(--ink);box-shadow:none}
+  .cta.ghost:hover{background:rgba(61,255,143,.08)}
+  .cta[disabled]{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
+
+  .row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap} .row>div{flex:1;min-width:150px}
+  .row .cta{flex:0 0 auto}
+  .warn{color:var(--gold);font-size:11px;line-height:1.5;margin-top:8px}
+  #log{white-space:pre-wrap;font-size:12px;color:var(--muted);background:rgba(0,0,0,.4);border:1px solid rgba(61,255,143,.14);border-radius:12px;padding:12px 14px;margin-top:14px;max-height:220px;overflow:auto;line-height:1.55}
+  #log b{color:var(--neon)}
+  a{color:var(--sky)}
+  .foot{text-align:center;color:var(--muted);font-size:10px;margin-top:30px;letter-spacing:.08em;opacity:.65}
+</style></head>
+<body>
+  <div class="fog a"></div><div class="fog b"></div>
+  <div class="shaft s1"></div><div class="shaft s2"></div>
+  <div class="vignette"></div><div class="grain"></div>
+
+  <div class="wrap">
+    <div class="hero">
+      <div class="top"><span class="dot"></span> Founder controls · Game vault</div>
+      <h1>Robbing the Vault · Admin</h1>
+      <div class="kick">On Robinhood Chain · Powered by Emblem Vault</div>
+      <div><span id="net" class="net">…</span></div>
+    </div>
+
+    <div class="sec">Wallet <span class="ln"></span></div>
+    <div class="card">
+      <div class="row">
+        <div style="flex:0 0 auto"><button class="cta" id="connect">Connect wallet</button></div>
+        <div style="flex:2"><div class="stat"><div class="k">Connected wallet</div><div class="v addr" id="acct">not connected</div></div></div>
+      </div>
+      <div class="warn" id="walletWarn"></div>
+    </div>
+
+    <div class="sec">Vault state <span class="ln"></span></div>
+    <div class="card">
+      <div class="grid">
+        <div class="stat"><div class="k">ETH jackpot</div><div class="v gold" id="sEth">…</div></div>
+        <div class="stat"><div class="k">ROBINVAULT pot</div><div class="v neon" id="sPot">…</div></div>
+        <div class="stat"><div class="k">Entry fee</div><div class="v" id="sFee">…</div></div>
+        <div class="stat"><div class="k">Vault seals in</div><div class="v" id="sEnd">…</div></div>
+      </div>
+      <button class="cta ghost" id="refresh">Refresh</button>
+    </div>
+
+    <div class="sec">Seed the ROBINVAULT pot <span class="ln"></span></div>
+    <div class="card">
+      <p class="desc">Pulls ROBINVAULT from your wallet into the payable pot (approve, then seedPot). Permissionless, no owner rights needed. This is real prize money the moment it lands.</p>
+      <div class="balrow"><label>Amount (ROBINVAULT)</label><span class="bal">Balance: <b id="seedBal">…</b><button type="button" class="maxbtn" id="seedMax">Max</button></span></div>
+      <input id="seedAmt" type="number" min="0" step="any" placeholder="e.g. 1000000" inputmode="decimal">
+      <div class="warn" id="seedWarn"></div>
+      <button class="cta" id="seed" disabled>Seed pot</button>
+      <div class="hist" id="seedHist"></div>
+    </div>
+
+    <div class="sec">Fund the ETH jackpot <span class="ln"></span></div>
+    <div class="card">
+      <p class="desc">Sends ETH straight to the vault. This becomes the prize for cracking the Core (level 10).</p>
+      <div class="balrow"><label>Amount (ETH)</label><span class="bal">Balance: <b id="ethBal">…</b><button type="button" class="maxbtn" id="ethMax">Max</button></span></div>
+      <input id="ethAmt" type="number" min="0" step="any" placeholder="e.g. 0.05" inputmode="decimal">
+      <button class="cta gold" id="fund" disabled>Fund jackpot</button>
+      <div class="hist" id="ethHist"></div>
+    </div>
+
+    <div class="sec">Vault Robbers mint <span class="ln"></span></div>
+    <div class="card">
+      <p class="desc">Owner-only. Connect the collection owner wallet and these run directly from it, no Safe needed. Reserve mints are free apart from gas and skip the per-wallet cap.</p>
+      <div class="grid" style="margin-bottom:14px">
+        <div class="stat"><div class="k">Mint active</div><div class="v neon" id="sMint">…</div></div>
+        <div class="stat"><div class="k">Reserve minted</div><div class="v" id="sReserve">…</div></div>
+      </div>
+      <div class="row">
+        <div><button class="cta ghost" id="mintOn" disabled>Enable mint</button></div>
+        <div><button class="cta ghost" id="mintOff" disabled>Disable mint</button></div>
+      </div>
+      <label style="margin-top:16px">Reserve mint destination wallet</label>
+      <input id="resTo" value="0x96bcfdb15b65245F5B9796C7A0587b3649f52432" spellcheck="false" readonly title="Locked to the team treasury for launch" style="opacity:.75;cursor:not-allowed">
+      <div class="row" style="margin-top:10px">
+        <div style="max-width:150px"><label>Quantity</label><input id="resQty" type="number" min="1" max="50" value="25"></div>
+        <div style="flex:0 0 auto"><button class="cta gold" id="resMint" disabled>Reserve mint</button></div>
+      </div>
+      <div class="warn">Reserve is capped at 100 total. 25 at a time is safe; big batches can hit the gas limit. Free apart from gas.</div>
+    </div>
+
+    <div id="log">Ready.</div>
+    <div class="foot">Robbing the Vault · founder console</div>
+  </div>
+
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+<script>
+const $=s=>document.querySelector(s), log=m=>{const l=$('#log');l.textContent=(''+m)+'\n'+l.textContent;};
+const VAULT_ABI=["function vaultEth() view returns (uint256)","function potRvlt() view returns (uint256)","function gameEnd() view returns (uint256)","function fee() view returns (uint256)","function seedPot(uint256)"];
+const RVLT_ABI=["function approve(address,uint256) returns (bool)","function allowance(address,address) view returns (uint256)","function balanceOf(address) view returns (uint256)"];
+const ROBBERS_ABI=["function mintActive() view returns (bool)","function setMintActive(bool)","function reserveMint(address,uint256)","function reserveMinted() view returns (uint256)","function totalMinted() view returns (uint256)","function owner() view returns (address)"];
+const RH={4663:{name:'Robinhood Chain',rpc:'https://rpc.mainnet.chain.robinhood.com',ex:'https://robin.etherscan.io'},46630:{name:'Robinhood Chain Testnet',rpc:'https://rpc.testnet.chain.robinhood.com',ex:'https://explorer.testnet.chain.robinhood.com'}};
+let CFG=null, signer=null, acct=null, seedBalRaw=0n, ethBalRaw=0n;
+
+async function boot(){
+  CFG=await fetch('api/onchain/config').then(r=>r.json());
+  const main=+CFG.chainId===4663;
+  const n=$('#net'); n.textContent=(main?'MAINNET':'TESTNET')+' · chain '+CFG.chainId; n.className='net '+(main?'main':'test');
+  await refresh(); loadHistory();
+}
+async function refresh(){
+  try{
+    const rp=new ethers.JsonRpcProvider(CFG.rpc, +CFG.chainId);
+    const v=new ethers.Contract(CFG.vault, VAULT_ABI, rp);
+    const [eth,pot,end,fee]=await Promise.all([v.vaultEth(),v.potRvlt(),v.gameEnd(),v.fee()]);
+    $('#sEth').textContent=(+ethers.formatEther(eth)).toFixed(4)+' Ξ';
+    $('#sPot').textContent=Math.round(+ethers.formatUnits(pot,18)).toLocaleString();
+    $('#sFee').textContent=Math.round(+ethers.formatUnits(fee,18)).toLocaleString();
+    const gv=Number(end); if(!gv){$('#sEnd').textContent='…';}else{const left=gv-Math.floor(Date.now()/1000);$('#sEnd').textContent=left<=0?'sealed':Math.floor(left/86400)+'d '+Math.floor(left%86400/3600)+'h';}
+    try{ if(CFG.robbers){ const rr=new ethers.Contract(CFG.robbers,ROBBERS_ABI,rp); const [ma,rm]=await Promise.all([rr.mintActive(),rr.reserveMinted().catch(()=>0n)]); $('#sMint').textContent=ma?'ON':'OFF'; $('#sMint').className='v '+(ma?'neon':'gold'); $('#sReserve').textContent=Number(rm)+' / 100'; } }catch(_){}
+  }catch(e){ log('read error: '+(e.shortMessage||e.message)); }
+}
+async function refreshBalances(){
+  if(!signer||!acct) return;
+  try{
+    const rp=signer.provider;
+    const rvlt=new ethers.Contract(CFG.rvlt,RVLT_ABI,rp);
+    seedBalRaw=await rvlt.balanceOf(acct);
+    $('#seedBal').textContent=Math.round(+ethers.formatUnits(seedBalRaw,18)).toLocaleString()+' ROBINVAULT';
+    ethBalRaw=await rp.getBalance(acct);
+    $('#ethBal').textContent=(+ethers.formatEther(ethBalRaw)).toFixed(4)+' Ξ';
+  }catch(e){ log('balance read: '+(e.shortMessage||e.message)); }
+}
+function fmtTs(t){ if(!t) return '…'; try{ return new Date(t*1000).toLocaleString(); }catch(_){ return '…'; } }
+function renderHist(sel, rows, kind, exBase){
+  const el=$(sel); if(!el) return;
+  const title=kind==='eth'?'Jackpot deposits':'Pot seed history';
+  if(!rows||!rows.length){ el.innerHTML='<div class="htitle">'+title+'</div><div class="hempty">No deposits yet.</div>'; return; }
+  const parts=['<div class="htitle">'+title+'</div>'];
+  for(const r of rows){
+    const amt=kind==='eth' ? Number(r.amount).toFixed(4)+' Ξ' : Math.round(r.amount).toLocaleString()+' RVLT';
+    const short=r.tx.slice(0,8)+'…'+r.tx.slice(-6);
+    parts.push('<div class="hrow '+(kind==='eth'?'ethrow':'rvltrow')+'"><span class="ha">'+amt+'</span><span class="ht">'+fmtTs(r.ts)+'</span><a class="hx" href="'+((exBase||'https://robin.etherscan.io'))+'/tx/'+r.tx+'" target="_blank" rel="noopener">'+short+'</a></div>');
+  }
+  el.innerHTML=parts.join('');
+}
+// History comes from the game server (api/onchain/seed-history) because the public RPC blocks eth_getLogs from the browser.
+async function loadHistory(){
+  try{
+    const d=await fetch('api/onchain/seed-history').then(r=>r.json());
+    renderHist('#seedHist', d.rvlt, 'rvlt', d.explorer);
+    renderHist('#ethHist', d.eth, 'eth', d.explorer);
+  }catch(e){ log('history read: '+(e.message||e)); }
+}
+async function ensureChain(){
+  const hex='0x'+(+CFG.chainId).toString(16), k=RH[+CFG.chainId]||{};
+  try{ await window.ethereum.request({method:'wallet_switchEthereumChain',params:[{chainId:hex}]}); }
+  catch(e){ if(e&&e.code===4902){ await window.ethereum.request({method:'wallet_addEthereumChain',params:[{chainId:hex,chainName:k.name,nativeCurrency:{name:'ETH',symbol:'ETH',decimals:18},rpcUrls:[k.rpc||CFG.rpc],blockExplorerUrls:[k.ex]}]}); } else throw e; }
+}
+$('#connect').onclick=async()=>{
+  try{
+    if(!window.ethereum){ $('#walletWarn').textContent='No EVM wallet found. Use MetaMask, Rabby, or Coinbase (not Phantom).'; return; }
+    const bp=new ethers.BrowserProvider(window.ethereum);
+    await bp.send('eth_requestAccounts',[]); await ensureChain();
+    signer=await bp.getSigner(); acct=await signer.getAddress();
+    $('#acct').textContent=acct; $('#seed').disabled=false; $('#fund').disabled=false; $('#walletWarn').textContent='';
+    $('#mintOn').disabled=false; $('#mintOff').disabled=false; $('#resMint').disabled=false;
+    log('connected '+acct); refreshBalances();
+    try{ if(CFG.robbers){ const o=await (new ethers.Contract(CFG.robbers,ROBBERS_ABI,signer)).owner(); if(o.toLowerCase()!==acct.toLowerCase()){ $('#walletWarn').textContent='Note: this wallet is not the Vault Robbers owner ('+o.slice(0,6)+'…'+o.slice(-4)+'). Owner-only actions (enable/disable mint, reserve mint) will revert.'; } } }catch(_){}
+  }catch(e){ log('connect failed: '+(e.shortMessage||e.message)); }
+};
+$('#refresh').onclick=()=>{ refresh(); refreshBalances(); loadHistory(); };
+$('#seedMax').onclick=()=>{ if(!acct)return log('connect a wallet first'); if(seedBalRaw>0n){ $('#seedAmt').value=ethers.formatUnits(seedBalRaw,18); } };
+$('#ethMax').onclick=()=>{ if(!acct)return log('connect a wallet first'); const gas=ethers.parseEther('0.002'); const spend=ethBalRaw>gas?ethBalRaw-gas:0n; $('#ethAmt').value=ethers.formatEther(spend); };
+$('#seed').onclick=async()=>{
+  try{
+    const amtS=$('#seedAmt').value.trim(); if(!(+amtS>0))return log('enter an amount');
+    const amt=ethers.parseUnits(amtS,18);
+    const rvlt=new ethers.Contract(CFG.rvlt,RVLT_ABI,signer);
+    const bal=await rvlt.balanceOf(acct); if(bal<amt)return log('insufficient ROBINVAULT (have '+Math.round(+ethers.formatUnits(bal,18)).toLocaleString()+')');
+    const allow=await rvlt.allowance(acct,CFG.vault);
+    if(allow<amt){ log('approving '+amtS+' ROBINVAULT to vault '+CFG.vault+' (exact amount)…'); const a=await rvlt.approve(CFG.vault,amt); await a.wait(); log('approved ✓'); }
+    const v=new ethers.Contract(CFG.vault,VAULT_ABI,signer);
+    log('seeding pot with '+amtS+' ROBINVAULT…'); const tx=await v.seedPot(amt); await tx.wait();
+    log('POT SEEDED ✓ tx '+tx.hash); $('#seedAmt').value=''; refresh(); refreshBalances(); loadHistory();
+  }catch(e){ log('seed failed: '+(e.shortMessage||e.message)); }
+};
+$('#fund').onclick=async()=>{
+  try{
+    const amtS=$('#ethAmt').value.trim(); if(!(+amtS>0))return log('enter an amount');
+    log('sending '+amtS+' ETH to vault '+CFG.vault+'…');
+    const tx=await signer.sendTransaction({to:CFG.vault,value:ethers.parseEther(amtS)}); await tx.wait();
+    log('JACKPOT FUNDED ✓ tx '+tx.hash); $('#ethAmt').value=''; refresh(); refreshBalances(); loadHistory();
+  }catch(e){ log('fund failed: '+(e.shortMessage||e.message)); }
+};
+// Direct owner-only actions (signed by the connected owner wallet; no Safe needed since ownership is an EOA)
+function robbersC(){ if(!signer) throw new Error('connect first'); return new ethers.Contract(CFG.robbers, ROBBERS_ABI, signer); }
+$('#mintOn').onclick=async()=>{ try{ const c=robbersC(); log('enabling mint…'); const t=await c.setMintActive(true); await t.wait(); log('MINT ENABLED ✓ '+t.hash); refresh(); }catch(e){ log('enable failed: '+(e.shortMessage||e.message)); } };
+$('#mintOff').onclick=async()=>{ try{ const c=robbersC(); log('disabling mint…'); const t=await c.setMintActive(false); await t.wait(); log('MINT DISABLED ✓ '+t.hash); refresh(); }catch(e){ log('disable failed: '+(e.shortMessage||e.message)); } };
+$('#resMint').onclick=async()=>{
+  try{
+    const to=($('#resTo').value||'').trim(); if(!ethers.isAddress(to)) return log('invalid destination address');
+    const q=Math.max(1,Math.min(50,parseInt($('#resQty').value||'25',10)));
+    const c=robbersC();
+    log('reserve minting '+q+' → '+to+'…'); const t=await c.reserveMint(to,q); await t.wait();
+    log('RESERVE MINTED ✓ '+q+' → '+to+' · tx '+t.hash); refresh();
+  }catch(e){ log('reserve mint failed: '+(e.shortMessage||e.message)); }
+};
+boot();
+</script>
+</body></html>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Vault Robbers brand favicon: round robber mask, gold band on ink, parchment face -->
+  <rect width="64" height="64" rx="14" fill="#17130d"/>
+  <circle cx="32" cy="33" r="21" fill="#f3e3ca" stroke="#17130d" stroke-width="3"/>
+  <!-- mask band across the eyes (green = brand mask colour) -->
+  <rect x="9" y="25" width="46" height="16" rx="6" fill="#2ea65a" stroke="#17130d" stroke-width="3"/>
+  <!-- eye holes -->
+  <ellipse cx="23" cy="33" rx="5.2" ry="6" fill="#f3e3ca" stroke="#17130d" stroke-width="2.4"/>
+  <ellipse cx="41" cy="33" rx="5.2" ry="6" fill="#f3e3ca" stroke="#17130d" stroke-width="2.4"/>
+  <circle cx="23" cy="33" r="2" fill="#17130d"/>
+  <circle cx="41" cy="33" r="2" fill="#17130d"/>
+</svg>

@@ -1,0 +1,24 @@
+{
+  "address": "0x23371ca4608F1942a68435d51484ca71f9fFd0F6",
+  "transferValidator": "0x93b4f258b30eA4BC25A3cEFcf44BE911B1cB676f",
+  "chainId": 46630,
+  "payToken": "0x2B21e55fB7A84a500B23396a57D4dbA456c145b3",
+  "sink": "0x411f48757B2114392556a221aAA154b94bA449d1",
+  "signer": "0x411f48757B2114392556a221aAA154b94bA449d1",
+  "sacImplementation": "0xFA39cFc3D81F12F7E02Ee800849e4CE67aD2Df85",
+  "sacRegistry": "0x000000006551c19487814612e58FE06813775758",
+  "erc721c": true,
+  "royaltyBps": 200,
+  "maxSupply": 1000,
+  "maxPerWallet": 3,
+  "tieredPrice": {
+    "tier1": "50000",
+    "tier2": "75000",
+    "tier3": "100000",
+    "tier4": "150000",
+    "tier1End": 250,
+    "tier2End": 500,
+    "tier3End": 750
+  },
+  "explorer": "https://explorer.testnet.chain.robinhood.com/address/0x23371ca4608F1942a68435d51484ca71f9fFd0F6"
+}

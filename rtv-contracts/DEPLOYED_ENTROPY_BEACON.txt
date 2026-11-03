@@ -1,0 +1,18 @@
+ENTROPY BEACON — Robbing the Vault on-chain randomness anchor
+Chain: Robinhood Chain mainnet (4663)
+Deployed: 2026-09-02  by DEPLOYER_PRIVATE_KEY_2 (0x8444149B8E5eD771607452FB133d8803A3F02D0e)
+
+EntropyBeacon: 0xaE28aD458af04207677466dd52dBa2415b9F40ee   (owner = deployer; holds NO player funds)
+  entropy():   0x8cF4f562301fA966F153eE1e3D46D975DF21C9a3   (Pyth Entropy)
+  provider():  0xeB8E79d3495638Dde48336D01A1f1229822bB016   (quiver:fletcher)
+  deploy gas:  ~0.0008 ETH
+Tests: forge test EntropyBeaconTest = 7/7 PASS
+Design: standalone beacon (NOT a money-vault upgrade — no Safe needed, no risk to pot). Game server folds latestRandom
+        into every provably-fair roll ONLY when fresh; else falls back to pure commit-reveal.
+
+LIVE VALIDATION (2026-09-02):
+  poke() tx 0x28af2da34b51b6a632f3a56c3b2da7dcc38b8b2393ba387aaf5b5e477e30fc1b — SUCCESS, request registered (provider seq 1699).
+  Provider callback: NOT delivered within ~88s. The "fletcher" keeper did not auto-reveal. Provider URI is the
+  placeholder "https://fletcher" (not a real endpoint), so auto-callback delivery is unreliable / possibly inactive.
+  => Do NOT make the game BLOCK on Entropy. Keep commit-reveal authoritative; treat beacon value as an optional,
+     fresh-only enhancement. Monitor whether the provider ever delivers.

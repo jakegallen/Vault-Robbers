@@ -1,0 +1,250 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Vault Robbers — Team Reserve Mint</title>
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.0/dist/ethers.umd.min.js" integrity="sha384-JjzOKxQsr+Jhx75Ot1XldVFnWF2UCtB4Ig2JuEcuBt4VAdUG6alucV+sHrYjPn5C" crossorigin="anonymous"></script>
+<style>
+  :root{--ink:#17130d;--paper:#fbfaf6;--paper2:#efe7d2;--blue:#6d84c6;--blue-d:#2e6cf6;--tee:#f3ecd9;--muted:#6b6355;--red:#9a2a2a;--green:#2f9e44}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper2);color:var(--ink);font-family:'Patrick Hand',system-ui,sans-serif;padding:20px;line-height:1.5}
+  .wrap{max-width:520px;margin:0 auto}
+  .card{background:var(--tee);border:3px solid var(--ink);border-radius:16px;box-shadow:6px 6px 0 var(--ink);padding:20px;margin-bottom:16px}
+  h1{font-family:'Londrina Solid',system-ui,sans-serif;font-size:26px;margin:0 0 4px}
+  .sub{color:var(--muted);margin:0 0 14px;font-size:15px}
+  .row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1.5px dashed rgba(23,19,13,.2);font-size:16px}
+  .row:last-child{border-bottom:0}.row b{font-weight:700}.row .v{text-align:right;font-weight:700}
+  label{display:block;font-size:14px;color:var(--muted);margin:12px 0 4px}
+  input{width:100%;padding:11px;border:2.5px solid var(--ink);border-radius:11px;background:var(--paper);color:var(--ink);font-family:inherit;font-size:16px;box-shadow:2px 2px 0 var(--ink)}
+  button{width:100%;margin-top:16px;padding:14px;border:3px solid var(--ink);border-radius:13px;background:var(--blue);color:var(--tee);
+    font-family:'Londrina Solid',system-ui,sans-serif;font-size:19px;letter-spacing:.02em;cursor:pointer;box-shadow:4px 4px 0 var(--ink)}
+  button:active{transform:translate(4px,4px);box-shadow:0 0 0 var(--ink)}
+  button:disabled{opacity:.55;cursor:default}
+  button.sec{background:var(--paper);color:var(--ink);font-size:16px}
+  .status{margin-top:12px;font-size:15px;min-height:20px}
+  .ok{color:var(--green)}.err{color:var(--red)}.mut{color:var(--muted)}
+  a{color:var(--blue-d)}
+  .warn{background:#fff4d6;border:2.5px solid var(--ink);border-radius:11px;padding:10px 12px;margin-top:12px;font-size:14px;display:none}
+  .warn.on{display:block}
+</style></head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>Team Reserve Mint</h1>
+    <p class="sub">Owner-only. Mints free team-reserve Vault Robbers on Robinhood Chain. The contract enforces owner-only on-chain, so only the owner wallet can execute.</p>
+    <div class="row"><b>Contract</b><span class="v" id="c-addr">…</span></div>
+    <div class="row"><b>Owner</b><span class="v" id="c-owner">…</span></div>
+    <div class="row"><b>Connected</b><span class="v" id="c-conn">not connected</span></div>
+    <div class="row"><b>Total minted</b><span class="v" id="c-total">…</span></div>
+    <div class="row"><b>Reserve minted</b><span class="v" id="c-res">…</span></div>
+    <div class="row"><b>Reserve remaining</b><span class="v" id="c-left">…</span></div>
+    <button class="sec" id="connect">Connect owner wallet</button>
+  </div>
+
+  <div class="card">
+    <label for="to">Recipient address (team treasury)</label>
+    <input id="to" placeholder="0x…" autocomplete="off" spellcheck="false" value="0x96bcfdb15b65245F5B9796C7A0587b3649f52432">
+    <label for="qty">Quantity to mint</label>
+    <input id="qty" type="number" min="1" step="1" value="75">
+    <div class="warn" id="warn"></div>
+    <button id="mint" disabled>Mint reserve</button>
+    <div class="status mut" id="status">Connect the owner wallet to begin.</div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <h1 style="font-size:20px;margin:0">Mint proceeds (live)</h1>
+      <span class="s" id="pr-price">…</span>
+    </div>
+    <p class="sub">Remaining public revenue off the real on-chain mint count. Tiers priced by token-ID band; half of every mint is ETH premium to treasury, half buys ROBINVAULT for treasury.</p>
+    <div class="row"><b>Public minted / remaining</b><span class="v" id="pr-pub">…</span></div>
+    <div class="row"><b>Already collected (public)</b><span class="v" id="pr-already">…</span></div>
+    <div class="row"><b>Remaining, mint reserve now</b><span class="v g" id="pr-a">…</span></div>
+    <div class="row"><b>Remaining, spread reserve</b><span class="v" id="pr-b">…</span></div>
+    <div class="row"><b>Reserve-timing edge (now vs spread)</b><span class="v" id="pr-delta">…</span></div>
+    <p class="sub" style="margin:12px 0 4px">If ROBINVAULT price runs (remaining public, reserve-now):</p>
+    <div class="row"><b>Now</b><span class="v" id="pr-s1">…</span></div>
+    <div class="row"><b>2x</b><span class="v" id="pr-s2">…</span></div>
+    <div class="row"><b>5x</b><span class="v" id="pr-s5">…</span></div>
+    <div class="row"><b>10x</b><span class="v" id="pr-s10">…</span></div>
+  </div>
+
+  <div class="card">
+    <h1 style="font-size:20px">Team treasury holdings</h1>
+    <p class="sub">0x96bc…2432 — where the reserve NFTs and royalties land.</p>
+    <div class="row"><b>Vault Robbers held</b><span class="v" id="t-nft">…</span></div>
+    <div class="row"><b>ETH (royalties)</b><span class="v" id="t-eth">…</span></div>
+    <div class="row"><b>ROBINVAULT</b><span class="v" id="t-rvlt">…</span></div>
+  </div>
+
+  <div class="card">
+    <h1 style="font-size:20px">Royalty receiver</h1>
+    <p class="sub">Owner-only. Repoints the on-chain 2% royalty to a wallet you control. Set this to the deployer so the Emblem Terminal buys and burns the royalties. Update OpenSea creator earnings to match afterward.</p>
+    <div class="row"><b>Current receiver</b><span class="v" id="r-cur">…</span></div>
+    <label for="rto">New royalty receiver</label>
+    <input id="rto" placeholder="0x…" autocomplete="off" spellcheck="false" value="0xe8886FD4863855884D5F1FFfA38F8C1c8502Ec8c">
+    <button id="setroy" class="sec" disabled>Set royalty receiver</button>
+    <div class="status mut" id="rstatus"></div>
+  </div>
+</div>
+<script>
+const $=s=>document.querySelector(s);
+const ABI=[
+  'function reserveMint(address to,uint256 qty)',
+  'function reserveMinted() view returns (uint256)',
+  'function totalMinted() view returns (uint256)',
+  'function owner() view returns (address)',
+  'function RESERVE_MAX() view returns (uint256)',
+  'function MAX_SUPPLY() view returns (uint256)',
+  'function royaltyInfo(uint256,uint256) view returns (address,uint256)',
+  'function setRoyaltyReceiver(address r)',
+  'function balanceOf(address) view returns (uint256)'
+];
+const ERC20_ABI=['function balanceOf(address) view returns (uint256)'];
+const TREASURY='0x96bcfdb15b65245F5B9796C7A0587b3649f52432';
+let CFG=null, prov=null, signer=null, account=null, OWNER=null, RES_MAX=100, resMinted=0;
+const short=a=>a?a.slice(0,6)+'…'+a.slice(-4):'';
+const setStatus=(m,c)=>{const s=$('#status');s.className='status '+(c||'mut');s.textContent=m;};
+const setWarn=(m)=>{const w=$('#warn');if(!m){w.className='warn';w.textContent='';return;}w.className='warn on';w.textContent=m;};
+
+async function loadCfg(){
+  CFG=await fetch('api/config').then(r=>r.json());
+  $('#c-addr').textContent=short(CFG.contract);
+  $('#c-addr').title=CFG.contract;
+}
+function roProvider(){ return new ethers.JsonRpcProvider(CFG.rpc, CFG.chainId, {staticNetwork:true}); }
+async function refreshState(){
+  try{
+    const c=new ethers.Contract(CFG.contract, ABI, roProvider());
+    const [own,tot,res,rmax,roy]=await Promise.all([
+      c.owner().catch(()=>null), c.totalMinted().catch(()=>0n), c.reserveMinted().catch(()=>0n), c.RESERVE_MAX().catch(()=>100n),
+      c.royaltyInfo(1,10000n).catch(()=>null)
+    ]);
+    OWNER=own?ethers.getAddress(own):null; RES_MAX=Number(rmax); resMinted=Number(res);
+    $('#c-owner').textContent=short(OWNER); $('#c-owner').title=OWNER||'';
+    $('#c-total').textContent=Number(tot).toString();
+    $('#c-res').textContent=resMinted+' / '+RES_MAX;
+    $('#c-left').textContent=(RES_MAX-resMinted).toString();
+    const rcur=(roy&&roy[0])?ethers.getAddress(roy[0]):null;
+    $('#r-cur').textContent=rcur?short(rcur):'n/a'; if(rcur) $('#r-cur').title=rcur;
+    if(!$('#to').value && OWNER) $('#to').value=OWNER;
+    evalForm();
+    // Team treasury holdings (read-only)
+    try{
+      const ro=roProvider();
+      const nft=new ethers.Contract(CFG.contract, ABI, ro);
+      const rvlt=new ethers.Contract(CFG.rvlt, ERC20_ABI, ro);
+      const [tn,te,tr]=await Promise.all([
+        nft.balanceOf(TREASURY).catch(()=>0n),
+        ro.getBalance(TREASURY).catch(()=>0n),
+        rvlt.balanceOf(TREASURY).catch(()=>0n)
+      ]);
+      const fmt=(v,d)=>{ const n=Number(ethers.formatUnits(v,d)); return n>=1?n.toLocaleString(undefined,{maximumFractionDigits:4}):Number(n.toPrecision(3)).toString(); };
+      $('#t-nft').textContent=Number(tn).toString();
+      $('#t-eth').textContent=fmt(te,18)+' ETH';
+      $('#t-rvlt').textContent=fmt(tr,18)+' RVLT';
+    }catch(_){}
+  }catch(e){ setStatus('Could not read contract state: '+(e.message||e),'err'); }
+}
+
+async function ensureChain(){
+  const hex='0x'+CFG.chainId.toString(16);
+  try{ await prov.send('wallet_switchEthereumChain',[{chainId:hex}]); }
+  catch(e){ if(e.code===4902||(e.data&&e.data.originalError&&e.data.originalError.code===4902)){
+    await prov.send('wallet_addEthereumChain',[{chainId:hex,chainName:'Robinhood Chain',nativeCurrency:{name:'ETH',symbol:'ETH',decimals:18},rpcUrls:[CFG.rpc],blockExplorerUrls:[CFG.explorer]}]);
+  } else throw e; }
+}
+
+// Minimal EIP-6963 + injected pick (owner uses MetaMask/Rabby/etc).
+function pickInjected(){
+  const found=[];
+  try{ window.addEventListener('eip6963:announceProvider',e=>{ if(e.detail&&e.detail.provider) found.push(e.detail); }); window.dispatchEvent(new Event('eip6963:requestProvider')); }catch(_){}
+  if(found.length) return found[0].provider;
+  if(window.ethereum) return window.ethereum;
+  return null;
+}
+$('#connect').onclick=async()=>{
+  try{
+    const inj=pickInjected();
+    if(!inj){ setStatus('No EVM wallet detected. Install MetaMask, Rabby, or Rainbow.','err'); return; }
+    prov=new ethers.BrowserProvider(inj);
+    await prov.send('eth_requestAccounts',[]);
+    await ensureChain();
+    signer=await prov.getSigner(); account=ethers.getAddress(await signer.getAddress());
+    $('#c-conn').textContent=short(account); $('#c-conn').title=account;
+    setStatus('Connected '+short(account)+'.','ok');
+    await refreshState();
+  }catch(e){ setStatus('Connect failed: '+(e.message||e),'err'); }
+};
+
+function evalForm(){
+  const to=$('#to').value.trim(); const qty=parseInt($('#qty').value,10);
+  let ok=true, msg='';
+  if(!account){ ok=false; }
+  else if(OWNER && account.toLowerCase()!==OWNER.toLowerCase()){ ok=false; setWarn('Connected wallet is not the contract owner. The on-chain reserveMint is owner-only and will revert from this wallet.'); }
+  else setWarn('');
+  if(!to || !ethers.isAddress(to)){ ok=false; if(to) msg='Enter a valid recipient address.'; }
+  if(!(qty>0)){ ok=false; }
+  else if(qty > (RES_MAX-resMinted)){ ok=false; msg='Only '+(RES_MAX-resMinted)+' reserve left to mint.'; }
+  $('#mint').disabled=!ok;
+  if(msg) setStatus(msg,'mut');
+  // royalty setter: owner-only
+  const isOwner = !!account && OWNER && account.toLowerCase()===OWNER.toLowerCase();
+  const rto=$('#rto').value.trim();
+  $('#setroy').disabled=!(isOwner && rto && ethers.isAddress(rto));
+}
+$('#to').oninput=evalForm; $('#qty').oninput=evalForm; $('#rto').oninput=evalForm;
+
+$('#setroy').onclick=async()=>{
+  try{
+    const r=ethers.getAddress($('#rto').value.trim());
+    $('#setroy').disabled=true;
+    const rs=$('#rstatus'); rs.className='status mut'; rs.textContent='Confirm in wallet: setRoyaltyReceiver('+short(r)+') on '+short(CFG.contract)+'.';
+    const c=new ethers.Contract(CFG.contract, ABI, signer);
+    const tx=await c.setRoyaltyReceiver(r);
+    rs.textContent='Setting… tx '+short(tx.hash);
+    const rc=await tx.wait();
+    rs.className='status ok'; rs.textContent='Royalty receiver set to '+short(r)+'. Now update OpenSea creator earnings to match.';
+    const link=document.createElement('a'); link.href=CFG.explorer+'/tx/'+rc.hash; link.target='_blank'; link.rel='noopener';
+    link.textContent='View transaction'; link.style.display='block'; link.style.marginTop='8px'; rs.after(link);
+    await refreshState();
+  }catch(e){ const rs=$('#rstatus'); rs.className='status err'; rs.textContent='Failed: '+(e.shortMessage||e.message||e); evalForm(); }
+};
+
+$('#mint').onclick=async()=>{
+  try{
+    const to=ethers.getAddress($('#to').value.trim()); const qty=parseInt($('#qty').value,10);
+    if(!(qty>0)||qty>(RES_MAX-resMinted)){ setStatus('Invalid quantity.','err'); return; }
+    $('#mint').disabled=true;
+    setStatus('Confirm in wallet: reserveMint('+short(to)+', '+qty+') on '+short(CFG.contract)+' — free team mint, no payment.','mut');
+    const c=new ethers.Contract(CFG.contract, ABI, signer);
+    const tx=await c.reserveMint(to, qty);
+    setStatus('Minting… tx '+short(tx.hash),'mut');
+    const rc=await tx.wait();
+    setStatus('Minted '+qty+' to '+short(to)+'. Done.','ok');
+    const link=document.createElement('a'); link.href=CFG.explorer+'/tx/'+rc.hash; link.target='_blank'; link.rel='noopener';
+    link.textContent='View transaction'; link.style.display='block'; link.style.marginTop='8px'; $('#status').after(link);
+    await refreshState();
+  }catch(e){ setStatus('Mint failed: '+(e.shortMessage||e.message||e),'err'); evalForm(); }
+};
+
+const usd0=n=>n==null?'—':'$'+Number(n).toLocaleString(undefined,{maximumFractionDigits:0});
+const rvltC=n=>n==null?'—':Number(n).toLocaleString(undefined,{maximumFractionDigits:0})+' RVLT';
+async function loadProceeds(){
+  try{
+    const d=await fetch('api/proceeds').then(r=>r.json());
+    if(d.error) return;
+    $('#pr-price').textContent='RVLT $'+Number(d.price||0).toPrecision(3);
+    $('#pr-pub').textContent=d.publicMinted+' / '+(d.publicMinted+d.publicRemaining)+'  ('+d.publicRemaining+' left)';
+    $('#pr-already').textContent=usd0(d.alreadyCollected.usd)+'  ('+rvltC(d.alreadyCollected.rvlt)+')';
+    const line=o=>usd0(o.usd)+'  ('+usd0(o.premiumUsd)+' ETH + '+usd0(o.treasuryRvltUsd)+' RVLT)';
+    $('#pr-a').textContent=line(d.optionA_reserveNow);
+    $('#pr-b').textContent=line(d.optionB_reserveSpread);
+    $('#pr-delta').textContent='+'+usd0(d.reserveTimingDeltaUsd)+' minting now';
+    const s=d.sensitivity||[]; const g=(i)=>s[i]?usd0(s[i].remainingUsd)+'  (total '+usd0(s[i].totalPublicUsd)+')':'—';
+    $('#pr-s1').textContent=g(0); $('#pr-s2').textContent=g(1); $('#pr-s5').textContent=g(2); $('#pr-s10').textContent=g(3);
+  }catch(_){}
+}
+loadCfg().then(refreshState).catch(e=>setStatus('Config load failed: '+(e.message||e),'err'));
+loadProceeds();
+</script>
+</body></html>

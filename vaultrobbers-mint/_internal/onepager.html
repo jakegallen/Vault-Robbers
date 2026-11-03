@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vault Robbers · One-Pager</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Londrina+Solid:wght@400;900&family=Patrick+Hand&display=swap" rel="stylesheet">
+<style>
+  :root{--paper:#f3e3ca;--paper2:#eedaba;--ink:#17130d;--muted:#7c6f5a;--blue:#6d84c6;--blue-d:#54699f;--tee:#fbfaf6}
+  *{box-sizing:border-box}html,body{margin:0}
+  body{background:radial-gradient(120% 120% at 50% 0%,#f7ead4,#f3e3ca 55%,#e8d2ac);color:var(--ink);
+    font:15px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:820px;margin:0 auto;padding:26px 18px 70px}
+  h1{font-family:'Londrina Solid',cursive;font-weight:900;font-size:42px;letter-spacing:1px;margin:0;transform:rotate(-1deg)}
+  .kick{font-family:'Patrick Hand',cursive;font-size:18px;color:var(--muted);margin:4px 0 18px}
+  h2{font-family:'Londrina Solid',cursive;font-weight:900;font-size:24px;margin:26px 0 6px}
+  .card{background:var(--tee);border:2.5px solid var(--ink);border-radius:16px;box-shadow:5px 5px 0 var(--ink);padding:18px;margin:10px 0}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:640px){.grid{grid-template-columns:1fr}}
+  .box{background:var(--paper);border:2px solid var(--ink);border-radius:12px;padding:12px 14px;box-shadow:3px 3px 0 var(--ink)}
+  .box .k{font-family:'Patrick Hand',cursive;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  .box .v{font-family:'Londrina Solid',cursive;font-size:20px;margin-top:2px}
+  ul{margin:6px 0;padding-left:20px}li{margin:4px 0}
+  b{color:var(--ink)} .hi{color:var(--blue-d)}
+  .flow{background:var(--paper2);border:2px dashed var(--ink);border-radius:12px;padding:14px;font-family:'Patrick Hand',cursive;font-size:16px;margin-top:10px}
+  .tag{font-family:'Londrina Solid',cursive;color:var(--tee);background:var(--blue);display:inline-block;padding:2px 12px;border:2.5px solid var(--ink);border-radius:9px;box-shadow:3px 3px 0 var(--ink);font-size:16px;transform:rotate(-1deg)}
+  .stamp{font-family:'Patrick Hand',cursive;color:var(--muted);font-size:13px;margin-top:8px}
+  a{color:var(--blue-d)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>VAULT ROBBERS</h1>
+  <div class="kick">One-pager · the mint + the daily on-chain skill game · v1</div>
+
+  <h2>The pitch</h2>
+  <div class="card">A daily, on-chain, skill game where masked robbers out-read a crowd to crack the vault. No house to beat and no bot can farm it, because winning depends on out-thinking other humans. Every play buys and burns <b>ROBINVAULT</b>; a fixed set of <b>1,000 Vault Robber</b> NFTs give an edge. Built on Robinhood Chain.</div>
+
+  <h2>The assets</h2>
+  <div class="grid">
+    <div class="box"><div class="k">ROBINVAULT (RVLT)</div><div class="v">the fuel</div><div class="k" style="text-transform:none;margin-top:4px">ERC-20, ~46% already burned. Bought to play, burned constantly. Supply only falls.</div></div>
+    <div class="box"><div class="k">Vault Robbers</div><div class="v">the membership</div><div class="k" style="text-transform:none;margin-top:4px">ERC-721, hard cap 1,000. Grants a 25% discount + priority entry.</div></div>
+  </div>
+
+  <h2>The mint</h2>
+  <div class="card"><ul>
+    <li>Price = <b>2× the contract's RVLT mint cost</b> (a 100% premium), payable in <b>any coin</b>.</li>
+    <li><b>Base half</b> buys ROBINVAULT and mints the Robber, the collector gets the NFT.</li>
+    <li><b>Premium half</b> converts to <b>ETH → treasury</b>, which funds game bonuses / guaranteed pots.</li>
+    <li>~136 of 1,000 minted. Nothing new after 1,000.</li>
+  </ul></div>
+
+  <h2>The game — The Vault Standoff</h2>
+  <div class="card"><ul>
+    <li><b>Daily &amp; async</b>, the 24h day is the board; nobody has to be online at once. One champion per day. Field capped ~100.</li>
+    <li><b>Descent:</b> each chamber, everyone secretly picks a route; the <b>most-crowded route busts</b>. A live crowd heatmap + a blind window + a bank-or-push choice.</li>
+    <li><b>Last Door:</b> the final few play a hold-vs-cash nerve showdown to crown one champion, winner-take-all.</li>
+    <li><b class="hi">Agent-proof by design:</b> the outcome depends on the human crowd (bots that pile in self-bust), plus bluffing and daily novelty.</li>
+  </ul></div>
+
+  <h2>The economy</h2>
+  <div class="card">
+    <ul>
+      <li><b>$10 buy-in (any coin) → buys ROBINVAULT = the pot</b> (winner-take-all + small finalist split), paid in ROBINVAULT.</li>
+      <li><b>Team takes a 2% rake.</b></li>
+      <li><b>100% of creator fees AND 100% of NFT royalties → buy &amp; burn ROBINVAULT.</b></li>
+      <li>Deflation from fees + royalties + mint; entries recycle to the winner.</li>
+    </ul>
+    <div class="flow"><b>Why hold ROBINVAULT:</b> the game is a daily buy engine, every entry buys it, winners are paid in it, and those buys feed the burn. Demand from play, supply only shrinking.</div>
+  </div>
+
+  <h2>Integrity</h2>
+  <div class="card">Open entry is hostile to attackers: every entry costs money, buys/burns the token, and self-exposes to its own bust. On top: superlinear per-wallet pricing, hidden + blind + anonymized picks, proof-of-personhood on payout, and collusion detection.</div>
+
+  <h2>Build &amp; roadmap</h2>
+  <div class="card">
+    <p style="margin:0 0 6px"><b>Contracts (Robinhood 4663):</b> EntryRouter (buys RVLT into the pot + 2% rake + NFT discount/priority), DailyVault (escrow + pull payout), FeeRouter (100% fees + royalties burn), plus the existing NFT + mint hub. Server-authoritative round engine with published-seed, provably-fair settlement.</p>
+    <p style="margin:6px 0 0"><b>Roadmap:</b> <span class="tag">P0 Prototype ✓</span> → P1 Testnet MVP → P2 Closed mainnet beta → P3 Public launch on vaultrobbers.com.</p>
+  </div>
+
+  <div class="stamp">Internal working summary. Full detail, live economic simulator, and a playable prototype in the Design Lab (/lab.html).</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vault Standoff · Prototype</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Londrina+Solid:wght@400;900&family=Patrick+Hand&display=swap" rel="stylesheet">
+<style>
+  :root{--paper:#f3e3ca;--paper2:#eedaba;--ink:#17130d;--muted:#7c6f5a;--blue:#6d84c6;--blue-d:#54699f;--tee:#fbfaf6;--red:#c2432f;--green:#2f8f4e;--gold:#f5a623}
+  *{box-sizing:border-box}html,body{margin:0}
+  body{background:radial-gradient(130% 120% at 50% -10%,#f8ecd6,#f3e3ca 55%,#e8d2ac);color:var(--ink);
+    font:15px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh}
+  .wrap{max-width:680px;margin:0 auto;padding:22px 16px 60px}
+  a.back{font-family:'Patrick Hand',cursive;color:var(--blue-d);text-decoration:none;font-size:15px}
+  h1{font-family:'Londrina Solid',cursive;font-weight:900;font-size:34px;margin:8px 0 2px;transform:rotate(-1deg)}
+  .sub{font-family:'Patrick Hand',cursive;color:var(--muted);font-size:16px;margin:0 0 14px}
+  .hud{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 14px}
+  .h{flex:1;min-width:96px;background:var(--tee);border:2.5px solid var(--ink);border-radius:12px;padding:10px 12px;box-shadow:3px 3px 0 var(--ink)}
+  .h .k{font-family:'Patrick Hand',cursive;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  .h .v{font-family:'Londrina Solid',cursive;font-size:22px}
+  .stage{background:var(--tee);border:3px solid var(--ink);border-radius:18px;box-shadow:6px 6px 0 var(--ink);padding:18px;margin-bottom:14px}
+  .phase{font-family:'Patrick Hand',cursive;font-size:16px;color:var(--blue-d);min-height:22px;margin-bottom:6px}
+  .timer{height:12px;background:var(--paper2);border:2px solid var(--ink);border-radius:8px;overflow:hidden;margin:6px 0 16px}
+  .timer > i{display:block;height:100%;background:var(--blue);width:100%;transition:width .2s linear}
+  .timer.blind > i{background:var(--red)}
+  .routes{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px}
+  .route{background:var(--paper);border:2.5px solid var(--ink);border-radius:14px;padding:14px 10px;box-shadow:4px 4px 0 var(--ink);cursor:pointer;text-align:center;transition:transform .08s}
+  .route:hover{transform:translateY(-3px)}
+  .route.pick{outline:4px solid var(--gold);outline-offset:2px}
+  .route.bust{background:#f3c7bd;border-color:var(--red)}
+  .route .name{font-family:'Londrina Solid',cursive;font-size:19px}
+  .route .heat{height:10px;border-radius:6px;background:#d9c39c;margin:8px 0 4px;overflow:hidden;border:1.5px solid var(--ink)}
+  .route .heat > i{display:block;height:100%;width:0;background:linear-gradient(90deg,#f5a623,#c2432f);transition:width .3s}
+  .route .lbl{font-family:'Patrick Hand',cursive;font-size:13px;color:var(--muted)}
+  .btns{display:flex;gap:10px;margin-top:16px}
+  .btn{flex:1;font-family:'Patrick Hand',cursive;font-size:18px;padding:13px;border:2.5px solid var(--ink);border-radius:12px;cursor:pointer;box-shadow:4px 4px 0 var(--ink);transition:transform .06s,box-shadow .06s}
+  .btn:active{transform:translate(4px,4px);box-shadow:0 0 0 var(--ink)}
+  .btn.push{background:var(--blue);color:var(--tee)} .btn.bank{background:var(--tee);color:var(--ink)}
+  .btn:disabled{opacity:.5;cursor:default}
+  .log{font-family:'Patrick Hand',cursive;font-size:15px;color:var(--ink);margin-top:8px;min-height:24px}
+  .end{text-align:center;padding:10px 0}
+  .end .big{font-family:'Londrina Solid',cursive;font-size:40px;margin:6px 0}
+  .win{color:var(--green)} .lose{color:var(--red)}
+  .again{background:var(--gold);color:#1a1205;border:2.5px solid var(--ink);border-radius:12px;font-family:'Patrick Hand',cursive;font-size:18px;padding:12px 26px;box-shadow:4px 4px 0 var(--ink);cursor:pointer;margin-top:10px}
+  .note{font-family:'Patrick Hand',cursive;color:var(--muted);font-size:13.5px;margin-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="lab.html#standoff">← back to the Design Lab</a>
+  <h1>THE VAULT STANDOFF</h1>
+  <div class="sub">Prototype · one daily heist, compressed. Read the heat, dodge the herd, hold your nerve. (Crowd is simulated.)</div>
+
+  <div class="hud">
+    <div class="h"><div class="k">Chamber</div><div class="v" id="hCh">1 / 6</div></div>
+    <div class="h"><div class="k">Robbers left</div><div class="v" id="hAlive">100</div></div>
+    <div class="h"><div class="k">Your cut</div><div class="v" id="hCut">1x</div></div>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="phase" id="phase">Pick a route…</div>
+    <div class="timer" id="timerWrap"><i id="timer"></i></div>
+    <div class="routes" id="routes"></div>
+    <div class="btns">
+      <button class="btn push" id="lockBtn" disabled>Lock it in</button>
+      <button class="btn bank" id="bankBtn">Bank my cut &amp; walk</button>
+    </div>
+    <div class="log" id="log"></div>
+  </div>
+
+  <div class="note">The heatmap is <b>reflexive</b>: robbers avoid the hot route, so the "safe" choice keeps shifting. In the last few seconds the heat goes <b>blind</b> (red bar), you commit without knowing where the herd finally lands. The most-crowded route busts.</div>
+</div>
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  var CHAMBERS=6, START=100, FINAL_N=4;
+  var ROUTE_SETS=[['North Wing','East Vault','Service Shaft','Skylight'],['Left Tunnel','Right Tunnel','The Grate','Air Duct'],['Red Door','Blue Door','Green Door'],['Stairs','Elevator','Rafters'],['Left','Right'],['Hold','Break']];
+  var state;
+  function reset(){ state={ch:0,alive:START,cut:1,pick:-1,phase:'choose',routes:[],dist:[],t:0,dur:9000,blindAt:2500,tick:null}; $('again')&&$('again').remove(); newChamber(); }
+  function newChamber(){
+    var names=ROUTE_SETS[Math.min(state.ch,ROUTE_SETS.length-1)];
+    state.routes=names.slice();
+    var K=names.length, bots=state.alive-1;
+    // seed a lumpy starting distribution
+    state.dist=[]; var rem=bots; for(var i=0;i<K;i++){ var v=(i===K-1)?rem:Math.round(bots*(0.15+Math.random()*0.35)); v=Math.min(v,rem); state.dist[i]=v; rem-=v; } state.dist[K-1]+=rem;
+    state.pick=-1; state.phase='choose'; state.t=0;
+    $('hCh').textContent=(state.ch+1)+' / '+CHAMBERS; $('hAlive').textContent=state.alive; $('hCut').textContent=state.cut+'x';
+    $('lockBtn').disabled=true; $('lockBtn').textContent='Lock it in'; $('bankBtn').disabled=false;
+    $('phase').textContent='Chamber '+(state.ch+1)+' — pick a route. Watch the heat.';
+    $('log').textContent='';
+    renderRoutes(false);
+    clearInterval(state.tick);
+    state.tick=setInterval(step,200);
+  }
+  function botCount(){ return state.dist.reduce(function(a,b){return a+b;},0); }
+  function step(){
+    if(state.phase!=='choose') return;
+    state.t+=200;
+    // reflexive crowd: move a chunk from the hottest route toward the coldest, plus noise + a little dumb herd
+    var K=state.dist.length, tot=botCount();
+    if(tot>0){
+      var hi=0,lo=0; for(var i=1;i<K;i++){ if(state.dist[i]>state.dist[hi])hi=i; if(state.dist[i]<state.dist[lo])lo=i; }
+      var move=Math.max(1,Math.round(tot*0.08));
+      state.dist[hi]=Math.max(0,state.dist[hi]-move); state.dist[lo]+=move;
+      // noise
+      var a=Math.floor(Math.random()*K), b=Math.floor(Math.random()*K), n=Math.round(tot*0.03);
+      if(state.dist[a]>=n){ state.dist[a]-=n; state.dist[b]+=n; }
+    }
+    var left=state.dur-state.t, blind=left<=state.blindAt;
+    $('timer').style.width=Math.max(0,(left/state.dur*100))+'%';
+    $('timerWrap').classList.toggle('blind',blind);
+    $('phase').textContent = blind ? 'BLIND WINDOW — heat hidden, commit now!' : 'Chamber '+(state.ch+1)+' — '+Math.ceil(left/1000)+'s to lock';
+    renderRoutes(blind);
+    if(left<=0){ lock(); }
+  }
+  function renderRoutes(blind){
+    var tot=botCount()||1, K=state.routes.length, box=$('routes');
+    box.innerHTML=state.routes.map(function(nm,i){
+      var frac=state.dist[i]/tot, heat=blind?0:Math.round(frac*140);
+      var lbl=blind?'heat hidden':(frac>0.38?'PACKED':frac>0.28?'crowded':frac>0.16?'warm':'quiet');
+      return '<div class="route'+(state.pick===i?' pick':'')+'" data-i="'+i+'"><div class="name">'+nm+'</div>'+
+        '<div class="heat"><i style="width:'+Math.min(100,heat)+'%"></i></div><div class="lbl">'+(blind?'?':lbl)+'</div></div>';
+    }).join('');
+    Array.prototype.forEach.call(box.querySelectorAll('.route'),function(el){ el.onclick=function(){ if(state.phase!=='choose')return; state.pick=+el.getAttribute('data-i'); $('lockBtn').disabled=false; renderRoutes(blind); }; });
+  }
+  function lock(){
+    clearInterval(state.tick);
+    if(state.pick<0){ state.pick=Math.floor(Math.random()*state.routes.length); } // auto-pick if idle
+    state.phase='reveal'; $('lockBtn').disabled=true; $('bankBtn').disabled=true;
+    // final counts incl you
+    var counts=state.dist.slice(); counts[state.pick]+=1;
+    var maxI=0; for(var i=1;i<counts.length;i++) if(counts[i]>counts[maxI]) maxI=i;
+    // reveal
+    var box=$('routes');
+    box.innerHTML=state.routes.map(function(nm,i){
+      var bust=(i===maxI);
+      return '<div class="route'+(bust?' bust':'')+(state.pick===i?' pick':'')+'"><div class="name">'+nm+'</div>'+
+        '<div class="lbl">'+counts[i]+' robbers'+(bust?' · ALARM!':'')+'</div></div>';
+    }).join('');
+    var busted=counts[maxI];
+    if(state.pick===maxI){
+      $('phase').innerHTML='<span class="lose">The alarm blares on your route. Busted.</span>';
+      $('log').textContent='You picked the most-crowded route ('+state.routes[maxI]+'). '+busted+' robbers caught.';
+      return endGame(false);
+    }
+    // survive
+    state.alive-=busted; state.cut*=2;
+    $('hAlive').textContent=state.alive;
+    $('phase').innerHTML='<span class="win">You slipped past.</span> '+busted+' busted on '+state.routes[maxI]+'.';
+    $('log').textContent='Survivors: '+state.alive+'. Your cut doubles to '+state.cut+'x. Next chamber in a moment…';
+    if(state.alive<=FINAL_N){ $('log').textContent='Survivors: '+state.alive+'. The inner vault opens — final table.'; setTimeout(startFinal,1900); return; }
+    setTimeout(function(){ state.ch++; newChamber(); },1900);
+  }
+  function showEnd(title, cls, sub){
+    clearInterval(state.tick);
+    $('stage').innerHTML='<div class="end"><div class="big '+cls+'">'+title+'</div><div class="sub">'+sub+'</div>'+
+      '<div class="sub">Final cut: '+state.cut+'x · chamber '+(state.ch+1)+'/'+CHAMBERS+'</div>'+
+      '<button class="again" id="again">Run it again</button></div>';
+    $('again').onclick=function(){ location.reload(); };
+  }
+  function endGame(won){
+    var champ = won && (state.alive<=1 || state.ch+1>=CHAMBERS);
+    if(champ) showEnd('VAULT CHAMPION','win','You out-read the whole crew. Winner takes the pot.');
+    else if(won) showEnd('SAFE','win','You survived this run.');
+    else showEnd('BUSTED','lose','The vault keeps what you couldn\'t carry.');
+  }
+  // ---- ACT 2: THE LAST DOOR (final table, hold-vs-cash nerve showdown) ----
+  function startFinal(){ state.phase='final'; state.botsF=state.alive-1; state.seal=0.15; state.fround=1; $('timerWrap').style.display='none'; renderFinal(); }
+  function renderFinal(){
+    var pot=state.cut;
+    $('hCh').textContent='FINAL TABLE'; $('hAlive').textContent=(state.botsF+1); $('hCut').textContent=pot+'x';
+    $('phase').innerHTML='THE LAST DOOR · pot <b>'+pot+'x</b> · seal risk <b>'+Math.round(state.seal*100)+'%</b>';
+    $('routes').innerHTML='<div class="route" style="cursor:default;grid-column:1/-1"><div class="name">'+pot+'x pot</div><div class="lbl">'+(state.botsF+1)+' robbers left · hold to double it, or cash out safe</div></div>';
+    $('log').textContent='The greedy get sealed in. Outlast everyone to take the whole vault.';
+    var L=$('lockBtn'), B=$('bankBtn');
+    L.style.display=''; B.style.display=''; L.disabled=false; B.disabled=false;
+    L.className='btn push'; L.textContent='HOLD (double to '+(pot*2)+'x)';
+    B.className='btn bank'; B.textContent='CASH OUT '+pot+'x';
+    L.onclick=function(){ resolveFinal('hold'); };
+    B.onclick=function(){ resolveFinal('cash'); };
+  }
+  function resolveFinal(you){
+    var pot=state.cut, L=$('lockBtn'), B=$('bankBtn'); L.disabled=true; B.disabled=true;
+    var cashProb=Math.min(0.72,0.18+state.fround*0.12), hold=0;
+    for(var i=0;i<state.botsF;i++){ if(Math.random()>=cashProb) hold++; }
+    if(you==='cash'){ var champ=(hold===0); return showEnd((champ?'VAULT CHAMPION · ':'CHAMPION · ')+pot+'x', 'win', champ?'You cashed '+pot+'x and no one was left holding. The vault is yours.':'You cashed '+pot+'x and slipped out before the vault sealed.'); }
+    // you held -> the vault may seal on all holders
+    if(Math.random()<state.seal){ return showEnd('BUSTED','lose','The vault sealed on the greedy. You held too long at '+pot+'x.'); }
+    state.botsF=hold; state.cut*=2; state.fround++; state.seal=Math.min(0.78,state.seal+0.14);
+    if(state.botsF<=0){ return showEnd('VAULT CHAMPION · '+state.cut+'x','win','Every rival cashed out early. You held the deepest, the whole vault is yours.'); }
+    renderFinal();
+  }
+  $('lockBtn').onclick=function(){ if(state.phase==='choose'&&state.pick>=0) lock(); };
+  $('bankBtn').onclick=function(){ if(state.phase!=='choose')return; state.phase='reveal';
+    showEnd('BANKED','win','You banked your '+state.cut+'x cut and slipped out the side door before the alarm.'); };
+  reset();
+})();
+</script>
+</body>
+</html>

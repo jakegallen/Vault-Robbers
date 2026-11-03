@@ -1,0 +1,115 @@
+{
+  "name": "vaultrobbers-dev",
+  "version": "2.0.0-dev",
+  "private": true,
+  "description": "Vault Robbers V2 — DETACHED dev twin (testnet-scoped) for the next-gen heist game. Isolated from prod robbing-the-vault.",
+  "scripts": {
+    "start": "node server.js",
+    "test": "RTV_SKILL_V4=on RTV_DETERMINISTIC=on node tests/_run.cjs"
+  },
+  "dependencies": {
+    "ethers": "^6.17.0",
+    "express": "^4.22.2",
+    "terser": "^5.51.2"
+  },
+  "emblem_build": {
+    "tables": [
+      {
+        "name": "rtv_state",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_state (id TEXT PRIMARY KEY, jackpot_eth REAL DEFAULT 0, pot_rvlt REAL DEFAULT 0, burned_rvlt REAL DEFAULT 0, plays INTEGER DEFAULT 0, robs INTEGER DEFAULT 0, updated_at TEXT DEFAULT (datetime('now')))"
+      },
+      {
+        "name": "rtv_runs",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, player TEXT, stake REAL, depth INTEGER, outcome TEXT, won_rvlt REAL DEFAULT 0, burned_rvlt REAL DEFAULT 0, robbed_eth REAL DEFAULT 0, net INTEGER DEFAULT 46630, server_seed TEXT, server_hash TEXT, client_seed TEXT, ts TEXT DEFAULT (datetime('now')))"
+      },
+      {
+        "name": "rtv_seeds",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_seeds (run_id TEXT PRIMARY KEY, player TEXT, stake REAL, server_seed TEXT, server_hash TEXT, client_seed TEXT, nonce INTEGER DEFAULT 0, depth INTEGER DEFAULT 0, mult REAL DEFAULT 1, status TEXT DEFAULT 'open', paid INTEGER DEFAULT 0, cur_door TEXT, cur_started INTEGER, net INTEGER DEFAULT 46630, ts TEXT DEFAULT (datetime('now')))"
+      },
+      {
+        "name": "rtv_door_picks",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_door_picks (kind TEXT, net INTEGER DEFAULT 46630, n INTEGER DEFAULT 0, PRIMARY KEY (kind, net))"
+      },
+      {
+        "name": "rtv_visits",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_visits (id TEXT, device TEXT, net INTEGER DEFAULT 46630, ts TEXT DEFAULT (datetime('now')), PRIMARY KEY (id, net))"
+      },
+      {
+        "name": "rtv_arcade_pass",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_arcade_pass (wallet TEXT, tx TEXT, net INTEGER DEFAULT 46630, fee_paid INTEGER, paid_at TEXT DEFAULT (datetime('now')), PRIMARY KEY (wallet, net))"
+      },
+      {
+        "name": "rtv_arcade_best",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_arcade_best (wallet TEXT NOT NULL, game TEXT NOT NULL, best_pct INTEGER NOT NULL DEFAULT 0, net INTEGER NOT NULL DEFAULT 46630, updated_at TEXT DEFAULT (datetime('now')), PRIMARY KEY (wallet, game, net))"
+      },
+      {
+        "name": "rtv_bot_signals",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_bot_signals (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT DEFAULT (datetime('now')), player TEXT, run_id TEXT, net INTEGER, level INTEGER, kind TEXT, game_key TEXT, score REAL, human REAL, flagged INTEGER DEFAULT 0, flag_reason TEXT, elapsed_ms INTEGER, min_ms INTEGER, ip_hash TEXT, ua_hash TEXT, event TEXT DEFAULT 'crack', bar REAL, roll REAL, roll_thresh REAL, bar_pass INTEGER, roll_pass INTEGER, outcome TEXT)"
+      },
+      {
+        "name": "rtv_bot_roles",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_bot_roles (wallet TEXT, net INTEGER DEFAULT 46630, flags INTEGER DEFAULT 0, hard_flags INTEGER DEFAULT 0, reasons TEXT, active INTEGER DEFAULT 0, first_flag TEXT DEFAULT (datetime('now')), last_flag TEXT DEFAULT (datetime('now')), cleared_at TEXT, ip_hash TEXT, ua_hash TEXT, PRIMARY KEY (wallet, net))"
+      },
+      {
+        "name": "rtv_bot_telemetry",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_bot_telemetry (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT DEFAULT (datetime('now')), run_id TEXT, player TEXT, net INTEGER, level INTEGER, kind TEXT, game_key TEXT, ip_hash TEXT, ua_hash TEXT, tell_count INTEGER, features TEXT)"
+      },
+      {
+        "name": "rtv_room_behavior",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_room_behavior (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT DEFAULT (datetime('now')), run_id TEXT, player TEXT, net INTEGER, level INTEGER, ip_hash TEXT, ua_hash TEXT, behavior TEXT)"
+      },
+      {
+        "name": "rtv_comps",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_comps (wallet TEXT NOT NULL, net INTEGER NOT NULL, free_runs INTEGER NOT NULL DEFAULT 0, owed_at_audit INTEGER NOT NULL DEFAULT 0, redeemed INTEGER DEFAULT 0, base_granted INTEGER DEFAULT -1, reason TEXT, created_at TEXT DEFAULT (datetime('now')), PRIMARY KEY (wallet, net))"
+      },
+      {
+        "name": "rtv_comp_redemptions",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_comp_redemptions (id INTEGER PRIMARY KEY AUTOINCREMENT, wallet TEXT, run_id TEXT, tx TEXT, net INTEGER, ts TEXT DEFAULT (datetime('now')))"
+      },
+      {
+        "name": "rtv_paid_log",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_paid_log (run_id TEXT, net INTEGER, player TEXT, ts TEXT DEFAULT (datetime('now')), PRIMARY KEY (run_id, net))"
+      },
+      {
+        "name": "rtv_casino_bets",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_casino_bets (bet_id TEXT PRIMARY KEY, player TEXT, game TEXT, wager REAL, mines INTEGER DEFAULT 0, revealed TEXT DEFAULT '[]', mult REAL DEFAULT 0, status TEXT DEFAULT 'open', payout REAL DEFAULT 0, server_seed TEXT, server_hash TEXT, client_seed TEXT, nonce INTEGER DEFAULT 0, started INTEGER, net INTEGER DEFAULT 46630, run_id TEXT, ts TEXT DEFAULT (datetime('now')))"
+      },
+      {
+        "name": "rtv_reviews",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_reviews (run_id TEXT PRIMARY KEY, player TEXT, ip_hash TEXT, ua_hash TEXT, reason TEXT, wallets INTEGER DEFAULT 0, runs INTEGER DEFAULT 0, cluster_size INTEGER DEFAULT 0, funder TEXT, status TEXT DEFAULT 'pending', created_at TEXT DEFAULT (datetime('now')), decided_at TEXT)"
+      },
+      {
+        "name": "rtv_review_sigs",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_review_sigs (run_id TEXT, action TEXT, owner TEXT, sig TEXT, ts TEXT DEFAULT (datetime('now')), PRIMARY KEY (run_id, owner, action))"
+      },
+      {
+        "name": "rtv_wallet_funder",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_wallet_funder (wallet TEXT, funder TEXT, net INTEGER DEFAULT 46630, ts TEXT DEFAULT (datetime('now')), PRIMARY KEY (wallet, net))"
+      },
+      {
+        "name": "rtv_practice_credits",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_practice_credits (wallet TEXT, net INTEGER, credits INTEGER DEFAULT 0, purchased_total INTEGER DEFAULT 0, PRIMARY KEY (wallet, net))"
+      },
+      {
+        "name": "rtv_practice_buys",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_practice_buys (txhash TEXT PRIMARY KEY, wallet TEXT, net INTEGER, rvlt INTEGER, runs INTEGER, ts TEXT DEFAULT (datetime('now')))"
+      },
+      {
+        "name": "rtv_wallet_rep",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_wallet_rep (wallet TEXT, net INTEGER DEFAULT 46630, age_days INTEGER, tx_count INTEGER, rvlt_balance REAL, native_balance REAL, funder TEXT, funder_cluster_size INTEGER DEFAULT 0, score REAL, reasons TEXT, first_seen TEXT, updated_at TEXT DEFAULT (datetime('now')), PRIMARY KEY (wallet, net))"
+      },
+      {
+        "name": "rtv_client_env",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_client_env (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT DEFAULT (datetime('now')), run_id TEXT, player TEXT, net INTEGER, ip_hash TEXT, ua_hash TEXT, webdriver INTEGER, headless_score REAL, signals TEXT)"
+      },
+      {
+        "name": "rtv_alerts",
+        "schema": "CREATE TABLE IF NOT EXISTS rtv_alerts (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT DEFAULT (datetime('now')), kind TEXT, summary TEXT, detail TEXT, net INTEGER)"
+      }
+    ]
+  },
+  "main": "server.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

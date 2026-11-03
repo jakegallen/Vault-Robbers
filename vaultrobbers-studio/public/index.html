@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vault Robbers Studio</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <div class="mark">VR</div>
+      <div>
+        <h1>Vault Robbers Studio</h1>
+        <div class="sub">Internal generative design tool</div>
+      </div>
+    </div>
+    <div class="save-state" id="saveState"><span class="dot"></span><span id="saveText">Ready</span></div>
+  </div>
+
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-tab="design">Design</button>
+    <button class="tab" data-tab="rarity">Rarity</button>
+    <button class="tab" data-tab="rules">Rules</button>
+    <button class="tab" data-tab="mythic">Mythic 1/1s</button>
+    <button class="tab" data-tab="distribution">Distribution</button>
+    <button class="tab" data-tab="samples">Samples</button>
+    <button class="tab" data-tab="export">Export</button>
+  </div>
+
+  <!-- DESIGN -->
+  <section data-panel="design">
+    <div class="layout">
+      <div class="panel">
+        <h2>Live Preview</h2>
+        <div class="stage"><canvas id="previewCanvas" width="640" height="640"></canvas></div>
+        <div class="artmode" id="artMode">
+          <span class="artmode-label">Trait set</span>
+          <button class="btn small active" data-mode="original">Original</button>
+          <button class="btn small ghost" data-mode="experimental">Experimental</button>
+        </div>
+        <div class="preview-actions">
+          <button class="btn primary" id="shuffleBtn">Shuffle Robber</button>
+          <button class="btn" id="clearLocksBtn">Clear locks</button>
+          <button class="btn ghost small" id="downloadPreviewBtn">Download PNG</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Layers</h2>
+        <p class="hint">Lock a layer to keep it while you shuffle the rest, or pick a trait by hand.</p>
+        <div id="layerRows"></div>
+      </div>
+    </div>
+    <div class="panel meta-panel">
+      <h2>Metadata preview</h2>
+      <p class="hint">Exactly how this Robber's traits land on OpenSea and on-chain. Updates live as you shuffle or pick a trait. Rank is assigned at the final full render.</p>
+      <div class="os-traits" id="metaChips"></div>
+      <details class="meta-json-wrap"><summary>Raw ERC-721 JSON</summary><pre class="meta-json" id="metaJson"></pre></details>
+    </div>
+  </section>
+
+  <!-- RARITY -->
+  <section data-panel="rarity" class="hidden">
+    <div class="panel">
+      <h2>Rarity Weights</h2>
+      <p class="hint">Weight 0 or an unchecked box means that trait is never picked, probabilities update live within each category.</p>
+      <div id="rarityBlocks"></div>
+    </div>
+  </section>
+
+  <!-- RULES -->
+  <section data-panel="rules" class="hidden">
+    <div class="panel">
+      <h2>Compatibility Rules</h2>
+      <p class="hint">Add an exclude or force rule, for example if Head is Wolf Skull then exclude Headwear Gold Halo.</p>
+      <div class="rule-form">
+        <select id="ruleIfCat"></select>
+        <select id="ruleIfTrait"></select>
+        <select id="ruleType"><option value="exclude">then exclude</option><option value="force">then force</option></select>
+        <select id="ruleThenCat"></select>
+        <select id="ruleThenTrait"></select>
+      </div>
+      <div style="margin-bottom:16px"><button class="btn primary small" id="addRuleBtn">Add rule</button></div>
+      <ul class="rule-list" id="ruleList"></ul>
+      <h3>Built in</h3>
+      <ul class="rule-list"><li class="builtin"><span>Body is required so every Robber always has a body, and the special scene pieces are reserved as one of one art rather than rolled.<br><span class="tagline">Always on</span></span></li></ul>
+    </div>
+  </section>
+
+  <!-- MYTHIC -->
+  <section data-panel="mythic" class="hidden">
+    <div class="panel">
+      <h2>Mythic One of One Slots</h2>
+      <p class="hint" id="mythicMath"></p>
+      <div class="oneofone-grid" id="mythicGrid"></div>
+    </div>
+  </section>
+
+  <!-- DISTRIBUTION -->
+  <section data-panel="distribution" class="hidden">
+    <div class="panel">
+      <h2>Distribution</h2>
+      <p class="hint">Simulate the weighted generation and dedupe by trait combo, counts reflect the generative target only.</p>
+      <div class="preview-actions" style="margin-top:0;margin-bottom:16px">
+        <button class="btn primary" id="simulateBtn">Simulate run</button>
+        <button class="btn ghost small" id="simTargetLabel" disabled></button>
+      </div>
+      <div id="simNotice"></div>
+      <div class="stat-grid" id="simStats"></div>
+      <h3>Rarity Tiers</h3>
+      <div class="tier-grid" id="tierGrid"></div>
+      <h3>Per Trait Occurrence</h3>
+      <div style="max-height:460px;overflow:auto;border:1px solid var(--line);border-radius:10px">
+        <table class="dist" id="distTable"><thead><tr><th>Trait</th><th>Category</th><th style="width:70px">Count</th><th style="width:70px">Share</th><th style="width:30%">&nbsp;</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <!-- SAMPLES -->
+  <section data-panel="samples" class="hidden">
+    <div class="panel">
+      <h2>Sample Grid</h2>
+      <p class="hint">Composite real assembled Robbers so you can eyeball the output.</p>
+      <div class="preview-actions" style="margin-top:0;margin-bottom:16px"><button class="btn primary" id="gen12Btn">Generate 12</button></div>
+      <div class="sample-grid" id="sampleGrid"></div>
+    </div>
+  </section>
+
+  <!-- EXPORT -->
+  <section data-panel="export" class="hidden">
+    <div class="panel">
+      <h2>Export</h2>
+      <div class="export-row">
+        <button class="btn primary" id="exportConfigBtn">Export config</button>
+        <button class="btn" id="exportMetaBtn">Export sample metadata</button>
+        <button class="btn" id="provenanceBtn">Compute provenance hash</button>
+      </div>
+      <p class="hint">Config bundles the manifest, weights, rules, and Mythic slots, sample metadata describes the Robber currently in the preview.</p>
+      <div class="hashbox" id="provenanceBox"><span class="k">Provenance hash, SHA-256 of an ordered simulated run for the delayed reveal plan</span><span id="provenanceVal">Not computed yet.</span></div>
+    </div>
+  </section>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

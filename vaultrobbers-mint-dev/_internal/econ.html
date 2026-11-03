@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vault Robbers, Mint Economics (admin)</title>
+<link href="https://fonts.googleapis.com/css2?family=Londrina+Solid:wght@400;900&family=Patrick+Hand&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f3e3ca;--card:#fbfaf6;--ink:#17130d;--gold:#f5a623;--blu:#6d84c6;--grn:#2f8f4e;--red:#c2432f}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Patrick Hand',ui-sans-serif}
+.wrap{max-width:820px;margin:0 auto;padding:18px 16px 60px}
+h1,h2,.big{font-family:'Londrina Solid',cursive}
+h1{font-size:30px;margin:.1em 0}
+.muted{opacity:.72}
+.panel{border:2.5px solid var(--ink);border-radius:14px;box-shadow:4px 4px 0 var(--ink);background:var(--card);padding:16px;margin:14px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+label{display:block;font-size:14px}
+input{width:100%;font-family:'Patrick Hand',cursive;font-size:16px;padding:8px;border:2.5px solid var(--ink);border-radius:9px;margin-top:3px}
+.btn{font-family:'Patrick Hand',cursive;font-size:16px;padding:10px 16px;border:2.5px solid var(--ink);border-radius:11px;box-shadow:3px 3px 0 var(--ink);background:var(--blu);color:var(--card);cursor:pointer;margin-top:10px}
+.stat{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px dashed rgba(23,19,13,.2);font-size:15px}
+.stat b{font-family:'Londrina Solid',cursive;font-size:19px}
+table{width:100%;border-collapse:collapse;font-size:14px;margin-top:8px}
+th,td{padding:6px 8px;text-align:right;border-bottom:1px solid rgba(23,19,13,.15)}
+th:first-child,td:first-child{text-align:left}
+th{font-family:'Londrina Solid',cursive}
+.note{font-size:13px;opacity:.72;margin-top:8px}
+.pill{display:inline-block;border:2px solid var(--ink);border-radius:9px;background:var(--gold);padding:2px 9px;font-family:'Londrina Solid',cursive;font-size:14px}
+</style></head>
+<body><div class="wrap">
+<h1>🎭 Vault Robbers, Mint Economics</h1>
+<p class="muted">Admin tool. Live from the mint contract + ROBINVAULT market. Projects total ROBINVAULT collected across the mint-out, the burn impact, and USD value. Nothing here ships to minters.</p>
+<div id="live" class="panel"><span class="muted">Loading live numbers…</span></div>
+
+<div class="panel">
+<div class="grid">
+  <label>ROBINVAULT price (USD)<input id="px" type="number" step="0.0000001" value="0"></label>
+  <label>Reserve (free team mints)<input id="reserve" type="number" value="100"></label>
+  <label>Tier size (each)<input id="band" type="number" value="250"></label>
+  <label>USD premium % → game treasury<input id="prem" type="number" value="100"></label>
+</div>
+<div class="grid" style="margin-top:10px">
+  <label>Tier 1 RVLT<input id="t1" type="number" value="15000"></label>
+  <label>Tier 2 RVLT<input id="t2" type="number" value="30000"></label>
+  <label>Tier 3 RVLT<input id="t3" type="number" value="45000"></label>
+  <label>Tier 4 RVLT<input id="t4" type="number" value="60000"></label>
+</div>
+<p class="note">Tiers above are the PROPOSED new schedule. "Live" panel shows the current on-chain prices. Premium % is charged in USD on top of the ROBINVAULT cost and routed (as ETH) to the game treasury.</p>
+<button class="btn" id="run">Recalculate</button>
+</div>
+
+<div class="panel" id="out"></div>
+<div class="panel" id="sens"></div>
+<p class="note">Model: 4 tiers priced by mint position (first tier size mints at Tier 1, etc.). Reserve (free team mints) are assumed to fill the cheapest positions first, so they do not collect RVLT. "Collected" ROBINVAULT is what the contract takes in and can be burned (deflationary). The 25% USD buffer on the pay-in-any-currency path is routed to the Safe in the origin currency (ETH/USDC), separate from this ROBINVAULT total.</p>
+</div>
+<script>
+var CFG=null, TOK=null;
+function n(id){ return parseFloat(document.getElementById(id).value)||0; }
+function money(v){ if(v>=1e6) return '$'+(v/1e6).toFixed(2)+'M'; if(v>=1e3) return '$'+(v/1e3).toFixed(1)+'k'; return '$'+v.toFixed(2); }
+function rv(v){ return Math.round(v).toLocaleString()+' RVLT'; }
+function compact(v){ return v>=1e6?(v/1e6).toFixed(2)+'M':v>=1e3?(v/1e3).toFixed(0)+'k':String(Math.round(v)); }
+async function load(){
+  try{ CFG=await fetch('api/config').then(r=>r.json()); }catch(e){}
+  try{ TOK=await fetch('api/token').then(r=>r.json()); }catch(e){}
+  if(CFG){ document.getElementById('reserve').value=(CFG.maxSupply-CFG.publicSupply)||100; document.getElementById('band').value=Math.round((CFG.maxSupply||1000)/4); }
+  if(TOK&&TOK.price) document.getElementById('px').value=TOK.price;
+  var lv=document.getElementById('live');
+  lv.innerHTML='<h2>Live</h2>'+
+    '<div class="stat"><span>Current on-chain tiers</span><b>'+(CFG&&CFG.tiersRvlt?CFG.tiersRvlt.map(function(x){return (x/1000)+'k';}).join(' / '):'…')+'</b></div>'+
+    '<div class="stat"><span>ROBINVAULT price</span><b>$'+(TOK?TOK.price:0).toPrecision(3)+'</b></div>'+
+    '<div class="stat"><span>Market cap / liquidity</span><b>'+money(TOK?TOK.marketCap:0)+' / '+money(TOK?TOK.liquidity:0)+'</b></div>'+
+    '<div class="stat"><span>Supply (circulating)</span><b>'+compact(TOK?TOK.circulating:0)+'</b></div>'+
+    '<div class="stat"><span>Already burned</span><b>'+compact(TOK?TOK.burned:0)+' ('+(TOK?TOK.burnedPct:0).toFixed(1)+'% of 1B)</b></div>'+
+    '<div class="stat"><span>Minted so far</span><b>'+(CFG?CFG.totalMinted:0)+' / '+(CFG?CFG.maxSupply:1000)+' ('+(CFG?CFG.reserveMinted:0)+' reserve)</b></div>';
+  run();
+}
+function run(){
+  var px=n('px'), reserve=n('reserve'), band=n('band'), prem=n('prem')/100, t=[n('t1'),n('t2'),n('t3'),n('t4')];
+  // fill cheapest positions with reserve (free), rest paid at tier price
+  var rows='', totRvlt=0, left=reserve, paidTotal=0;
+  for(var i=0;i<4;i++){
+    var free=Math.min(band,left); left-=free; var paid=band-free;
+    var sub=paid*t[i]; totRvlt+=sub; paidTotal+=paid;
+    var rvUsd=sub*px, userUsd=rvUsd*(1+prem);
+    rows+='<tr><td>Tier '+(i+1)+'</td><td>'+t[i].toLocaleString()+' ('+money(t[i]*px)+')</td><td>'+paid+(free?(' (+'+free+' free)'):'')+'</td><td>'+money(rvUsd)+'</td><td>'+money(userUsd)+'</td></tr>';
+  }
+  var rvltUsd=totRvlt*px;               // cost to BUY the ROBINVAULT (→ 0x888 / burn)
+  var premUsd=rvltUsd*prem;             // 100% premium (→ game treasury, as ETH)
+  var userTotal=rvltUsd+premUsd;        // what minters pay in aggregate
+  var circ=(TOK&&TOK.circulating)||0, burned=(TOK&&TOK.burned)||0;
+  var burnPctCirc=circ?totRvlt/circ*100:0, newBurnedPct=(burned+totRvlt)/1e9*100;
+  var avgRvlt=paidTotal?totRvlt/paidTotal:0, avgUser=paidTotal?userTotal/paidTotal:0;
+  document.getElementById('out').innerHTML='<h2>Full mint-out projection</h2>'+
+    '<table><thead><tr><th>Tier</th><th>RVLT (USD)</th><th>Paid mints</th><th>Buy RVLT $</th><th>Minter pays $</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+    '<div class="stat" style="margin-top:10px"><span>ROBINVAULT bought & sent to 0x888 (burn)</span><b>'+rv(totRvlt)+'</b></div>'+
+    '<div class="stat"><span>USD to buy that ROBINVAULT</span><b>'+money(rvltUsd)+'</b></div>'+
+    '<div class="stat"><span class="pill">Game treasury seed (100% premium, ETH)</span><b>'+money(premUsd)+'</b></div>'+
+    '<div class="stat"><span>Total minters pay (mint-out)</span><b>'+money(userTotal)+'</b></div>'+
+    '<div class="stat"><span>Avg per paid mint</span><b>'+rv(avgRvlt)+' + premium = '+money(avgUser)+'</b></div>'+
+    '<div class="stat"><span>Paid mints</span><b>'+paidTotal+'</b></div>'+
+    '<div class="stat"><span>Burn impact</span><b>'+burnPctCirc.toFixed(1)+'% of circulating</b></div>'+
+    '<div class="stat"><span>Total burned after mint-out</span><b>'+compact(burned+totRvlt)+' ('+newBurnedPct.toFixed(1)+'% of 1B)</b></div>';
+  // price sensitivity — both the buy AND the equal premium scale with price
+  var mult=[0.5,1,2,5,10,20], base=px||0.0003, srows='';
+  mult.forEach(function(m){ var p=base*m, buy=totRvlt*p, tre=buy*prem; srows+='<tr><td>$'+p.toPrecision(3)+' ('+m+'x)</td><td>'+money(buy)+'</td><td>'+money(tre)+'</td><td>'+money(buy+tre)+'</td></tr>'; });
+  document.getElementById('sens').innerHTML='<h2>Sensitivity to ROBINVAULT price</h2>'+
+    '<table><thead><tr><th>RVLT price</th><th>Burn (buy) $</th><th>Treasury seed $</th><th>Minters pay $</th></tr></thead><tbody>'+srows+'</tbody></table>'+
+    '<p class="note">ROBINVAULT burned is fixed at '+rv(totRvlt)+'; USD moves with price. Because the premium equals the RVLT cost, the game-treasury seed scales 1:1 with the burn spend as price rises.</p>';
+}
+document.getElementById('run').onclick=run;
+load();
+</script>
+</body></html>

@@ -1,0 +1,20 @@
+// Vault Robbers V2 — DETACHED dev twin (Jake 2026-09-07). This is a SEPARATE artifact with its OWN source tree
+// (vaultrobbers-dev/), fully isolated from the live prod game (robbing-the-vault, source robbing-the-vault-dev/).
+// Nothing here can touch production:
+//   • Separate source dir  -> editing this never changes prod files.
+//   • RTV_NET is NOT 'mainnet' -> runs on TESTNET (chainId 46630), so all DB rows are net-scoped away from prod's 4663,
+//     and it talks to the TESTNET contracts, never the mainnet pot/vault.
+//   • RTV_PUBLIC is unset  -> stays behind the DEV_SITE_PASSWORD gate (not public).
+//   • ONCHAIN_ONLY is false on testnet -> the mainnet-only comp/reconcile machinery stays dormant here.
+// RTV_V2 turns on the V2 build (new economics model, casino rooms, etc.) which is gated to this flag so it can never
+// light up on prod even if source is later merged.
+process.env.RTV_NET = 'testnet';
+process.env.RTV_V2 = 'on';
+process.env.RTV_FREE_PLAY = '1';   // dev: all games + Practice Arena free while we rework the games (mint stays at cost). Never set on start-prod-v2.js.
+process.env.RTV_ODDS_V2 = 'on';   // skill-driven model is the V2 baseline
+process.env.RTV_SKILL_V3 = 'on';   // Jake 2026-09-08: SKILL is fully deterministic (beat the bar = advance, incl. the core, no roll); difficulty scales with depth. Takes precedence over ODDS_V2 for skill doors.
+process.env.RTV_SKILL_V4 = 'on';   // Jake 2026-09-08: mount the seed-not-answer Skill Engine v4 routes (/api/skill/*) on the twin for testbed wiring. Detached from the live skill path until proven + wired into the mini shell.
+process.env.RTV_MINT_SPOTS = 'on';   // hidden Vault Robbers dealers in chambers 2/3/4 (chamber 5 = teller) for staging testing
+process.env.RTV_LADDER_V2 = 'on';   // Buy-Burn-Earn capped ladder (mirrors the live V4 contract). FREE_PLAY here so display-only, no on-chain settle.
+process.env.RTV_BOT_SHADOW_GATE = 'on';   // humanness hard-gate (Jake 2026-09-12): flagged non-luck runs that would succeed become hard misses
+require('./server.js');

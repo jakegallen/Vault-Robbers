@@ -1,0 +1,14 @@
+{
+  "name": "The Vault Standoff",
+  "short_name": "Vault Standoff",
+  "description": "Pick a door. The crowd gets caught. Last robber takes the vault.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3e3ca",
+  "theme_color": "#e9a615",
+  "icons": [
+    { "src": "apple-touch-icon.png", "type": "image/png", "sizes": "180x180", "purpose": "any" },
+    { "src": "og.png", "type": "image/png", "sizes": "1200x630", "purpose": "any" }
+  ]
+}
