@@ -15,4 +15,9 @@ process.env.RTV_ODDS_V2 = 'on';
 // SECURITY (Jake 2026-09-09): the Vault Robber mint is fully CUT on the classic — no voucher signing, no mint UI. The classic is a
 // nostalgia/testing ground only; NFT minting (and its discounted-mint Sybil vector that fed the V1 swarm) does not exist here.
 process.env.RTV_NO_MINT = '1';
+// RETIREMENT (Jake 2026-11-10): free, wallet-free archive. RTV_FREE_ONLY makes /api/config report freeOnly:true, which tells the
+// client to null window.RTV_OC (disabling every on-chain guard at once) and hide the wallet chrome, so the game plays purely on the
+// off-chain demo chips path with no connect/sign prompt ever. Money builds (start-prod / start-mainnet) never set this flag, so they
+// are byte-for-byte unchanged. Gated entirely behind the flag; default behaviour is untouched.
+process.env.RTV_FREE_ONLY = '1';
 require('./server.js');

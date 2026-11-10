@@ -850,7 +850,7 @@ let OC_LAST=null;   // last on-chain snapshot (pot + prize vault + wallet balanc
 // dynamic wallet/vault readout on the start screen — real balances when a wallet is connected, else a Connect prompt
 function enterLabel(){ try{ const el=$('#enterCta'); if(!el)return; const fee=(CFG&&CFG.fee)||2000; el.textContent=tf('enterCta',{fee:(+fee).toLocaleString('en-US')+' RVLT'}); }catch(e){} }   // interpolate {fee} so the button shows the live cost (reflects the holder-discounted CFG.fee); localized strings already carry the {fee} token
 function updateWalletUI(){ try{enterLabel()}catch(e){}
-  const onchain=window.RTV_OC&&window.RTV_OC.enabled;
+  const onchain=!(CFG&&CFG.freeOnly)&&window.RTV_OC&&window.RTV_OC.enabled;   // retirement archive: freeOnly hides all wallet chrome (connect button, balances) and keeps the local chips balance
   const ov=null; if(ov){   // stats card removed from the minimal ominous lobby (Jake 2026-09-08); #oVault stays hidden
     // The prize IS the ETH in the vault. Show it as a framed two-stat card: "The Vault" (ETH) + the ROBINVAULT pot.
     const eth=(OC_LAST&&OC_LAST.vaultEth!=null)?OC_LAST.vaultEth:(STATE?STATE.jackpotEth:null);
@@ -1633,7 +1633,7 @@ function doomInfo(){
   let ms; const ov = _doomDev ? new URLSearchParams(location.search).get('doom') : null;   // ?doom=<days left> to preview the siren + breach (stage only)
   ms = (ov != null) ? parseFloat(ov) * 86400000 : (HALLOWEEN_MS - Date.now());
   const days = ms / 86400000;
-  return { ms, days, active: days <= 14, intensity: Math.max(0, Math.min(1, (14 - days) / 14)), breach: ms <= 0 };
+  return { ms, days, active: false, intensity: 0, breach: false };   // RETIRED ARCHIVE: the Halloween doom/breach event has passed (ms<=0 would otherwise fire "THE VAULT HAS CRACKED" over the lobby forever and block ENTER); never gate play on it again.
 }
 let _breached=false;
 function triggerBreach(){ if(_breached)return; _breached=true; try{ playVaultBreach(); }catch(e){} }
@@ -2245,7 +2245,7 @@ async function startRun(){
   if(wallet.bal<fee){ wallet.bal=10000; saveWallet(); toast(tf('demoTop',{n:fRvlt(wallet.bal)})); }   // demo mode never dead-ends
   const cta=$('#enterCta'); cta.disabled=true; entryStatus(true);   // status during the sign wait so it never reads as a frozen screen (esp. Play again)
   try{
-    if(window.RTV_OC&&window.RTV_OC.enabled){
+    if(!(CFG&&CFG.freeOnly)&&window.RTV_OC&&window.RTV_OC.enabled){
       const useComp = _freeRuns>0 && window.RTV_OC.compEnterRun;   // redeem a make-good free run first (sponsored on-chain, no fee)
       const r=await Promise.race([ useComp? window.RTV_OC.compEnterRun() : window.RTV_OC.enterRun(), new Promise((_,rej)=>setTimeout(()=>rej(new Error('Entry did not confirm in time. If RVLT was deducted, do NOT enter again: reload the page, and if your run does not resume, send us your wallet address and we will restore it. (If you run more than one wallet extension, keep a single one enabled for Robinhood Chain.)')),45000)) ]);   // newrun + approve + on-chain enter(); the race unfreezes the screen if a glitched/duelling injected provider hangs tx.wait forever
       RUN={runId:r.runId,runToken:r.runToken,chips:chips,depth:0,mult:1,doors:r.doors,hash:r.commit,clientSeed:r.clientSeed,onchain:true,enterTx:r.txHash,paid:r.paid,comp:!!r.comp};
@@ -3767,6 +3767,12 @@ async function boot(){
   try{ playIntro(); }catch(e){ try{ const gi=$('#gintro'); if(gi){ gi.classList.add('gone'); setTimeout(()=>{ if(gi)gi.style.display='none'; },600); } revealStart(); }catch(_){} }
   // Nothing here may block the cinematic entrance: every step is guarded so playIntro() ALWAYS arms the auto-flow + failsafe.
   try{ const cfg=await api('api/config'); if(cfg)CFG=cfg; }catch(e){}
+  // RETIREMENT ARCHIVE (Jake 2026-11-10): free-play builds (start-v2free, config.freeOnly) are fully wallet-free. Nulling
+  // window.RTV_OC here kills EVERY on-chain guard at once (ENTER/settle, mint station, SAC/robbers, comp, practice-buy are
+  // all gated on `window.RTV_OC && window.RTV_OC.enabled`), so no code path can prompt a signature. updateWalletUI() then
+  // repaints the lobby in off-chain "chips" mode. Only this flag triggers it; money builds never set freeOnly, so their
+  // wallet flow is untouched.
+  try{ if(CFG&&CFG.freeOnly){ try{ window.RTV_OC=null; }catch(_){} try{ updateWalletUI(); }catch(_){} } }catch(e){}
   try{ const ab=$('#arcadeBtn'); if(ab && !(CFG&&CFG.hidePractice)) ab.style.display='inline-block'; }catch(e){}   // launch: button defaults HIDDEN in markup (no flash) — only revealed if practice is enabled (never on the public game) (Jake 2026-09-13)
   if(!CFG)CFG={fee:2000,chips:0,levels:10,cashoutMin:5,burnShare:1.0};
   try{ $('#oBurn').textContent=fRvlt(Math.round((CFG.fee||2000)*(CFG.burnShare||1.0))); $('#oChips').textContent=fRvlt(CFG.chips||0); }catch(e){}

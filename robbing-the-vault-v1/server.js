@@ -1193,7 +1193,7 @@ app.post('/api/mini/preview/score', (req, res) => {
 // NOTE: the odds model is deliberately NOT exposed to the client. The player must never be able to read the bust
 // probability of any chamber/door (Jake: "never, ever show what the actual odds were"). p / doorTable / houseEdge /
 // jackpotTake / skillBonusByLevel / v2 are server-only; the UI needs only fee/levels/ladder/cashout to render.
-app.get('/api/config', (req, res) => res.json({ levels: LEVELS, doors: DOORS, categories: ['luck', 'skill', 'nerve'], burnShare: BURN_SHARE, fee: FEE, chips: CHIPS, cashoutMin: CASHOUT_MIN, potLadder: POT_LADDER, token: RVLT, pair: PAIR, creatorBps: CREATOR_BPS, mintSpots: EXTRA_MINT_SPOTS, coreChoice: CORE_CHOICE, noMint: process.env.RTV_NO_MINT === '1' }));
+app.get('/api/config', (req, res) => res.json({ levels: LEVELS, doors: DOORS, categories: ['luck', 'skill', 'nerve'], burnShare: BURN_SHARE, fee: FEE, chips: CHIPS, cashoutMin: CASHOUT_MIN, potLadder: POT_LADDER, token: RVLT, pair: PAIR, creatorBps: CREATOR_BPS, mintSpots: EXTRA_MINT_SPOTS, coreChoice: CORE_CHOICE, noMint: process.env.RTV_NO_MINT === '1', freeOnly: process.env.RTV_FREE_ONLY === '1' }));
 
 app.get('/api/stats', async (req, res) => { try { res.json(await market()); } catch (e) { res.status(500).json({ error: 'stats' }); } });
 

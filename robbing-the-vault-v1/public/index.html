@@ -761,7 +761,7 @@ let OC_LAST=null;   // last on-chain snapshot (pot + prize vault + wallet balanc
 // dynamic wallet/vault readout on the start screen — real balances when a wallet is connected, else a Connect prompt
 function enterLabel(){ try{ const el=$('#enterCta'); if(el)el.textContent=t('enterCta'); }catch(e){} }   // button is just "Enter" now (Jake 2026-09-04); the 1,000 ROBINVAULT cost is confirmed in the wallet on sign
 function updateWalletUI(){ try{enterLabel()}catch(e){}
-  const onchain=window.RTV_OC&&window.RTV_OC.enabled;
+  const onchain=!(CFG&&CFG.freeOnly)&&window.RTV_OC&&window.RTV_OC.enabled;
   const ov=$('#oVault'); if(ov){
     // The prize IS the ETH in the vault. Show it as a framed two-stat card: "The Vault" (ETH) + the ROBINVAULT pot.
     const eth=(OC_LAST&&OC_LAST.vaultEth!=null)?OC_LAST.vaultEth:(STATE?STATE.jackpotEth:null);
@@ -1215,7 +1215,7 @@ function doomInfo(){
   let ms; const ov = new URLSearchParams(location.search).get('doom');   // ?doom=<days left> to preview the siren + breach
   ms = (ov != null) ? parseFloat(ov) * 86400000 : (HALLOWEEN_MS - Date.now());
   const days = ms / 86400000;
-  return { ms, days, active: days <= 14, intensity: Math.max(0, Math.min(1, (14 - days) / 14)), breach: ms <= 0 };
+  return { ms, days, active: false, intensity: 0, breach: false };   // RETIRED ARCHIVE: Halloween doom/breach event has passed; never fire it again (it was bricking the lobby post-Oct-31).
 }
 function doomText(ms){ if(ms<=0)return 'BREACHED'; let s=Math.floor(ms/1000); const d=Math.floor(s/86400);s-=d*86400; const h=Math.floor(s/3600);s-=h*3600; const m=Math.floor(s/60);s-=m*60; const p=n=>String(n).padStart(2,'0'); return d+'d '+p(h)+':'+p(m)+':'+p(s); }
 let _breached=false;
@@ -1871,7 +1871,7 @@ async function startRun(){
   if(wallet.bal<fee){ wallet.bal=10000; saveWallet(); toast(tf('demoTop',{n:fRvlt(wallet.bal)})); }   // demo mode never dead-ends
   const cta=$('#enterCta'); cta.disabled=true; entryStatus(true);   // status during the sign wait so it never reads as a frozen screen (esp. Play again)
   try{
-    if(window.RTV_OC&&window.RTV_OC.enabled){
+    if(!(CFG&&CFG.freeOnly)&&window.RTV_OC&&window.RTV_OC.enabled){
       const useComp = _freeRuns>0 && window.RTV_OC.compEnterRun;   // redeem a make-good free run first (sponsored on-chain, no fee)
       const r=await Promise.race([ useComp? window.RTV_OC.compEnterRun() : window.RTV_OC.enterRun(), new Promise((_,rej)=>setTimeout(()=>rej(new Error('Entry did not confirm in time. If ROBINVAULT was deducted, do NOT enter again: reload the page, and if your run does not resume, send us your wallet address and we will restore it. (If you run more than one wallet extension, keep a single one enabled for Robinhood Chain.)')),45000)) ]);   // newrun + approve + on-chain enter(); the race unfreezes the screen if a glitched/duelling injected provider hangs tx.wait forever
       RUN={runId:r.runId,chips:chips,depth:0,mult:1,doors:r.doors,hash:r.commit,clientSeed:r.clientSeed,onchain:true,enterTx:r.txHash,paid:r.paid,comp:!!r.comp};
@@ -3180,6 +3180,7 @@ async function boot(){
   // Nothing here may block the cinematic entrance: every step is guarded so playIntro() ALWAYS arms the auto-flow + failsafe.
   try{ const cfg=await api('api/config'); if(cfg)CFG=cfg; }catch(e){}
   if(!CFG)CFG={fee:2500,chips:1250,levels:10,cashoutMin:5,burnShare:0.5};
+  try{ if(CFG&&CFG.freeOnly){ try{ window.RTV_OC=null; }catch(_){} try{ updateWalletUI(); }catch(_){} } }catch(e){}   // RETIREMENT: free wallet-free archive. Null the on-chain adapter so every guard reads off, then refresh the chrome to hide wallet UI.
   try{ $('#oBurn').textContent=fRvlt(Math.round((CFG.fee||1000)*(CFG.burnShare||0.5))); $('#oChips').textContent=fRvlt(CFG.chips||500); }catch(e){}
   try{ const sel=$('#langSel'); if(sel){ sel.innerHTML=Object.keys(I18N).map(l=>'<option value="'+l+'">'+(I18N[l].langName||l)+'</option>').join(''); sel.value=LANG; sel.onchange=()=>setLang(sel.value); } }catch(e){}
   // Custom language menu (Jake 2026-09-07): the native <select> silently fails to open in many wallet in-app browsers, so a user

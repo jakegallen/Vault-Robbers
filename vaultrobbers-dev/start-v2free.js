@@ -10,6 +10,10 @@ process.env.RTV_PUBLIC = '1';
 process.env.RTV_ODDS_V2 = 'on';
 // Cut the Vault Robber NFT mint on free-play (removes the discounted-mint Sybil vector; nostalgia/testing ground only).
 process.env.RTV_NO_MINT = '1';
+// RETIREMENT ARCHIVE (Jake 2026-11-10): fully wallet-free. The client never routes the on-chain ENTER/settle path, never
+// prompts a signature, and hides all wallet/mint/robber/connect chrome. Surfaced to the client as config.freeOnly; only this
+// entry point sets it, so the money builds (start-prod-v2 / start-mainnet) keep their wallet flow byte-for-byte.
+process.env.RTV_FREE_ONLY = '1';
 // Deliberately NOT set: RTV_NET (stays testnet -> off-chain demo path), RTV_ONCHAIN_ONLY (would disable free play),
 // RTV_MINT_SPOTS. Mainnet-only contract paths resolve off-chain in free mode.
 require('./server.js');

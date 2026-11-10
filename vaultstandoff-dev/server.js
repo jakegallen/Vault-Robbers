@@ -251,6 +251,10 @@ if (escrow.isOn()) {
   }
 }
 const PW = process.env.VS_PASSWORD ;   // dev-only default; never reached in prod-money (guarded above)
+// FREE (open-source archive) mode: this build is the retirement archive of Vault Standoff, the self-contained,
+// client-side PRACTICE heist (solo vs AI, no wallet, no money, no live round) served openly with no password gate.
+// Gated SOLELY by VS_FREE_ONLY so the real-money dev/prod builds keep their gate + wallet flow byte-for-byte.
+const FREE_ONLY = process.env.VS_FREE_ONLY === '1';
 function cookies(req){ const h=req.headers.cookie||'',o={}; h.split(';').forEach(p=>{const i=p.indexOf('=');if(i>0)o[p.slice(0,i).trim()]=decodeURIComponent(p.slice(i+1).trim());}); return o; }
 // M-4: play-gate sessions are RANDOM, server-stored, revocable ids — NOT a password-derived constant. On a
 // successful password POST we mint a fresh crypto.randomBytes session id with an expiry, persist it (in-memory
@@ -303,6 +307,7 @@ app.use((req,res,next)=>{
   // token login box; /api/admin/* each enforce adminGate. This lets an operator reach the dashboard without
   // also knowing the play password, while still being 401 without the admin token.
   if(req.path==='/admin.html' || req.path.indexOf('/api/admin/')===0) return next();
+  if(FREE_ONLY) return next();   // retirement archive: open, free, no play-password gate (no money path exists in this build)
   if(gateOk(req)) return next();
   if(req.method==='POST'){ let b=''; req.on('data',d=>{b+=d;if(b.length>2048)req.destroy();}); req.on('end',()=>{ let pw='';try{pw=JSON.parse(b||'{}').password||'';}catch(_){ } if(crypto.createHash('sha256').update(pw+':vs-gate').digest('hex')===PW_HASH){const sid=mintGateSession();res.setHeader('Set-Cookie',`vs_gate=${sid}; Path=/; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax`);res.json({ok:true});}else res.status(401).json({ok:false}); }); return; }
   res.status(401).type('html').send(GATE);
@@ -2718,6 +2723,12 @@ app.get('/api/state',(req,res)=>{ if(!rl(rlKey(req,'state'),120,10000)) return r
 // Backup serve-guard (defense-in-depth): never ship a stray .bak/promote-bak/etc under a served dir to a browser.
 const BAK_GUARD = /\.(bak|prexcp-bak|promote-bak|pre[-.][a-z0-9]*bak)(\b|$)/i;
 app.use((req,res,next)=>{ const p=req.path||''; if(BAK_GUARD.test(p)||p.includes('bak-')||p.includes('_bak')) return res.status(404).end(); next(); });
+// FREE archive: serve index.html with a window.VS_FREE_ONLY flag injected so the client boots straight into the
+// self-contained practice heist and strips every wallet/buy-in control. This route wins over express.static for '/'.
+if(FREE_ONLY){
+  let _freeIdx=''; try{ _freeIdx = fs.readFileSync(path.join(__dirname,'public','index.html'),'utf8').replace('</head>','<script>window.VS_FREE_ONLY=true;</script></head>'); }catch(_){}
+  app.get(['/','/index.html'], (req,res)=>{ if(_freeIdx){ res.type('html').send(_freeIdx); } else { res.sendFile(path.join(__dirname,'public','index.html')); } });
+}
 app.use(express.static(path.join(__dirname,'public')));
 
 // =============================================================================================================

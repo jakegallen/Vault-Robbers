@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <script>/* Apex->Standoff redirect. LIVE (Standoff gate removed, public play confirmed). Fires ONLY on a bare apex root load (vaultrobbers.com/ with no ?home, no hash); never on ?home=1 return links, sub-paths (/play/v3), hub tabs, the preview URL, or standoff.vaultrobbers.com. Set window.__VR_REDIRECT_ON=false before this runs to disable. */
-window.__VR_REDIRECT_ON=(typeof window.__VR_REDIRECT_ON==='boolean')?window.__VR_REDIRECT_ON:true;
+window.__VR_REDIRECT_ON=(typeof window.__VR_REDIRECT_ON==='boolean')?window.__VR_REDIRECT_ON:false;  /* RETIREMENT: apex no longer bounces to the live-money standoff; vaultrobbers.com shows the home site */
 (function(){try{if(!window.__VR_REDIRECT_ON)return;var h=location.hostname.replace(/^www\./,'');var p=new URLSearchParams(location.search);if(h==='vaultrobbers.com'&&location.pathname==='/'&&!p.has('home')&&!location.hash){location.replace('https://standoff.vaultrobbers.com/');}}catch(e){}})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -628,33 +628,10 @@ window.__VR_REDIRECT_ON=(typeof window.__VR_REDIRECT_ON==='boolean')?window.__VR
     <div class="card">
       <span class="seasontag" data-i18n="season.three">Season Three</span>
       <div class="sect" data-i18n="v3.title">Vault Standoff, V3</div>
-      <div class="reldate"><b data-i18n="v3.liveTag">Now live</b> · <span data-i18n="v3.date">Real stakes on Robinhood Chain</span></div>
-      <p class="muted" style="margin-top:0" data-i18n="v3.body">Season Three is live. Pick a door, outlast the crowd, and the last robber standing takes the vault. Hold a Vault Robber and every heist airdrops its rake to one of them.</p>
-      <div id="v3Entry" style="margin-top:16px">
-        <button class="btn" id="v3Btn" type="button" disabled aria-disabled="true" style="opacity:.55;cursor:not-allowed;pointer-events:none" data-i18n="v3.enterLocked">🔒 Enter Vault Standoff</button>
-        <div id="v3Cd" style="font-family:'Londrina Solid',ui-sans-serif,sans-serif;font-weight:900;font-size:clamp(20px,5.5vw,28px);letter-spacing:1px;color:var(--ink);text-align:center;margin-top:12px">0d : 00h : 00m : 00s</div>
-        <div id="v3Msg" class="muted" style="font-size:12px;text-align:center;margin-top:8px" data-i18n="v3.opensMsg">Opens when the mint sells out or on Halloween.</div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="sect" style="margin:0 0 6px">How the Standoff works</div>
-      <p class="muted" style="margin:0 0 10px">Last robber standing. Any token in, winner takes the pot. All on-chain, no house.</p>
-      <div class="dossier">
-        <div class="drow"><span class="dk">Entry</span><span class="dv">$10 · any token</span></div>
-        <div class="drow"><span class="dk">The pot</span><span class="dv">Winner takes all</span></div>
-        <div class="drow"><span class="dk">House cut</span><span class="dv">6% rake · no house</span></div>
-        <div class="drow"><span class="dk">Robber airdrop</span><span class="dv">Full 6% → a random Vault Robbers NFT</span></div>
-        <div class="drow"><span class="dk">Buy pressure</span><span class="dv">Entries buy ROBINVAULT</span></div>
-        <div class="drow"><span class="dk">Final Vault</span><span class="dv">Voided pots roll over</span></div>
-        <div class="drow"><span class="dk">Fair play</span><span class="dv">Seed committed, verified on-chain</span></div>
-      </div>
-      <div class="sect" style="margin:16px 0 7px;font-size:13px;letter-spacing:.4px">Where every ROBINVAULT goes</div>
-      <div class="dossier">
-        <div class="drow"><span class="dk">Pot → winner</span><span class="dv">94%</span></div>
-        <div class="drow"><span class="dk">Rake → an NFT</span><span class="dv">6% → a Vault Robbers NFT vault</span></div>
-        <div class="drow"><span class="dk">Entries → market</span><span class="dv">Relay buys ROBINVAULT</span></div>
-      </div>
-      <p class="muted" style="font-size:11.5px;margin:12px 0 0;line-height:1.5">A robber is a <b>Vault Robbers</b> NFT. Hold one and its on-chain vault is what catches the airdrops.</p>
+      <div class="reldate"><b data-i18n="common.released">Released</b> · <span data-i18n="v3.date">October 31, 2026</span></div>
+      <p class="muted" style="margin-top:0" data-i18n="v3.body">The final heist, now a free solo run against the AI crew. Pick a door, outlast the crowd, and be the last robber standing. Immortalized on-chain and free to play forever, no wallet needed.</p>
+      <a class="btn sec play" href="https://v3.vaultrobbers.com" target="_blank" rel="noopener" style="margin-top:16px" data-i18n="v3.play">Play V3 free</a>
+      <div style="text-align:center;margin-top:10px"><a href="#" class="lorelink crewjump" data-i18n="common.meetCrew">Meet the crew who ran it →</a></div>
     </div>
   </div>
 
@@ -836,8 +813,9 @@ var VSI18N=(function(){
   "v2.play": "Play V2 free",
   "v3.title": "Vault Standoff, V3",
   "v3.liveTag": "Now live",
-  "v3.date": "October 30, 2026",
-  "v3.body": "Season Three is live. Pick a door, outlast the crowd, and the last robber standing takes the vault. Hold a Vault Robber and every heist airdrops its rake to one of them.",
+  "v3.date": "October 31, 2026",
+  "v3.body": "The final heist, now a free solo run against the AI crew. Pick a door, outlast the crowd, and be the last robber standing. Immortalized on-chain and free to play forever, no wallet needed.",
+  "v3.play": "Play V3 free",
   "v3.enterLocked": "🔒 Enter Vault Standoff",
   "v3.enterLive": "Enter Vault Standoff →",
   "v3.liveNow": "Live now. Real stakes on Robinhood Chain.",
@@ -882,7 +860,7 @@ var VSI18N=(function(){
   "rvlt.howTitle": "How we got here",
   "rvlt.howBody": "RobinVault started as a push-your-luck heist on Robinhood Chain: crack the vault, burn ROBINVAULT, chase the pot. Two seasons, thousands of runs, nearly half the supply burned, now playable free forever. The crew puts on masks next: mint a Vault Robber and carry it into what comes.",
   "rvlt.noteBurnedPct": "Burned {pct}% of total supply. ",
-  "rvlt.note": "Circulating {circulating} ROBINVAULT. Every Vault Robber mint buys ROBINVAULT off the market and routes it to the deployer to be burned. Daily/weekly burn is the last 24h/7d on-chain; all-time volume is cumulative across every ROBINVAULT pool.",
+  "rvlt.note": "Circulating {circulating} ROBINVAULT. Total burned and all-time volume are final; the token still trades on Robinhood Chain.",
   "story.title": "The story so far",
   "story.intro": "How a push-your-luck heist on Robinhood Chain became the Vault Robbers, told chapter by chapter, straight from the threads.",
   "story.loading": "Loading the threads…",
@@ -1957,7 +1935,13 @@ const money=n=>!n?'n/a':n>=1e6?'$'+(n/1e6).toFixed(2)+'M':n>=1e3?'$'+(n/1e3).toF
 // V1 and V2 show the SAME six statistics so they read side by side
 function immStats(){ return [[t('stat.totalRuns'),'…'],[t('stat.players'),'…'],[t('stat.coreCracks'),'…'],[t('stat.rvltBurned'),'…'],[t('stat.ethRobbed'),'…'],[t('stat.vaultStatus'),t('stat.immortalized')]]; }
 stub('#v1stats',immStats()); stub('#v2stats',immStats());
-function rvltStatsPlaceholder(){ return [[t('stat.marketCap'),'…'],[t('stat.price'),'…'],[t('stat.vol24h'),'…'],[t('stat.volAllTime'),'…'],[t('stat.liquidity'),'…'],[t('stat.dailyBurn'),'…'],[t('stat.weeklyBurn'),'…'],[t('stat.totalBurned'),'…']]; }
+// IMMORTALIZED buy & burn (game retired 2026-11): the game no longer burns, so the total burned is FROZEN at its
+// final value and the daily/weekly rows are dropped. Price/market cap/volume stay live (the token still trades).
+// volUsd: all-time trading volume, HARD-FROZEN. GeckoTerminal only indexes a low-volume mirror pool (it reported a
+// bogus ~$31.7k), so the honest figure is backed out of creator fees: ~45 ETH earned at a 0.7% creator fee = ~6,429 ETH
+// of volume, ~$13.2M at ETH ~$2,050. The token peaked near $4M market cap. Frozen; the token's active trading is over.
+var FROZEN_BURN={ rvlt:468247593, pct:46.8, disp:'468.2M', usd:22171, volUsd:13200000 };
+function rvltStatsPlaceholder(){ return [[t('stat.marketCap'),'…'],[t('stat.price'),'…'],[t('stat.vol24h'),'…'],[t('stat.volAllTime'),money(FROZEN_BURN.volUsd)],[t('stat.liquidity'),'…'],[t('stat.totalBurned'),FROZEN_BURN.disp+' ROBINVAULT']]; }
 stub('#rvltstats',rvltStatsPlaceholder());
 async function loadLegacy(){
   try{ const s=await fetch('api/legacy-stats').then(r=>r.json());
@@ -1974,11 +1958,9 @@ function renderTok(){
     [t('stat.marketCap'), money(tk.marketCap)],
     [t('stat.price'), price],
     [t('stat.vol24h'), money(tk.volume24h)],
-    [t('stat.volAllTime'), money(tk.volumeAllTime)],
+    [t('stat.volAllTime'), money(FROZEN_BURN.volUsd)],
     [t('stat.liquidity'), money(tk.liquidity)],
-    [t('stat.dailyBurn'), burn(b.daily)],
-    [t('stat.weeklyBurn'), burn(b.weekly)],
-    [t('stat.totalBurned'), compact(tk.burned)+' ROBINVAULT'],
+    [t('stat.totalBurned'), FROZEN_BURN.disp+' ROBINVAULT'],
   ]);
   const note=$('#rvltnote'); if(note) note.textContent=(tk.burnedPct?t('rvlt.noteBurnedPct',{pct:tk.burnedPct.toFixed(0)}):'')+t('rvlt.note',{circulating:compact(tk.circulating)});
   const lk=$('#rvltlink'); if(lk&&tk.explorer) lk.href=tk.explorer+'/token/'+tk.token;
@@ -1987,10 +1969,8 @@ function renderTok(){
 function loadTok(){
   if(!_tok) return; const tk=_tok, b=_brn||{};
   stub('#tokstats',[
-    [t('stat.totalBurned'), compact(tk.burned)+' RVLT'],
-    [t('stat.ofSupply'), (tk.burnedPct?tk.burnedPct.toFixed(1):'0')+'%'],
-    [t('stat.dailyBurn'), b.daily!=null?compact(b.daily)+' RVLT':'…'],
-    [t('stat.weeklyBurn'), b.weekly!=null?compact(b.weekly)+' RVLT':'…'],
+    [t('stat.totalBurned'), FROZEN_BURN.disp+' RVLT'],
+    [t('stat.ofSupply'), FROZEN_BURN.pct+'%'],
   ]);
   stub('#colstats',[
     [t('stat.totalSupply'), compact(tk.totalSupply)],
@@ -1999,7 +1979,7 @@ function loadTok(){
     [t('stat.ones'), '10'],
   ]);
   const note=$('#toknote'); if(note) note.textContent=t('tok.note');
-  const ds=$('#dossBurned'); if(ds) ds.textContent=compact(tk.burned)+' RVLT ('+(tk.burnedPct?tk.burnedPct.toFixed(1):'0')+'%)';
+  const ds=$('#dossBurned'); if(ds) ds.textContent=FROZEN_BURN.disp+' RVLT ('+FROZEN_BURN.pct+'%)';
 }
 var _tokTries=0;
 async function loadToken(){ try{ _tok=await fetch('api/token').then(r=>r.json()); renderTok(); if((!_tok||!_tok.price)&&_tokTries++<6) setTimeout(loadToken,6000); }catch(e){ if(_tokTries++<6) setTimeout(loadToken,6000); } }
@@ -2007,16 +1987,11 @@ var _brnTries=0;
 async function loadBurns(){ try{ _brn=await fetch('api/burns').then(r=>r.json()); renderTok(); if(_brn&&_brn.stale&&_brnTries++<6){ setTimeout(loadBurns,6000); } }catch(e){ if(_brnTries++<6) setTimeout(loadBurns,6000); } }
 // Buy & burn trackers: RobinVault (game/token) vs Vault Robbers (NFT mint + royalties), valued in USD.
 var _bbTries=0;
-async function loadBuyburn(){
-  try{ const d=await fetch('api/buyburn').then(r=>r.json());
-    const set=(u,s,slice)=>{ const el=$(u),se=$(s); if(el) el.textContent=slice.usd!=null?usd(slice.usd):'$0'; if(se) se.textContent=t('tok.rvltBurnedAmt',{amount:compact(slice.rvlt||0)}); };
-    set('#bbRvlt','#bbRvltSub',d.robinvault||{});
-    const nftUsd=$('#bbNft'), nftSub=$('#bbNftSub'); const v=d.vaultrobbers||{};
-    if(nftUsd) nftUsd.textContent=v.usd!=null?usd(v.usd):'$0';
-    if(nftSub) nftSub.textContent=(v.rvlt>0?t('tok.rvltBurnedAmt',{amount:compact(v.rvlt)}):t('tok.bbNftSub'));
-    // the RobinVault buy-burn USD comes from a live price; if it is not ready yet, retry a few times so the card fills.
-    if((!d||!d.robinvault||!(d.robinvault.usd>0))&&_bbTries++<6) setTimeout(loadBuyburn,6000);
-  }catch(e){ if(_bbTries++<6) setTimeout(loadBuyburn,6000); }
+function loadBuyburn(){
+  // IMMORTALIZED: buy & burn is frozen at its final retired-state values. The game no longer burns, so there is no
+  // live fetch; the RobinVault tracker shows the final cumulative burn and the NFT-royalty tracker stays at zero.
+  const el=$('#bbRvlt'), se=$('#bbRvltSub'); if(el) el.textContent=usd(FROZEN_BURN.usd); if(se) se.textContent=t('tok.rvltBurnedAmt',{amount:FROZEN_BURN.disp});
+  const nftUsd=$('#bbNft'), nftSub=$('#bbNftSub'); if(nftUsd) nftUsd.textContent='$0'; if(nftSub) nftSub.textContent=t('tok.bbNftSub');
 }
 loadConfig(); loadQuote(); loadLegacy(); loadToken(); loadBurns(); loadBuyburn(); loadOnes();
 // keep the USD total live: refresh the quote periodically and whenever the tab regains focus
