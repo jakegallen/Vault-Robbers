@@ -1,0 +1,2237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<script>/* Apex->Standoff redirect. LIVE (Standoff gate removed, public play confirmed). Fires ONLY on a bare apex root load (vaultrobbers.com/ with no ?home, no hash); never on ?home=1 return links, sub-paths (/play/v3), hub tabs, the preview URL, or standoff.vaultrobbers.com. Set window.__VR_REDIRECT_ON=false before this runs to disable. */
+window.__VR_REDIRECT_ON=(typeof window.__VR_REDIRECT_ON==='boolean')?window.__VR_REDIRECT_ON:false;  /* RETIREMENT: apex no longer bounces to the live-money standoff; vaultrobbers.com shows the home site */
+(function(){try{if(!window.__VR_REDIRECT_ON)return;var h=location.hostname.replace(/^www\./,'');var p=new URLSearchParams(location.search);if(h==='vaultrobbers.com'&&location.pathname==='/'&&!p.has('home')&&!location.hash){location.replace('https://standoff.vaultrobbers.com/');}}catch(e){}})();</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script>
+/* STATIC RETIREMENT SHIM. This site is a frozen, server-free archive hosted on
+   GitHub Pages. Every relative api/* call is answered in-browser: live read
+   endpoints come from bundled JSON in data/, and the dead mint/claim/relay
+   endpoints return an inert "retired" response so nothing ever hits a network.
+   Zero live API calls. */
+(function(){
+  if(window.__VR_STATIC_SHIM) return; window.__VR_STATIC_SHIM=true;
+  var MAP={
+    'config':'data/config.json','token':'data/token.json','burns':'data/burns.json',
+    'buyburn':'data/buyburn.json','legacy-stats':'data/legacy-stats.json',
+    'oneofones':'data/oneofones.json','robbers':'data/robbers.json','quote':'data/quote.json'
+  };
+  var _f=window.fetch.bind(window);
+  function json(obj){ return new Response(JSON.stringify(obj),{status:200,headers:{'Content-Type':'application/json'}}); }
+  window.fetch=function(input,init){
+    try{
+      var url=(typeof input==='string')?input:(input&&input.url)||'';
+      var m=url.match(/(?:^|\/)api\/([a-z0-9-]+)/i);
+      if(m){
+        var key=m[1].toLowerCase();
+        if(MAP[key]) return _f(MAP[key],{cache:'no-store'});
+        /* mint, voucher, relay, balances, minted, myrobbers, tokenart, sol-rpc,
+           free-credit, opensea-refresh, btc-utxos... all dead in the archive. */
+        return Promise.resolve(json({ok:false,retired:true,disabled:true,robbers:[],ones:[]}));
+      }
+    }catch(e){}
+    return _f(input,init);
+  };
+})();
+</script>
+<title>Vault Robbers</title>
+<meta name="description" content="Masked robbers born from the vault. Mint the crew.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Vault Robbers">
+<meta property="og:title" content="Vault Robbers">
+<meta property="og:description" content="Masked robbers born from the vault. Mint the crew.">
+<meta property="og:url" content="https://vaultrobbers.com/">
+<meta property="og:image" content="https://vaultrobbers.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Vault Robbers">
+<meta name="twitter:description" content="Masked robbers born from the vault. Mint the crew.">
+<meta name="twitter:image" content="https://vaultrobbers.com/og.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Londrina+Solid:wght@400;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- ethers vendored locally (was cdn.jsdelivr.net) and loaded BEFORE the connector so window.ethers is ready. -->
+<script src="vendor/ethers-6.13.0.umd.min.js"></script>
+<script type="module" src="emblem-wallet-connector.js"></script>
+<!-- i18n engine (reused verbatim from Vault Standoff). The full language registry + switcher live in the
+     inline superset block below (the engine ships only en/es in its closure-local LANGUAGES, which we must
+     not edit). Catalogs lazy-load per active language from i18n/catalog.<code>.json. -->
+<style>
+  :root{
+    /* ── Surfaces & ink ───────────────────────────────── */
+    --paper:#f3e3ca; --paper2:#eedaba; --ink:#17130d; --muted:#6b5f49;
+    --tee:#fbfaf6; --line:#17130d; --card:#fbfaf6;
+    /* ── Accent set (one primary + a disciplined support set) ──
+       gold  = the single primary / CTA / premium color
+       green = progress, success, "live", burn-engine positive
+       red   = danger, loss, classified                           */
+    --gold:#e9a615; --gold-d:#c6860a; --gold-deep:#9c6704; --gold-on:#17130d;
+    --green:#2ea65a; --green-d:#1f7d43; --green-deep:#176234;
+    --red:#c2432f; --red-d:#9a2a2a;
+    --ember:#e8831d;
+    /* ── Legacy aliases (kept so existing rules resolve to the new palette;
+       gold takes over the old primary role, green stays the success role) ── */
+    --blue:#e9a615; --blue-d:#c6860a;
+    /* ── Radius scale ─────────────────────────────────── */
+    --r-xs:7px; --r-sm:9px; --r-md:11px; --r-lg:13px; --r-xl:16px; --r-2xl:18px; --r-pill:999px;
+    /* ── Shadow scale (offset hard drop-shadows, the house signature) ── */
+    --sh-1:2px 2px 0 var(--ink); --sh-2:3px 3px 0 var(--ink);
+    --sh-3:4px 4px 0 var(--ink); --sh-4:5px 5px 0 var(--ink); --sh-5:8px 8px 0 var(--ink);
+    /* ── Space scale ──────────────────────────────────── */
+    --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:20px; --s-6:28px;
+    /* ── Type scale (canonical: label 13 / body 15 / base 16 / h3 20 / h2 24 / h1 28 / display clamp) ── */
+    --t-label:13px; --t-body:15px; --t-lead:16px; --t-base:16px; --t-sect:18px; --t-h3:20px;
+    --t-h2:24px; --t-h1:28px; --t-display:clamp(30px,5vw,46px);
+    /* ── Fonts: Inter for all UI text, Londrina Solid (bold display) for headings ── */
+    --font-ui:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    --font-head:'Londrina Solid',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    /* ── Motion language (shared easing + durations, matches Vault Standoff) ── */
+    --ease:cubic-bezier(.22,1,.36,1); --ease-in:cubic-bezier(.4,0,.6,1);
+    --dur-1:140ms; --dur-2:320ms;
+    --press:var(--dur-1); --hov:var(--dur-1);
+    /* ── Legacy accent aliases (danger maps to red; both sites share) ── */
+    --danger:#c2432f; --danger-d:#9a2a2a; --gold-a:#e9a615;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{color:var(--ink);
+    background:radial-gradient(1200px 620px at 50% -14%,#fbeccf,transparent 64%),radial-gradient(1000px 520px at 50% 118%,#e4cca1,transparent 70%),radial-gradient(140% 120% at 50% 50%,transparent 58%,rgba(23,19,13,.10) 100%),url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='.04'/%3E%3C/svg%3E"),var(--paper);
+    font:var(--t-body)/1.55 var(--font-ui)}
+  .wrap{max-width:720px;margin:0 auto;padding:18px 16px 70px}
+  /* header / wordmark */
+  header{display:flex;align-items:center;gap:12px;padding:6px 0 4px}
+  .brand{flex:1;display:flex;align-items:center;gap:10px}
+  .brand .mini{position:relative;width:38px;height:38px;border:2.5px solid var(--ink);border-radius:50%;
+    background:var(--green);box-shadow:var(--sh-2)}
+  .brand .mini:before,.brand .mini:after{content:"";position:absolute;top:13px;width:8px;height:9px;background:var(--tee);border:1.5px solid var(--ink);border-radius:50%}
+  .brand .mini:before{left:6px} .brand .mini:after{right:6px}
+  header h1{font-family:var(--font-head);font-weight:900;font-size:30px;margin:0;
+    letter-spacing:1px;line-height:.9;transform:rotate(-1.2deg);animation:signsway 5s ease-in-out infinite;transform-origin:left center}
+  @keyframes signsway{0%,100%{transform:rotate(-1.6deg)}50%{transform:rotate(.4deg)}}
+  .brand .mini{animation:bobmini 4.2s ease-in-out infinite}
+  @keyframes bobmini{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+  .conn{font-family:var(--font-ui);font-size:var(--t-body);color:var(--ink);border:2.5px solid var(--ink);
+    border-radius:var(--r-md);padding:7px 12px;cursor:pointer;background:var(--tee);box-shadow:var(--sh-2);
+    white-space:nowrap;transition:transform var(--dur-1) var(--ease),box-shadow var(--dur-1) var(--ease),background var(--dur-1) var(--ease)}
+  .conn:hover{background:var(--paper2);transform:translate(-1px,-1px);box-shadow:var(--sh-3)}
+  .conn:active{transform:translate(3px,3px);box-shadow:0 0 0 var(--ink)}
+  .tagline{font-family:var(--font-ui);font-size:var(--t-lead);color:var(--muted);margin:2px 2px 16px}
+  /* hero */
+  .hero{position:relative;text-align:center;margin:2px 0 6px}
+  .hero img{width:min(260px,64vw);display:inline-block;animation:bob 4.2s ease-in-out infinite;filter:drop-shadow(0 6px 0 rgba(23,19,13,.06))}
+  .heroph{width:min(240px,60vw);height:min(240px,60vw);margin:0 auto;display:flex;align-items:center;justify-content:center;
+    border:3px dashed var(--ink);border-radius:22px;background:var(--paper2);color:var(--muted);text-align:center;
+    font-family:var(--font-ui);font-size:17px;animation:bob 4.2s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
+  /* tabs */
+  .tabs{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 18px}
+  .tab{flex:1 1 auto;min-width:82px;padding:10px 6px;border:2.5px solid var(--ink);border-radius:var(--r-md);background:var(--tee);
+    color:var(--ink);text-align:center;cursor:pointer;font-family:var(--font-ui);font-size:var(--t-body);white-space:nowrap;
+    box-shadow:var(--sh-2);transition:transform var(--dur-1) var(--ease),box-shadow var(--dur-1) var(--ease),background var(--dur-1) var(--ease)}
+  .tab:hover:not(.on){background:var(--paper2);transform:translate(-1px,-1px);box-shadow:var(--sh-3)}
+  .tab:active{transform:translate(3px,3px);box-shadow:0 0 0 var(--ink)}
+  /* PERF: pause all animation while the tab is backgrounded (zero off-screen CPU, no browser resource warning) */
+  body.vs-hidden *,body.vs-hidden *::before,body.vs-hidden *::after{animation-play-state:paused!important}
+  .tab.on{color:var(--gold-on);background:var(--gold);border-color:var(--ink);box-shadow:3px 3px 0 var(--gold-deep)}
+  .panel{display:none} .panel.on{display:block}
+  /* cards */
+  .card{background:var(--tee);border:2.5px solid var(--ink);border-radius:var(--r-xl);padding:18px;margin-bottom:16px;
+    box-shadow:var(--sh-4)}
+  .card .inner{background:var(--paper);border:2px solid var(--ink);border-radius:var(--r-lg);padding:14px;margin:0 0 12px;box-shadow:none}
+  .row{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:2px dotted rgba(23,19,13,.22);font-size:var(--t-label)}
+  .row:last-child{border-bottom:0} .row b{color:var(--ink);font-weight:700} .row span{color:var(--muted);text-align:right}
+  .big{font-family:var(--font-head);font-size:var(--t-h1);font-weight:900;color:var(--ink)}
+  /* qty */
+  .qty{display:flex;gap:10px;align-items:center;margin:14px 0}
+  .qty button{width:42px;height:42px;border-radius:var(--r-md);border:2.5px solid var(--ink);background:var(--tee);
+    color:var(--ink);font-size:22px;cursor:pointer;box-shadow:var(--sh-2);transition:transform var(--dur-1) var(--ease),box-shadow var(--dur-1) var(--ease),background var(--dur-1) var(--ease)}
+  .qty button:hover{background:var(--paper2)}
+  .qty button:active{transform:translate(3px,3px);box-shadow:0 0 0 var(--ink)}
+  .qty .n{min-width:42px;text-align:center;font-family:var(--font-head);font-size:26px}
+  /* buttons */
+  .btn{display:block;width:100%;padding:15px;border:2.5px solid var(--ink);border-radius:var(--r-lg);
+    background:var(--gold);color:var(--gold-on);font-family:var(--font-ui);font-weight:400;font-size:var(--t-h3);
+    cursor:pointer;margin-top:var(--s-2);box-shadow:var(--sh-4);transition:transform var(--dur-1) var(--ease),box-shadow var(--dur-1) var(--ease),background var(--dur-1) var(--ease)}
+  .btn:hover:not(:disabled){transform:translate(-2px,-2px);box-shadow:7px 7px 0 var(--ink);background:var(--gold-d)}
+  .btn:active:not(:disabled){transform:translate(4px,4px);box-shadow:0 0 0 var(--ink)}
+  .btn:disabled{opacity:.55;cursor:default;transform:none;box-shadow:var(--sh-4)}
+  .btn.capped{background:var(--ink);color:var(--tee);opacity:1;animation:cappedpulse 2.6s ease-in-out infinite}
+  @keyframes cappedpulse{0%,100%{box-shadow:var(--sh-4)}50%{box-shadow:5px 5px 0 var(--gold-d)}}
+  .btn.sec{background:var(--tee);color:var(--ink)}
+  .btn.sec:hover:not(:disabled){background:var(--paper2)}
+  select{font-family:inherit}
+  .muted{color:var(--muted);font-size:var(--t-label)} .warn{color:var(--gold-deep);font-weight:700} .ok{color:var(--green-d);font-weight:700} .err{color:var(--red);font-weight:700}
+  a.play{display:block;text-align:center;text-decoration:none}
+  /* stats grid */
+  .stat{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .stat .box{background:var(--paper);border:2px solid var(--ink);border-radius:var(--r-lg);padding:12px 13px;box-shadow:var(--sh-2)}
+  .stat .box .k{font-family:var(--font-ui);font-size:var(--t-label);color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  .stat .box .v{font-family:var(--font-head);font-size:var(--t-h2);margin-top:1px;color:var(--ink)}
+  #status{margin-top:10px;font-size:var(--t-label);min-height:18px;font-family:var(--font-ui)}
+  .sect{font-family:var(--font-ui);font-size:var(--t-sect);margin:0 0 8px;color:var(--ink)}
+  .loretag{font-family:var(--font-head);font-size:var(--t-h3);color:var(--gold-on);background:var(--gold);display:inline-block;
+    padding:3px 14px;border:2.5px solid var(--ink);border-radius:var(--r-md);box-shadow:3px 3px 0 var(--gold-deep);margin:0 0 10px;transform:rotate(-1.2deg)}
+  .loreitem .losum{margin:0 0 12px;color:var(--muted);font-family:var(--font-ui);font-size:var(--t-lead)}
+  .loreitem .tw{max-width:550px;margin:0 auto;overflow-x:hidden;border-radius:12px}
+  .loreitem .tw blockquote,.loreitem .tw iframe{margin:0 auto !important;max-width:550px !important;width:100% !important}
+  @media(min-width:900px){ #lore{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start} }
+  .lorelink{display:inline-block;margin-top:8px;font-family:var(--font-ui);font-size:var(--t-body);color:var(--green-d);text-decoration:none;border-bottom:1.5px solid transparent;transition:border-color var(--hov) var(--ease)}
+  .lorelink:hover{border-bottom-color:var(--green-d)}
+  /* crew / reveal gallery */
+  .crewgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:12px;margin-top:6px}
+  .robber{border:2.5px solid var(--ink);border-radius:14px;background:var(--paper);box-shadow:3px 3px 0 var(--ink);overflow:hidden;text-align:center}
+  .robber .art{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;background:var(--paper2);border-bottom:2px solid var(--ink)}
+  .robber .cap{padding:5px 4px 6px;font-family:var(--font-ui);font-size:13px;line-height:1.15}
+  .robber .cap .id{font-family:var(--font-head);font-size:15px}
+  .robber .cap .st{display:block;color:var(--muted);font-size:11px}
+  .robber .trait{display:block;color:var(--green-d);font-size:11px}
+  .seasontag{display:inline-block;font-family:var(--font-head);font-size:var(--t-label);color:var(--gold);background:var(--ink);
+    padding:2px 12px;border-radius:var(--r-sm);box-shadow:2px 2px 0 var(--gold-deep);transform:rotate(-1.5deg);margin-bottom:8px;letter-spacing:.5px}
+  .reldate{display:inline-block;font-family:var(--font-ui);font-size:12px;color:var(--muted);margin:0 0 10px;padding:3px 11px;
+    border:2px solid var(--ink);border-radius:var(--r-pill);background:var(--paper2);box-shadow:var(--sh-1)}
+  .reldate b{color:var(--ink);font-weight:700}
+  /* mint progress bar */
+  .pbar{height:12px;background:var(--paper2);border:2px solid var(--ink);border-radius:var(--r-sm);overflow:hidden;margin:4px 0 10px;box-shadow:var(--sh-1)}
+  .pfill{height:100%;width:0;background:var(--green);border-right:2px solid var(--ink);transition:width .6s var(--ease)}
+  /* chase teaser on the mint tab */
+  .chase{border:2.5px dashed var(--ink);border-radius:13px;padding:11px 12px;margin:2px 0 12px;background:var(--paper2)}
+  .chaserow{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .chaserow b{font-family:var(--font-head);font-size:17px}
+  .chasestrip{display:flex;gap:7px;overflow-x:auto;margin-top:9px;padding-bottom:2px}
+  .chasestrip img{width:62px;height:62px;flex:0 0 auto;border:2px solid var(--ink);border-radius:9px;object-fit:cover;box-shadow:2px 2px 0 var(--ink);background:var(--paper)}
+  /* 1/1s gallery */
+  .onesgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-top:4px}
+  .onecard{border:2.5px solid var(--ink);border-radius:14px;background:var(--paper);box-shadow:4px 4px 0 var(--ink);overflow:hidden}
+  .onecard .art{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;border-bottom:2.5px solid var(--ink);background:var(--paper2)}
+  .onecard .body{padding:9px 10px 11px}
+  .onecard .nm{font-family:var(--font-head);font-size:var(--t-sect);line-height:1;margin:0 0 3px}
+  .onecard .badge{display:inline-block;font-family:var(--font-ui);font-size:11px;color:var(--gold-on);background:var(--green);border:2px solid var(--ink);border-radius:var(--r-xs);padding:1px 7px;box-shadow:var(--sh-1);margin:0 5px 5px 0}
+  .onecard .badge.one{background:var(--ink)}
+  .onecard .lo{font-family:var(--font-ui);font-size:var(--t-label);color:var(--muted);margin:3px 0 0}
+  /* brand mark + liveliness/cohesion polish (presentational only) */
+  .brandmark{width:42px;height:42px;flex:0 0 auto;animation:bobmini 4.2s ease-in-out infinite}
+  .brandmark svg{width:100%;height:100%;display:block;filter:drop-shadow(2px 2px 0 var(--ink))}
+  .badge.one{background:var(--gold);color:var(--gold-on);border-color:var(--ink)}
+  .onecard{transition:transform var(--hov) var(--ease),box-shadow var(--hov) var(--ease)}
+  .onecard:hover{transform:translateY(-3px);box-shadow:6px 7px 0 var(--ink)}
+  .onecard.sealed .art{animation:sealpulse 3.4s ease-in-out infinite}
+  @keyframes sealpulse{0%,100%{opacity:1}50%{opacity:.82}}
+  .robber{transition:transform .12s ease,box-shadow .12s ease}
+  .robber:hover{transform:translateY(-2px);box-shadow:5px 6px 0 var(--ink)}
+  .stat .box{transition:transform .1s ease}
+  .stat .box:hover{transform:translateY(-2px)}
+  .pfill{background:linear-gradient(90deg,var(--green),var(--green-d));box-shadow:inset 0 -2px 0 rgba(23,19,13,.15)}
+  /* keyboard focus: a visible gold ring on every interactive element (accessibility) */
+  .tab:focus-visible,.btn:focus-visible,.conn:focus-visible,.fwbtn:focus-visible,.qty button:focus-visible,.paydd-btn:focus-visible,.pickrow:focus-visible,.pickx:focus-visible,.fwx:focus-visible,a.play:focus-visible,.lorelink:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+  /* panel entrance: uses --dur-2 + --ease for larger transitions */
+  .panel.on{animation:panelrise var(--dur-2) var(--ease) both}
+  @keyframes panelrise{0%{opacity:0;transform:translateY(10px)}100%{opacity:1;transform:translateY(0)}}
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  /* wallet picker modal */
+  .pickwrap{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:20px;
+    background:rgba(23,19,13,.4);backdrop-filter:blur(2px)}
+  .pickcard{width:100%;max-width:360px;background:var(--tee);border:2.5px solid var(--ink);border-radius:16px;
+    box-shadow:6px 6px 0 var(--ink);padding:18px}
+  .pickhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .pickx{width:32px;height:32px;border:2.5px solid var(--ink);border-radius:9px;background:var(--paper);color:var(--ink);
+    font-size:20px;line-height:1;cursor:pointer;box-shadow:2px 2px 0 var(--ink);font-family:var(--font-ui)}
+  .pickx:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--ink)}
+  .picklist{display:flex;flex-direction:column;gap:9px}
+  .pickrow{display:flex;align-items:center;gap:11px;padding:11px 13px;border:2.5px solid var(--ink);border-radius:12px;
+    background:var(--paper);box-shadow:3px 3px 0 var(--ink);cursor:pointer;font-family:var(--font-ui);font-size:17px;
+    transition:transform .06s,box-shadow .06s}
+  .pickrow:active{transform:translate(3px,3px);box-shadow:0 0 0 var(--ink)}
+  .pickrow .pname{flex:1}
+  .pickrow .pchain{font-size:12px;color:var(--muted)}
+  .pickdot{width:22px;height:22px;border-radius:50%;border:2px solid var(--ink);flex:0 0 auto}
+  .wico{width:24px;height:24px;border-radius:7px;border:2px solid var(--ink);flex:0 0 auto;display:inline-flex;
+    align-items:center;justify-content:center;overflow:hidden;background:var(--paper)}
+  .wico img{width:100%;height:100%;object-fit:cover;display:block}
+  .wico.mono{color:#fff;font-family:var(--font-head);font-size:12px;line-height:1}
+  .coinico{width:24px;height:24px;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center}
+  .coinico svg{width:100%;height:100%;display:block}
+  /* themed Pay-from dropdown */
+  .paydd-btn{width:100%;display:flex;align-items:center;gap:9px;padding:10px 11px;border:2.5px solid var(--ink);
+    border-radius:11px;background:var(--tee);color:var(--ink);box-shadow:3px 3px 0 var(--ink);cursor:pointer;
+    font-family:var(--font-ui);font-size:16px;text-align:left}
+  .paydd-btn:disabled{opacity:.7;cursor:default}
+  .paydd-btn .paydd-lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .paydd-btn .paydd-cv{flex:0 0 auto;color:var(--muted)}
+  .paydd.open .paydd-btn .paydd-cv{transform:rotate(180deg)}
+  .paydd-menu{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:30;max-height:280px;overflow:auto;
+    background:var(--paper);border:2.5px solid var(--ink);border-radius:13px;box-shadow:5px 5px 0 var(--ink);padding:7px}
+  .paydd-opt{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:9px;cursor:pointer;
+    font-family:var(--font-ui);font-size:16px}
+  .paydd-opt:hover{background:var(--tee)}
+  .paydd-opt.sel{background:var(--green);color:var(--tee)}
+  /* Solana "Sign in" CTA state: the pay button when there is no EVM balance and no Solana wallet yet. */
+  .paydd-btn.solcta{border-color:#7c5cff;color:#3f22c9;background:rgba(124,92,255,.10);animation:solcta 1.8s ease-in-out infinite}
+  @keyframes solcta{0%,100%{box-shadow:var(--sh-2)}50%{box-shadow:3px 3px 0 #7c5cff}}
+  .paydd-opt .po-lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .paydd-opt .po-bal{flex:0 0 auto;font-size:13px;color:var(--muted)}
+  .paydd-opt.sel .po-bal{color:var(--tee)}
+  /* Prominent "connect Solana" row: a dashed-accent call to action that stands apart from real balance rows */
+  .paydd-opt.paydd-sol{border:2px dashed var(--green);margin-bottom:4px}
+  .paydd-opt.paydd-sol .po-bal{color:var(--green);font-weight:600}
+  /* final boss teaser */
+  .bosscard .bossrow{display:flex;align-items:center;gap:12px}
+  .bossmask{width:46px;height:46px;flex:0 0 auto;animation:bobmini 4.6s ease-in-out infinite}
+  .bossmask svg{width:100%;height:100%;display:block;filter:drop-shadow(2px 2px 0 var(--ink))}
+  .bosslock{display:inline-block;font-family:var(--font-ui);font-size:var(--t-label);color:var(--gold);background:var(--ink);border:2.5px solid var(--ink);border-radius:var(--r-md);padding:4px 12px;box-shadow:3px 3px 0 var(--gold-deep);margin-top:10px}
+  /* tokenomics */
+  .burnsrc{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:6px}
+  .bsrc{background:var(--paper);border:2.5px solid var(--ink);border-radius:13px;padding:13px;box-shadow:4px 4px 0 var(--ink)}
+  .bsrc .pct{font-family:var(--font-head);font-size:var(--t-display);line-height:1;color:var(--green-d)}
+  .bsrc .lbl{font-family:var(--font-ui);font-weight:700;font-size:15px;margin-top:3px}
+  .bsrc .dsc{font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.4}
+  .flow{font-family:var(--font-ui);font-size:15px;background:var(--paper2);border:2.5px dashed var(--ink);border-radius:12px;padding:12px;text-align:center;margin-top:6px}
+  .flow .ar{color:var(--green-d);font-weight:700;margin:0 6px}
+  /* buy & burn trackers */
+  .bbtrack{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px}
+  @media(max-width:560px){ .bbtrack{grid-template-columns:1fr} }
+  .bbcard{background:var(--paper);border:2.5px solid var(--ink);border-radius:13px;padding:14px;box-shadow:4px 4px 0 var(--ink)}
+  .bbcard .bbh{display:flex;align-items:center;gap:8px;font-family:var(--font-ui);font-weight:700;font-size:14px;color:var(--muted)}
+  .bbcard .bbh .coinico{width:20px;height:20px}
+  .bbcard .bbusd{font-family:var(--font-head);font-size:var(--t-display);line-height:1.05;margin-top:6px;color:var(--green-d)}
+  .bbcard .bbsub{font-size:12.5px;color:var(--muted);margin-top:3px}
+  /* classified / redaction, fuller detail, key parts obscured for the teaser */
+  .dossier{font-family:var(--font-ui);font-size:14.5px;line-height:1.7}
+  .dossier .drow{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1.5px dashed rgba(23,19,13,.22)}
+  .dossier .drow:last-child{border-bottom:0}
+  .dossier .dk{color:var(--muted)}
+  .dossier .dv{font-weight:700;text-align:right}
+  .redact{filter:blur(6px);background:var(--ink);color:var(--ink);border-radius:5px;padding:0 7px;user-select:none;pointer-events:none;
+    -webkit-user-select:none}
+  .redact.bar{filter:none;color:transparent}
+  .classtag{display:inline-block;font-family:var(--font-head);font-size:12px;letter-spacing:.06em;color:var(--tee);
+    background:var(--red-d);border:2.5px solid var(--ink);border-radius:var(--r-sm);padding:3px 11px;box-shadow:var(--sh-2);transform:rotate(-1.4deg)}
+  .leakline{font-size:12.5px;color:var(--muted);margin-top:10px;font-style:italic}
+  /* flywheel open button (top-right of the tokenomics card) */
+  .fwbtn{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;padding:6px 11px;border:2.5px solid var(--ink);
+    border-radius:var(--r-md);background:var(--gold);color:var(--gold-on);box-shadow:var(--sh-2);cursor:pointer;
+    font-family:var(--font-ui);font-size:var(--t-label);transition:transform var(--dur-1) var(--ease),box-shadow var(--dur-1) var(--ease),background var(--dur-1) var(--ease)}
+  .fwbtn:hover{background:var(--gold-d);transform:translate(-1px,-1px);box-shadow:var(--sh-3)}
+  .fwbtn:active{transform:translate(3px,3px);box-shadow:0 0 0 var(--ink)}
+  .fwbtn svg{width:16px;height:16px;flex:0 0 auto}
+  @media(max-width:460px){ .fwbtn .fwbtn-txt{display:none} .fwbtn{padding:7px} }
+  /* flywheel modal */
+  .fwmodal{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:16px;
+    background:rgba(23,19,13,.5);backdrop-filter:blur(3px)}
+  .fwmodal.on{display:flex}
+  .fwcard{width:100%;max-width:560px;max-height:92vh;overflow:auto;background:var(--tee);border:3px solid var(--ink);
+    border-radius:18px;box-shadow:8px 8px 0 var(--ink);padding:18px}
+  .fwhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
+  .fwstage{width:100%;display:block;margin:4px 0 2px}
+  .fwspin{transform-box:view-box;transform-origin:260px 250px;animation:fwrot 26s linear infinite}
+  @keyframes fwrot{to{transform:rotate(360deg)}}
+  .fwhub{transform-box:fill-box;transform-origin:center;animation:fwpulse 3.1s var(--ease,ease-in-out) infinite}
+  @keyframes fwpulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.035);opacity:.92}}
+  @media(prefers-reduced-motion:reduce){ .fwspin{animation:none} .fwhub{animation:none} }
+  .fwcap{font-family:var(--font-ui);font-size:14px;color:var(--muted);text-align:center;margin:6px 4px 2px;line-height:1.5}
+  .fwx{width:34px;height:34px;flex:0 0 auto;border:2.5px solid var(--ink);border-radius:9px;background:var(--paper);
+    color:var(--ink);font-size:20px;line-height:1;cursor:pointer;box-shadow:2px 2px 0 var(--ink);font-family:var(--font-ui)}
+  .fwx:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--ink)}
+  /* mobile wallet-browser reroute overlay */
+  .wbwrap{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;padding:20px;
+    background:rgba(23,19,13,.5);backdrop-filter:blur(3px)}
+  .wbcard{width:100%;max-width:400px;background:var(--tee);border:3px solid var(--ink);border-radius:18px;
+    box-shadow:8px 8px 0 var(--ink);padding:22px 20px;text-align:center}
+  .wbmask{width:64px;height:64px;margin:0 auto 10px;animation:bobmini 4.2s ease-in-out infinite}
+  .wbmask svg{width:100%;height:100%;display:block;filter:drop-shadow(2px 2px 0 var(--ink))}
+  .wbh{font-family:var(--font-head);font-weight:900;font-size:var(--t-h2);line-height:1.05;color:var(--ink);margin:2px 0 8px}
+  .wbp{font-family:var(--font-ui);font-size:var(--t-lead);line-height:1.5;color:var(--muted);margin:0 0 16px}
+  .wbcopy{display:block;width:100%;padding:14px;border:2.5px solid var(--ink);border-radius:var(--r-lg);background:var(--gold);
+    color:var(--gold-on);font-family:var(--font-ui);font-size:var(--t-h3);cursor:pointer;box-shadow:var(--sh-4);
+    transition:transform var(--press) var(--ease),box-shadow var(--press) var(--ease),background var(--hov) var(--ease)}
+  .wbcopy:hover{background:var(--gold-d);transform:translate(-1px,-1px);box-shadow:6px 6px 0 var(--ink)}
+  .wbcopy:active{transform:translate(4px,4px);box-shadow:0 0 0 var(--ink)}
+  .wbcopied{display:none;margin-top:9px;font-family:var(--font-ui);font-size:var(--t-label);color:var(--green-d)}
+  .wbdismiss{display:inline-block;margin-top:12px;font-family:var(--font-ui);font-size:var(--t-body);color:var(--muted);text-decoration:underline}
+  /* thin persistent banner */
+  .wbbanner{display:none;width:100%;background:var(--green);color:var(--tee);border-bottom:2.5px solid var(--ink);
+    font-family:var(--font-ui);font-size:var(--t-label);text-align:center;padding:7px 12px;cursor:pointer;
+    position:sticky;top:0;z-index:40}
+
+  /* ── Vault-door hero ───────────────────────────────────────── */
+  .vdoor-wrap{position:relative;text-align:center;margin:0 auto 4px;width:min(220px,56vw)}
+  .vdoor-svg{display:block;width:100%;height:auto;filter:drop-shadow(4px 4px 0 var(--ink))}
+  /* idle gentle bob applied to the outer group */
+  .vdoor-outer{transform-origin:50% 50%}
+  @media(prefers-reduced-motion:no-preference){
+    .vdoor-outer{animation:vdoor-bob 4.8s var(--ease-in) infinite}
+    @keyframes vdoor-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+    /* the dial rotates continuously */
+    .vdoor-dial{transform-origin:50% 50%;animation:vdoor-dialrot 9s linear infinite}
+    @keyframes vdoor-dialrot{to{transform:rotate(360deg)}}
+    /* unlock burst: triggered by adding .unlocked to .vdoor-wrap */
+    .vdoor-wrap.unlocked .vdoor-body{animation:vdoor-unlock var(--dur-2) var(--ease) both}
+    @keyframes vdoor-unlock{
+      0%{transform:rotate(0deg);filter:brightness(1)}
+      35%{transform:rotate(-4deg);filter:brightness(1.3)}
+      65%{transform:rotate(3deg);filter:brightness(1.6)}
+      100%{transform:rotate(0deg);filter:brightness(1)}
+    }
+    .vdoor-wrap.unlocked .vdoor-sheen{animation:vdoor-sheen .6s ease-out both}
+    @keyframes vdoor-sheen{
+      0%{opacity:0;transform:scale(.7)}
+      50%{opacity:.85;transform:scale(1.15)}
+      100%{opacity:0;transform:scale(1.4)}
+    }
+  }
+  .vdoor-sheen{position:absolute;inset:0;border-radius:50%;pointer-events:none;
+    background:radial-gradient(circle,rgba(233,166,21,.55) 0%,rgba(233,166,21,0) 68%);opacity:0}
+
+  /* ── Living numbers: gold shimmer on value change ──────── */
+  @keyframes num-shimmer{
+    0%{color:var(--ink)}
+    40%{color:var(--gold);text-shadow:0 0 8px rgba(233,166,21,.6)}
+    100%{color:var(--ink);text-shadow:none}
+  }
+  .num-flash{animation:num-shimmer .55s var(--ease) both}
+
+  /* ── Mint card bloom on hover ──────────────────────────── */
+  @media(prefers-reduced-motion:no-preference){
+    #p-mint .card:first-child{transition:transform var(--dur-2) var(--ease),box-shadow var(--dur-2) var(--ease)}
+    #p-mint .card:first-child:hover{transform:translateY(-3px);box-shadow:8px 8px 0 var(--ink)}
+  }
+
+  /* ── Success bloom ─────────────────────────────────────── */
+  @keyframes success-bloom{
+    0%{transform:scale(.96);box-shadow:var(--sh-4)}
+    50%{transform:scale(1.015);box-shadow:6px 6px 0 var(--ink),0 0 22px rgba(46,166,90,.5)}
+    100%{transform:scale(1);box-shadow:var(--sh-4)}
+  }
+  .success-bloom{animation:success-bloom .72s var(--ease) both}
+</style>
+</head>
+<body>
+<div id="wbBanner" class="wbbanner" data-i18n="wb.banner">📱 Minting on mobile? Tap here first.</div>
+<div class="wrap">
+  <header>
+    <div class="brand"><div class="brandmark"><svg viewBox="0 0 120 140" xmlns="http://www.w3.org/2000/svg"><path d="M60 8 C95 8 108 36 108 70 L108 132 L12 132 L12 70 C12 36 25 8 60 8 Z" fill="#17130d"/><ellipse cx="60" cy="64" rx="34" ry="38" fill="#fbfaf6" stroke="#17130d" stroke-width="3"/><rect x="24" y="52" width="72" height="26" rx="9" fill="#2ea65a" stroke="#17130d" stroke-width="3"/><ellipse cx="46" cy="65" rx="8" ry="9" fill="#fbfaf6" stroke="#17130d" stroke-width="2.5"/><ellipse cx="74" cy="65" rx="8" ry="9" fill="#fbfaf6" stroke="#17130d" stroke-width="2.5"/><circle cx="46" cy="65" r="3" fill="#17130d"/><circle cx="74" cy="65" r="3" fill="#17130d"/><path d="M58 85 l2 -6 l2 6 z" fill="#17130d"/><g stroke="#17130d" stroke-width="2"><line x1="50" y1="95" x2="70" y2="95"/><line x1="56" y1="93" x2="56" y2="99"/><line x1="64" y1="93" x2="64" y2="99"/></g></svg></div><h1>VAULT<br>ROBBERS</h1></div>
+    <div class="conn" id="conn" data-i18n="header.connect">Connect</div>
+  </header>
+  <div class="tagline" data-i18n="app.tagline">Masked robbers, born from the vault. Mint the crew, chase the pot, watch it burn.</div>
+
+  <!-- Vault-door hero removed from the home page (too large); the buy-burn flywheel on the tokenomics page is the keeper -->
+  <div class="vdoor-wrap" id="vdoorWrap" aria-hidden="true" style="display:none">
+    <div class="vdoor-sheen" id="vdoorSheen"></div>
+    <svg class="vdoor-svg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+      <g class="vdoor-outer">
+        <!-- outer frame ring -->
+        <circle cx="100" cy="100" r="96" fill="var(--ink)" stroke="var(--ink)" stroke-width="3"/>
+        <circle cx="100" cy="100" r="90" fill="var(--paper2)" stroke="var(--ink)" stroke-width="2.5"/>
+        <!-- bolts around the rim -->
+        <circle cx="100" cy="14" r="6" fill="var(--tee)" stroke="var(--ink)" stroke-width="2"/>
+        <circle cx="100" cy="186" r="6" fill="var(--tee)" stroke="var(--ink)" stroke-width="2"/>
+        <circle cx="14" cy="100" r="6" fill="var(--tee)" stroke="var(--ink)" stroke-width="2"/>
+        <circle cx="186" cy="100" r="6" fill="var(--tee)" stroke="var(--ink)" stroke-width="2"/>
+        <circle cx="32" cy="32" r="5" fill="var(--tee)" stroke="var(--ink)" stroke-width="2"/>
+        <circle cx="168" cy="32" r="5" fill="var(--tee)" stroke="var(--ink)" stroke-width="2"/>
+        <circle cx="32" cy="168" r="5" fill="var(--tee)" stroke="var(--ink)" stroke-width="2"/>
+        <circle cx="168" cy="168" r="5" fill="var(--tee)" stroke="var(--ink)" stroke-width="2"/>
+        <!-- door body -->
+        <g class="vdoor-body">
+          <circle cx="100" cy="100" r="72" fill="var(--green)" stroke="var(--ink)" stroke-width="3"/>
+          <circle cx="100" cy="100" r="60" fill="var(--green-d)" stroke="var(--ink)" stroke-width="2"/>
+          <circle cx="100" cy="100" r="46" fill="var(--paper)" stroke="var(--ink)" stroke-width="2.5"/>
+          <!-- spoke lines -->
+          <line x1="100" y1="54" x2="100" y2="146" stroke="var(--ink)" stroke-width="2" opacity=".25"/>
+          <line x1="54" y1="100" x2="146" y2="100" stroke="var(--ink)" stroke-width="2" opacity=".25"/>
+          <line x1="68" y1="68" x2="132" y2="132" stroke="var(--ink)" stroke-width="2" opacity=".25"/>
+          <line x1="132" y1="68" x2="68" y2="132" stroke="var(--ink)" stroke-width="2" opacity=".25"/>
+          <!-- inner logo face (robber mask) -->
+          <ellipse cx="100" cy="97" rx="20" ry="22" fill="var(--tee)" stroke="var(--ink)" stroke-width="2"/>
+          <rect x="80" y="91" width="40" height="13" rx="4" fill="var(--ink)"/>
+          <circle cx="91" cy="97" r="4" fill="var(--tee)"/>
+          <circle cx="109" cy="97" r="4" fill="var(--tee)"/>
+          <circle cx="91" cy="97" r="1.8" fill="var(--ink)"/>
+          <circle cx="109" cy="97" r="1.8" fill="var(--ink)"/>
+          <path d="M96 108 l1.5 -4 l1.5 4 z" fill="var(--ink)"/>
+          <!-- keyhole -->
+          <circle cx="100" cy="118" r="5.5" fill="var(--ink)"/>
+          <path d="M97.5 118 l-3 9 h11 l-3 -9 z" fill="var(--ink)"/>
+        </g>
+        <!-- spinning dial ring (reduced-motion guarded in CSS) -->
+        <g class="vdoor-dial">
+          <circle cx="100" cy="100" r="82" fill="none" stroke="var(--gold)" stroke-width="3" stroke-dasharray="5 8" opacity=".55"/>
+          <circle cx="100" cy="18" r="4" fill="var(--gold)" stroke="var(--ink)" stroke-width="1.5"/>
+        </g>
+        <!-- handle bar -->
+        <rect x="130" y="96" width="22" height="8" rx="4" fill="var(--gold)" stroke="var(--ink)" stroke-width="2"/>
+        <circle cx="152" cy="100" r="5" fill="var(--gold)" stroke="var(--ink)" stroke-width="2"/>
+      </g>
+    </svg>
+  </div>
+
+  <div id="pickwrap" class="pickwrap" style="display:none">
+    <div class="pickcard">
+      <div class="pickhead"><div class="sect" style="margin:0" data-i18n="picker.choose">Choose a wallet</div><button id="pickx" class="pickx" aria-label="Close" data-i18n-title="common.close">×</button></div>
+      <div id="picklist" class="picklist"></div>
+      <p class="muted" id="pickempty" style="display:none;margin:8px 2px 0" data-i18n="picker.none">No wallet detected. Install MetaMask, Rabby, Rainbow, Robinhood, or Phantom.</p>
+    </div>
+  </div>
+
+  <div id="fwModal" class="fwmodal" role="dialog" aria-modal="true" aria-label="ROBINVAULT flywheel">
+    <div class="fwcard">
+      <div class="fwhead"><div class="sect" style="margin:0" data-i18n="fw.title">The ROBINVAULT flywheel</div><button class="fwx" id="fwClose" aria-label="Close" data-i18n-title="common.close">×</button></div>
+      <svg class="fwstage" viewBox="0 0 520 540" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="fwArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="#17130d"/>
+          </marker>
+        </defs>
+        <!-- spinning flywheel ring behind the hub -->
+        <g class="fwspin">
+          <circle cx="260" cy="250" r="118" fill="none" stroke="#2ea65a" stroke-width="10" stroke-dasharray="20 16" opacity=".55"/>
+          <circle cx="260" cy="132" r="7" fill="#2ea65a" stroke="#17130d" stroke-width="2"/>
+          <circle cx="378" cy="250" r="7" fill="#2ea65a" stroke="#17130d" stroke-width="2"/>
+          <circle cx="260" cy="368" r="7" fill="#2ea65a" stroke="#17130d" stroke-width="2"/>
+          <circle cx="142" cy="250" r="7" fill="#2ea65a" stroke="#17130d" stroke-width="2"/>
+        </g>
+        <!-- inflow arrows (burn engines -> hub) -->
+        <g stroke="#17130d" stroke-width="3" fill="none" marker-end="url(#fwArrow)">
+          <path d="M176 107 C210 150 225 175 243 196"/>
+          <path d="M176 191 C205 205 215 212 228 222"/>
+          <path d="M344 153 C312 168 300 185 290 205"/>
+        </g>
+        <!-- engine chips (all burn) -->
+        <g font-family="var(--font-ui)">
+          <g><rect x="16" y="84" width="160" height="46" rx="12" fill="#fbfaf6" stroke="#17130d" stroke-width="3"/><text x="30" y="106" font-size="15" font-weight="700" fill="#17130d" data-i18n="fw.tradingFees">Trading fees</text><text x="30" y="123" font-size="12.5" fill="#1f7d43" data-i18n="fw.buysBurns100">100% buys &amp; burns</text></g>
+          <g><rect x="16" y="168" width="160" height="46" rx="12" fill="#fbfaf6" stroke="#17130d" stroke-width="3"/><text x="30" y="190" font-size="15" font-weight="700" fill="#17130d" data-i18n="fw.nftRoyalties">NFT royalties</text><text x="30" y="207" font-size="12.5" fill="#1f7d43" data-i18n="fw.buysBurns100">100% buys &amp; burns</text></g>
+          <g><rect x="344" y="130" width="160" height="46" rx="12" fill="#fbfaf6" stroke="#17130d" stroke-width="3"/><text x="358" y="152" font-size="15" font-weight="700" fill="#17130d" data-i18n="fw.theGame">The game</text><text x="358" y="169" font-size="12.5" fill="#1f7d43" data-i18n="fw.smallCutBurns">small cut burns</text></g>
+        </g>
+        <!-- standoff chip (top) -->
+        <g font-family="var(--font-ui)"><rect x="170" y="14" width="180" height="48" rx="12" fill="#fbfaf6" stroke="#17130d" stroke-width="3"/><text x="260" y="35" font-size="14.5" font-weight="700" fill="#17130d" text-anchor="middle">The Vault Standoff</text><text x="260" y="52" font-size="12" fill="#1f7d43" text-anchor="middle">$10 entries buy ROBINVAULT</text></g>
+        <path d="M260 62 L260 128" stroke="#17130d" stroke-width="3" fill="none" marker-end="url(#fwArrow)"/>
+        <!-- central hub coin -->
+        <circle class="fwhub" cx="260" cy="250" r="82" fill="#2ea65a" stroke="#17130d" stroke-width="4"/>
+        <circle cx="260" cy="250" r="82" fill="none" stroke="#fbfaf6" stroke-width="2" opacity=".5"/>
+        <path d="M235 232 a26 20 0 0 1 50 0 v6 h-50 z" fill="#fbfaf6"/>
+        <circle cx="248" cy="236" r="4.6" fill="#17130d"/><circle cx="272" cy="236" r="4.6" fill="#17130d"/>
+        <text x="260" y="276" font-size="19" font-family="var(--font-head)" fill="#fbfaf6" text-anchor="middle" data-i18n="fw.buyBurn">BUY &amp; BURN</text>
+        <text x="260" y="296" font-size="12.5" font-family="var(--font-ui)" fill="#d7f0df" text-anchor="middle">ROBINVAULT</text>
+        <!-- outflow: hub -> supply shrinks -->
+        <path d="M260 334 L260 404" stroke="#17130d" stroke-width="3.5" fill="none" marker-end="url(#fwArrow)"/>
+        <g font-family="var(--font-ui)">
+          <rect x="120" y="408" width="280" height="60" rx="14" fill="#fbfaf6" stroke="#17130d" stroke-width="3"/>
+          <text x="214" y="436" font-size="17" font-weight="700" fill="#17130d" text-anchor="middle" data-i18n="fw.supplyShrinks">Supply shrinks</text>
+          <text x="214" y="456" font-size="12.5" fill="#1f7d43" text-anchor="middle" data-i18n="fw.fewerTokens">fewer tokens, tighter float</text>
+          <!-- flame -->
+          <path d="M320 452 c-9 -4 -12 -13 -6 -21 c1 6 5 7 6 4 c1 -5 -2 -9 1 -14 c2 7 12 10 12 21 c0 8 -7 13 -13 10 z" fill="#e8831d" stroke="#17130d" stroke-width="2"/>
+        </g>
+        <!-- loop-back arrow (scarcity -> value -> more buys) -->
+        <path d="M400 438 C470 430 470 150 300 112" stroke="#2f9e44" stroke-width="3" fill="none" stroke-dasharray="7 6" marker-end="url(#fwArrow)" opacity=".85"/>
+        <text x="468" y="290" font-size="12.5" font-family="var(--font-ui)" fill="#2f9e44" text-anchor="middle" transform="rotate(90 468 290)" data-i18n="fw.scarcity">scarcity feeds demand</text>
+      </svg>
+      <p class="fwcap" data-i18n="fw.caption">The wheel turns one way only. What it burns never comes back.</p>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab on" data-t="mint" data-i18n="tab.mint">Robbers</div>
+    <div class="tab" data-t="ones" data-i18n="tab.ones">1/1s</div>
+    <div class="tab" data-t="crew" data-i18n="tab.crew">Crew</div>
+    <div class="tab" data-t="v1" data-i18n="tab.v1">V1</div>
+    <div class="tab" data-t="v2" data-i18n="tab.v2">V2</div>
+    <div class="tab" data-t="v3" data-i18n="tab.v3">V3</div>
+    <div class="tab" data-t="tok" data-i18n="tab.tok">Tokenomics</div>
+    <div class="tab" data-t="rvlt" data-i18n="tab.rvlt">ROBINVAULT</div>
+    <div class="tab" data-t="story" data-i18n="tab.story">Story</div>
+  </div>
+
+  <div class="panel on" id="p-mint">
+    <div class="card" style="display:none">
+      <div class="row"><b data-i18n="mint.collection">Collection</b><span id="m-supply">…</span></div>
+      <div class="pbar"><div class="pfill" id="m-fill"></div></div>
+      <div class="qty">
+        <button id="dec">-</button><div class="n" id="qn">1</div><button id="inc">+</button>
+        <span class="muted" style="margin-left:auto" data-i18n="mint.maxPerWallet">max 3 per wallet</span>
+      </div>
+      <div class="row pricerow"><b data-i18n="mint.price">Mint price</b><span style="text-align:right"><span class="big" id="q-usd">…</span><br><span class="muted" id="m-tier" style="font-size:12px">…</span></span></div>
+      <div style="display:flex;gap:8px;align-items:center;margin:4px 0 10px">
+        <label class="muted" style="white-space:nowrap" data-i18n="mint.payFrom">Pay from</label>
+        <select id="payChain" style="display:none"><option value="" data-i18n="mint.connectToSeeAssets">Connect a wallet to see your assets</option></select>
+        <div class="paydd" id="payDD" style="flex:1;min-width:0;position:relative">
+          <button type="button" class="paydd-btn" id="payBtn" disabled>
+            <span class="paydd-ico" id="payBtnIco"></span>
+            <span class="paydd-lbl" id="payBtnLbl" data-i18n="mint.connectToSeeAssets">Connect a wallet to see your assets</span>
+            <span class="paydd-cv">▾</span>
+          </button>
+          <div class="paydd-menu" id="payMenu" style="display:none"></div>
+        </div>
+      </div>
+      <button class="btn" id="mintbtn" data-i18n="mint.mint">Mint</button>
+      <div id="status" class="muted"></div>
+      <div id="mintload" class="mintload" style="display:none"><span class="mintspin"></span><span>Working… a cross-chain pay can take a minute. Keep this tab open.</span></div>
+      <style>.mintload{display:flex;align-items:center;gap:9px;margin-top:10px;font-family:var(--font-ui);font-size:var(--t-label);color:var(--green-d)}.mintspin{display:inline-block;width:15px;height:15px;border:2.5px solid var(--green);border-top-color:transparent;border-radius:50%;animation:mspin .8s linear infinite;flex:0 0 auto}@keyframes mspin{to{transform:rotate(360deg)}}#mintbtn.working{animation:mbtnpulse 1.3s ease-in-out infinite;cursor:progress}@keyframes mbtnpulse{0%,100%{box-shadow:var(--sh-4)}50%{box-shadow:5px 5px 0 var(--green-d)}}</style>
+      <style>.mintburn{margin-top:12px;text-align:center;font-family:var(--font-ui);font-size:var(--t-label);color:var(--green-d);background:rgba(46,166,90,.12);border:2px solid var(--green);border-radius:var(--r-md);padding:8px 11px;box-shadow:var(--sh-2);animation:mintburnglow 2.6s ease-in-out infinite}.mintburn b{color:var(--ink)}@keyframes mintburnglow{0%,100%{box-shadow:var(--sh-2)}50%{box-shadow:3px 3px 0 var(--ink),0 0 13px rgba(46,166,90,.6)}}</style>
+      <div class="mintburn" id="mintBurnNote">🔥 Half of every mint is collected to buy <b>ROBINVAULT</b> and burn it</div>
+    </div>
+    <div class="card" id="myRobbersCard">
+      <div class="sect" style="margin:0">My Robbers</div>
+      <p class="muted" style="margin:2px 0 10px">Every Vault Standoff heist airdrops the full 6% rake to one random robber. Your ROBINVAULT lands in that robber, claim it here after the mint closes.</p>
+      <div style="margin:0 0 12px"><a class="btn sec" href="https://opensea.io/collection/vault-robbers" target="_blank" rel="noopener">Get Vault Robbers on OpenSea →</a></div>
+      <div id="myRobBody"><p class="muted" style="margin:0">Connect your wallet up top to see your robbers.</p></div>
+      <style>
+      #myRobbersCard .mrgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:4px}
+      #myRobbersCard .mrcard{border:2px solid rgba(23,19,13,.15);border-radius:12px;padding:11px;background:rgba(255,255,255,.35)}
+      #myRobbersCard .mrart{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;display:block;margin-bottom:8px;background:rgba(23,19,13,.06)}
+      #myRobbersCard .mrid{font-weight:800;color:var(--ink,#17130d)}
+      #myRobbersCard .mrtbal{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:rgba(23,19,13,.4);margin-top:7px}
+      #myRobbersCard .mrtba{font-size:10px;color:rgba(23,19,13,.55);word-break:break-all;margin:1px 0 2px;text-decoration:none;display:inline-block}
+      #myRobbersCard .mrtba:hover{text-decoration:underline}
+      #myRobbersCard .mrstash{font-size:17px;font-weight:800;color:var(--green-d,#1c7a42);font-variant-numeric:tabular-nums}
+      #myRobbersCard .mrstash.z{color:rgba(23,19,13,.4)}
+      #myRobbersCard .mrclaim{margin-top:8px;width:100%}
+      #myRobbersCard .mrnote{font-size:12px;color:rgba(23,19,13,.5);margin-top:8px}
+      #myRobbersCard .mrloading{display:flex;align-items:center;gap:9px;color:rgba(23,19,13,.55);font-size:13px;padding:6px 0}
+      #myRobbersCard .mrspin{width:15px;height:15px;border-radius:50%;border:2.5px solid rgba(23,19,13,.18);border-top-color:#1c7a42;display:inline-block;animation:mrspin .7s linear infinite}
+      @keyframes mrspin{to{transform:rotate(360deg)}}
+      </style>
+    </div>
+    <div class="card bosscard" style="display:none">
+      <div class="bossrow">
+        <div class="bossmask"><svg viewBox="0 0 120 140" xmlns="http://www.w3.org/2000/svg"><path d="M60 8 C95 8 108 36 108 70 L108 132 L12 132 L12 70 C12 36 25 8 60 8 Z" fill="#17130d"/><ellipse cx="60" cy="64" rx="34" ry="38" fill="#fbfaf6" stroke="#17130d" stroke-width="3"/><rect x="24" y="52" width="72" height="26" rx="9" fill="#2ea65a" stroke="#17130d" stroke-width="3"/><ellipse cx="46" cy="65" rx="8" ry="9" fill="#fbfaf6" stroke="#17130d" stroke-width="2.5"/><ellipse cx="74" cy="65" rx="8" ry="9" fill="#fbfaf6" stroke="#17130d" stroke-width="2.5"/><circle cx="46" cy="65" r="3" fill="#17130d"/><circle cx="74" cy="65" r="3" fill="#17130d"/><path d="M58 85 l2 -6 l2 6 z" fill="#17130d"/></svg></div>
+        <div><div class="sect" style="margin:0" data-i18n="standoff.title">The Vault Standoff</div><p class="muted" style="margin:2px 0 0" data-i18n="standoff.edge">The final heist, still sealed. A Vault Robber is your way in.</p></div>
+      </div>
+      <style>.vsflare{display:inline-block;font-family:var(--font-ui);color:var(--red);font-size:var(--t-label);letter-spacing:.3px;padding:3px 10px;border-radius:var(--r-sm);animation:vsflare 2s ease-in-out infinite}@keyframes vsflare{0%,100%{text-shadow:0 0 0 rgba(224,122,60,0);background:transparent}50%{text-shadow:0 0 12px rgba(224,122,60,.85);background:rgba(224,122,60,.14)}}</style>
+      <div style="margin-top:12px;border-top:2px dashed rgba(23,19,13,.25);padding-top:11px">
+        <div id="vsMsg" class="vsflare" data-i18n="standoff.opensTeaser">Opens on Halloween, or the instant the mint sells out.</div>
+        <div style="text-align:center;margin-top:9px"><a href="#" class="lorelink v3jump" data-i18n="standoff.seeCountdown">See the countdown →</a></div>
+        <div class="muted" style="font-size:11px;text-align:center;margin-top:8px" data-i18n="standoff.mintCutoff">Mint closes Halloween if it doesn't sell out first.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="p-ones">
+    <div class="card">
+      <div class="sect" data-i18n="ones.title">Ten 1/1s</div>
+      <p class="muted" style="margin-top:0" data-i18n="ones.intro">Ten 1/1 Vault Robbers are hidden in the 1,000. Each is unique and will never be repeated, but who they are stays sealed until the reveal. Every mint is a shot at pulling one.</p>
+      <div id="ones-grid" class="onesgrid"><p class="muted" style="grid-column:1/-1;text-align:center;padding:16px" data-i18n="ones.loading">Loading the 1/1s…</p></div>
+    </div>
+  </div>
+
+  <div class="panel" id="p-crew">
+    <div class="card">
+      <div class="sect" id="crew-title">The Crew</div>
+      <p class="muted" style="margin-top:0" id="crew-sub">Loading the minted robbers…</p>
+      <div id="crew-grid" class="crewgrid"></div>
+      <div id="crew-nav" style="display:none;align-items:center;justify-content:center;gap:14px;margin-top:16px">
+        <button class="btn sec" id="crew-prev" style="width:auto;padding:10px 18px" data-i18n="crew.prev">← Prev</button>
+        <span id="crew-pageinfo" class="muted" style="font-family:var(--font-ui);white-space:nowrap"></span>
+        <button class="btn sec" id="crew-next" style="width:auto;padding:10px 18px" data-i18n="crew.next">Next →</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="p-v1">
+    <div class="card">
+      <span class="seasontag" data-i18n="season.one">Season One</span>
+      <div class="sect" data-i18n="v1.title">Robbing the Vault, V1 Classic</div>
+      <div class="reldate"><b data-i18n="common.released">Released</b> · <span data-i18n="v1.date">September 7, 2026</span></div>
+      <p class="muted" style="margin-top:0" data-i18n="v1.body">The original push-your-luck heist that started it all. Thousands of runs, one cracked core. Immortalized on-chain and free to play forever, no wallet needed.</p>
+      <div class="stat" id="v1stats"></div>
+      <a class="btn sec play" href="v1/" style="margin-top:16px" data-i18n="v1.play">Play V1 free</a>
+      <div style="text-align:center;margin-top:10px"><a href="#" class="lorelink crewjump" data-i18n="common.meetCrew">Meet the crew who ran it →</a></div>
+    </div>
+  </div>
+
+  <div class="panel" id="p-v2">
+    <div class="card">
+      <span class="seasontag" data-i18n="season.two">Season Two</span>
+      <div class="sect" data-i18n="v2.title">Robbing the Vault, V2</div>
+      <div class="reldate"><b data-i18n="common.released">Released</b> · <span>September 14, 2026</span></div>
+      <p class="muted" style="margin-top:0" data-i18n="v2.body">The vault reborn: bigger, tougher, and smarter. Deeper chambers, real skill games, and the first shape of the Vault Robbers crew. Immortalized on-chain and free to play forever.</p>
+      <div class="stat" id="v2stats"></div>
+      <a class="btn sec play" href="v2/" style="margin-top:16px" data-i18n="v2.play">Play V2 free</a>
+      <div style="text-align:center;margin-top:10px"><a href="#" class="lorelink crewjump" data-i18n="common.meetCrew">Meet the crew who ran it →</a></div>
+    </div>
+  </div>
+
+  <div class="panel" id="p-v3">
+    <div class="card">
+      <span class="seasontag" data-i18n="season.three">Season Three</span>
+      <div class="sect" data-i18n="v3.title">Vault Standoff, V3</div>
+      <div class="reldate"><b data-i18n="common.released">Released</b> · <span data-i18n="v3.date">October 31, 2026</span></div>
+      <p class="muted" style="margin-top:0" data-i18n="v3.body">The final heist, now a free solo run against the AI crew. Pick a door, outlast the crowd, and be the last robber standing. Immortalized on-chain and free to play forever, no wallet needed.</p>
+      <a class="btn sec play" href="v3/" style="margin-top:16px" data-i18n="v3.play">Play V3 free</a>
+      <div style="text-align:center;margin-top:10px"><a href="#" class="lorelink crewjump" data-i18n="common.meetCrew">Meet the crew who ran it →</a></div>
+    </div>
+  </div>
+
+  <div class="panel" id="p-tok">
+    <div class="card">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+        <div class="sect" style="margin:0" data-i18n="tok.title">Buy, Burn &amp; Earn</div>
+        <button type="button" class="fwbtn" id="fwOpen" aria-label="See the flywheel" data-i18n-title="tok.seeFlywheel" title="See the flywheel">
+          <span class="fwbtn-txt" data-i18n="tok.flywheel">Flywheel</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 L17 7 M9 7 h8 v8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+      <p class="muted" style="margin-top:8px" data-i18n="tok.intro">Trade it, hold the art, play the vault. Every fee buys ROBINVAULT off the market and burns it. Supply only shrinks: fewer tokens, same demand, tighter float.</p>
+      <div class="burnsrc">
+        <div class="bsrc"><div class="pct">100%</div><div class="lbl" data-i18n="fw.tradingFees">Trading fees</div><div class="dsc" data-i18n="tok.src.tradingDsc">Every ROBINVAULT trading fee buys and burns.</div></div>
+        <div class="bsrc"><div class="pct">100%</div><div class="lbl" data-i18n="fw.nftRoyalties">NFT royalties</div><div class="dsc" data-i18n="tok.src.royaltiesDsc">All Vault Robbers royalties on OpenSea buy and burn.</div></div>
+        <div class="bsrc"><div class="pct">buy</div><div class="lbl">Game &amp; Standoff</div><div class="dsc">Every $10 Standoff entry is swapped to ROBINVAULT on the market, and 6% of each pot is airdropped to a random Vault Robber.</div></div>
+      </div>
+      <div class="flow" style="margin-top:14px" id="tokFlow">Fees + Royalties + a game cut <span class="ar">→</span> Buy &amp; Burn <span class="ar">→</span> Supply shrinks</div>
+      <div class="sect" style="margin:18px 0 8px" data-i18n="tok.burnedSoFar">Burned so far</div>
+      <div class="stat" id="tokstats"></div>
+      <div class="bbtrack">
+        <div class="bbcard">
+          <div class="bbh" data-i18n="tok.bbRvlt">RobinVault buy &amp; burn</div>
+          <div class="bbusd" id="bbRvlt">$0</div>
+          <div class="bbsub" id="bbRvltSub" data-i18n="tok.bbRvltSub0">0 ROBINVAULT burned</div>
+        </div>
+        <div class="bbcard">
+          <div class="bbh" data-i18n="tok.bbNft">Vault Robbers buy &amp; burn</div>
+          <div class="bbusd" id="bbNft">$0</div>
+          <div class="bbsub" id="bbNftSub" data-i18n="tok.bbNftSub">Royalties → burned</div>
+        </div>
+      </div>
+      <div class="stat" id="colstats" style="margin-top:12px"></div>
+      <p class="muted" id="toknote" style="margin-top:12px"></p>
+    </div>
+  </div>
+
+  <div class="panel" id="p-rvlt">
+    <div class="card">
+      <div class="sect" data-i18n="rvlt.title">ROBINVAULT</div>
+      <p class="muted" style="margin-top:0" data-i18n="rvlt.intro">The token that ran the heist. The vault is retired and the crew lives on, but the chain keeps score. Live numbers below.</p>
+      <div class="stat" id="rvltstats"></div>
+      <p class="muted" id="rvltnote" style="margin-top:12px"></p>
+      <a class="btn sec" id="rvltlink" href="#" target="_blank" rel="noopener" style="margin-top:14px" data-i18n="rvlt.viewExplorer">View token on explorer</a>
+    </div>
+    <div class="card">
+      <div class="sect" data-i18n="rvlt.howTitle">How we got here</div>
+      <p class="muted" style="margin-top:0" data-i18n="rvlt.howBody">RobinVault started as a push-your-luck heist on Robinhood Chain: crack the vault, burn ROBINVAULT, chase the pot. Two seasons, thousands of runs, nearly half the supply burned, now playable free forever. The crew puts on masks next: mint a Vault Robber and carry it into what comes.</p>
+    </div>
+  </div>
+
+  <div class="panel" id="p-story">
+    <div class="card">
+      <div class="sect" data-i18n="story.title">The story so far</div>
+      <p class="muted" style="margin-top:0" data-i18n="story.intro">How a push-your-luck heist on Robinhood Chain became the Vault Robbers, told chapter by chapter, straight from the threads.</p>
+    </div>
+    <div id="lore"><p class="muted" style="text-align:center;padding:20px">Loading the threads…</p></div>
+  </div>
+</div>
+<script>
+/* ============================================================================
+   i18n layer (index-local superset of the staged i18n/i18n.js engine).
+   Mirrors the Vault Standoff wiring verbatim: the staged engine ships only en/es
+   in its internal LANGUAGES registry and that array is a closure local we must
+   not edit (i18n.js stays byte-identical). This block owns the full 29-language
+   registry + switcher and reuses the SAME catalog JSON files (i18n/catalog.<code>.json).
+   English is the always-loaded fallback; the active language lazy-loads on demand.
+   t(), plural(), sweep() are defined here BEFORE any render helper runs.
+   Exposes window.t + window.VSI18N.
+   ============================================================================ */
+var VSI18N=(function(){
+  /* Mint i18n engine: English catalog EMBEDDED (synchronous base, can't throw / no raw keys)
+     PLUS a DOM-translation layer (reverse exact-map + interpolated-template matchers +
+     MutationObserver) so EVERY rendered English string translates, wired or not, static or
+     dynamic. English text nodes are snapshotted so switching back to English restores cleanly. */
+  var EN={
+  "_meta": {
+    "language": "en",
+    "name": "English",
+    "note": "Source catalog for vaultrobbers-mint/public/index.html. Keys grouped by UI area. Placeholders use {name} syntax. English is the base/fallback; it must render pixel-identical to the hard-coded source. Crypto proper nouns (ROBINVAULT, Vault Robbers, Vault Standoff, OpenSea, Robinhood Chain, NFT) are left untranslated across catalogs.",
+    "placeholders": "{total}/{max}=supply counts, {amount}=RVLT amount, {addr}=short address, {wallet}=wallet name, {tx}=tx hash, {id}=token id, {count}/{pct}/{circulating}=numbers, {page}/{pages}=pagination, {cap}/{remaining}/{balance}=mint allocation"
+  },
+  "app.tagline": "Masked robbers, born from the vault. Mint the crew, chase the pot, watch it burn.",
+  "header.connect": "Connect",
+  "conn.mintPrefix": "mint {addr}",
+  "common.close": "Close",
+  "common.released": "Released",
+  "common.launches": "Launches",
+  "common.meetCrew": "Meet the crew who ran it →",
+  "common.revealed": "Revealed",
+  "common.sealed": "Sealed",
+  "tab.mint": "Robbers",
+  "tab.ones": "1/1s",
+  "tab.crew": "Crew",
+  "tab.v1": "V1",
+  "tab.v2": "V2",
+  "tab.v3": "V3",
+  "tab.tok": "Tokenomics",
+  "tab.rvlt": "ROBINVAULT",
+  "tab.story": "Story",
+  "picker.choose": "Choose a wallet",
+  "picker.none": "No wallet detected. Install MetaMask, Rabby, Rainbow, Robinhood, or Phantom.",
+  "picker.evm": "EVM",
+  "picker.evmSolana": "EVM + Solana",
+  "picker.solana": "Solana",
+  "picker.mintWallet": "mint wallet",
+  "picker.payWallet": "pay wallet",
+  "picker.disconnectWallet": "Disconnect wallet",
+  "picker.disconnectWallets": "Disconnect wallets",
+  "fw.title": "The ROBINVAULT flywheel",
+  "fw.tradingFees": "Trading fees",
+  "fw.nftRoyalties": "NFT royalties",
+  "fw.theGame": "The game",
+  "fw.buysBurns100": "100% buys & burns",
+  "fw.smallCutBurns": "small cut burns",
+  "fw.standoffSealed": "The Standoff (sealed)",
+  "fw.buyBurn": "BUY & BURN",
+  "fw.supplyShrinks": "Supply shrinks",
+  "fw.fewerTokens": "fewer tokens, tighter float",
+  "fw.scarcity": "scarcity feeds demand",
+  "fw.caption": "The wheel turns one way only. What it burns never comes back.",
+  "mint.collection": "Collection",
+  "mint.supply": "{total} / {max} minted",
+  "mint.maxPerWallet": "max 3 per wallet",
+  "mint.price": "Mint price",
+  "mint.tierRvlt": "{amount} ROBINVAULT",
+  "mint.payFrom": "Pay from",
+  "mint.connectToSeeAssets": "Connect a wallet to see your assets",
+  "mint.mint": "Mint",
+  "mint.burnNote": "🔥 Half of every mint is collected to buy <b>ROBINVAULT</b> and burn it",
+  "mint.pulledYour3": "You pulled your 3",
+  "mint.openingSoon": "Opening soon",
+  "mint.priceUnavailable": "price unavailable",
+  "mint.payFromSolana": "Solana (SOL / USDC)",
+  "mint.connectSolana": "connect Phantom",
+  "mint.addWallet": "add wallet",
+  "mint.gasNeeded": "Add a little Robinhood ETH for gas, then try again.",
+  "mint.selectAsset": "Select an asset",
+  "mint.loadingAssets": "Loading your assets…",
+  "mint.noBalance": "No payable balance found",
+  "mint.noBalanceHint": "Add SOL, ETH, or a stablecoin to your wallet to mint (the ROBINVAULT you hold can't pay the mint, every mint buys RVLT on the market).",
+  "mint.signInSolana": "Sign in with Solana",
+  "mint.noEvmSignSolana": "No balance on your connected wallet. Tap Sign in with Solana to pay with SOL.",
+  "mint.loadAssetsRetry": "Could not load your assets, retry",
+  "mint.mintedCheck": "Minted ✓",
+  "standoff.title": "The Vault Standoff",
+  "standoff.edge": "The final heist, still sealed. A Vault Robber is your way in.",
+  "standoff.opensTeaser": "The vault is open. Pick a door and take it.",
+  "standoff.seeCountdown": "Enter the standoff →",
+  "standoff.soldOut": "Sold out, supply sealed. Opening now.",
+  "standoff.halloweenHere": "Live now. Pick a door and take the vault.",
+  "ones.title": "Ten 1/1s",
+  "ones.intro": "Ten 1/1 Vault Robbers were hidden in the 1,000. The mint closed at 315, so only the ones below made it into circulation.",
+  "ones.retiredNote": "{n} of the ten 1/1s were never minted. The collection closed at 315, so they stay sealed in the vault forever.",
+  "ones.loading": "Loading the 1/1s…",
+  "ones.pulled": "#{id} pulled",
+  "ones.inVault": "In the vault",
+  "ones.sealed": "Sealed",
+  "crew.title": "The Crew",
+  "crew.titleRevealed": "The Crew, revealed",
+  "crew.loading": "Loading the minted robbers…",
+  "crew.loadError": "Could not load the crew right now.",
+  "crew.subRevealed": "{count} of {max} Vault Robbers minted. Each paid mint reveals its own live generative art.",
+  "crew.subSealed": "{count} of {max} minted so far. The art is sealed until the reveal, then every robber unmasks.",
+  "crew.prev": "← Prev",
+  "crew.next": "Next →",
+  "crew.pageInfo": "Page {page} of {pages}",
+  "season.one": "Season One",
+  "season.two": "Season Two",
+  "season.three": "Season Three",
+  "v1.title": "Robbing the Vault, V1 Classic",
+  "v1.date": "September 7, 2026",
+  "v1.body": "The original push-your-luck heist that started it all. Thousands of runs, one cracked core. Immortalized on-chain and free to play forever, no wallet needed.",
+  "v1.play": "Play V1 free",
+  "v2.title": "Robbing the Vault, V2",
+  "v2.date": "September 9, 2026",
+  "v2.body": "The vault reborn: bigger, tougher, and smarter. Deeper chambers, real skill games, and the first shape of the Vault Robbers crew. Immortalized on-chain and free to play forever.",
+  "v2.play": "Play V2 free",
+  "v3.title": "Vault Standoff, V3",
+  "v3.liveTag": "Now live",
+  "v3.date": "October 31, 2026",
+  "v3.body": "The final heist, now a free solo run against the AI crew. Pick a door, outlast the crowd, and be the last robber standing. Immortalized on-chain and free to play forever, no wallet needed.",
+  "v3.play": "Play V3 free",
+  "v3.enterLocked": "🔒 Enter Vault Standoff",
+  "v3.enterLive": "Enter Vault Standoff →",
+  "v3.liveNow": "Live now. Real stakes on Robinhood Chain.",
+  "v3.opensMsg": "Opens when the mint sells out or on Halloween.",
+  "v3.soldOut": "SOLD OUT",
+  "v3.opening": "OPENING",
+  "tok.title": "Buy, Burn & Earn",
+  "tok.flywheel": "Flywheel",
+  "tok.seeFlywheel": "See the flywheel",
+  "tok.intro": "Trade it, hold the art, play the vault. Every fee buys ROBINVAULT off the market and burns it. Supply only shrinks: fewer tokens, same demand, tighter float.",
+  "tok.src.tradingDsc": "Every ROBINVAULT trading fee buys and burns.",
+  "tok.src.royaltiesDsc": "All Vault Robbers royalties on OpenSea buy and burn.",
+  "tok.src.cut": "cut",
+  "tok.src.gameTitle": "Game & Standoff",
+  "tok.src.gameDsc": "Every $10 Standoff entry buys ROBINVAULT, and 6% of each pot airdrops to a random robber.",
+  "tok.flow": "Fees + Royalties + a game cut <span class=\"ar\">→</span> Buy &amp; Burn <span class=\"ar\">→</span> Supply shrinks",
+  "tok.burnedSoFar": "Burned so far",
+  "tok.bbRvlt": "RobinVault buy & burn",
+  "tok.bbRvltSub0": "0 ROBINVAULT burned",
+  "tok.bbNft": "Vault Robbers buy & burn",
+  "tok.bbNftSub": "Royalties → burned",
+  "tok.rvltBurnedAmt": "{amount} ROBINVAULT burned",
+  "tok.note": "Every mint, trade, and royalty routes ROBINVAULT to the burn. The numbers above are live on-chain.",
+  "doss.title": "The Standoff, sealed",
+  "doss.sealed": "Sealed",
+  "doss.intro": "V3 is where the series pays out. The real economics stay locked until the Standoff opens; here's the shape, the figures unseal at launch.",
+  "doss.entry": "Entry",
+  "doss.perRobber": "per robber",
+  "doss.houseCut": "House cut",
+  "doss.rake": "rake",
+  "doss.thePot": "The pot",
+  "doss.winnerTakes": "Winner takes it ·",
+  "doss.robbersIn": "robbers in",
+  "doss.airdrop": "Robber airdrop",
+  "doss.airdropDsc": "Vault Robber earns a cut each heist",
+  "doss.houseEdge": "House edge",
+  "doss.houseEdgeVal": "None · pure player vs player",
+  "doss.leak": "No house. Provably fair. Last robber standing takes the pot.",
+  "rvlt.title": "ROBINVAULT",
+  "rvlt.intro": "The token that ran the heist. The vault is retired and the crew lives on, but the chain keeps score. Live numbers below.",
+  "rvlt.viewExplorer": "View token on explorer",
+  "rvlt.howTitle": "How we got here",
+  "rvlt.howBody": "RobinVault started as a push-your-luck heist on Robinhood Chain: crack the vault, burn ROBINVAULT, chase the pot. Two seasons, thousands of runs, nearly half the supply burned, now playable free forever. The crew puts on masks next: mint a Vault Robber and carry it into what comes.",
+  "rvlt.noteBurnedPct": "Burned {pct}% of total supply. ",
+  "rvlt.note": "Circulating {circulating} ROBINVAULT. Total burned and all-time volume are final; the token still trades on Robinhood Chain.",
+  "story.title": "The story so far",
+  "story.intro": "How a push-your-luck heist on Robinhood Chain became the Vault Robbers, told chapter by chapter, straight from the threads.",
+  "story.loading": "Loading the threads…",
+  "story.readThread": "Read the thread on X →",
+  "lore.0.tag": "Start",
+  "lore.0.sum": "Where it all began. The pitch: a push-your-luck heist built on Robinhood Chain, where every crack of the vault burns ROBINVAULT and every step deeper raises the stakes. This is the thread that set the whole thing in motion.",
+  "lore.1.tag": "Chapter 1",
+  "lore.1.sum": "The vault opens and the first crews step inside. Early robbers test the mechanics and learn how far their nerve will carry them. The first legends, and the first losses, get written.",
+  "lore.2.tag": "Chapter 2",
+  "lore.2.sum": "The stakes climb. Chambers get deeper, the pot swells, and the community starts to master the risk and reward of pushing one more door. Momentum builds as bigger runs start landing.",
+  "lore.3.tag": "How we got here",
+  "lore.3.sum": "A step back to tell the origin story. How the idea formed, why Robinhood Chain, and what the vault is really about. Context for everyone arriving mid-heist.",
+  "lore.4.tag": "Chapter 3",
+  "lore.4.sum": "The legend grows. The crew pushes deeper than ever, the biggest runs get their moment, and the world of the vault fills out. The story crests toward its first season finale.",
+  "lore.5.tag": "V1 review",
+  "lore.5.sum": "Season one, in the books. A look back at everything the crew pulled off: the runs, the burns, the ETH robbed, and the players who made it happen. V1 becomes history, immortalized on-chain.",
+  "lore.6.tag": "V2",
+  "lore.6.sum": "The vault reborn: bigger, tougher, and smarter. New chambers, new skills, and the first real shape of the Vault Robbers crew. This is where the game levels up and points toward what comes next.",
+  "lore.7.tag": "The Robbers",
+  "lore.7.sum": "The crew steps into the light. The latest dispatch on where the Vault Robbers are headed next.",
+  "lore.8.tag": "Mint Day",
+  "lore.8.sum": "The vault is open. The Vault Robbers mint goes live: 1,000 masked robbers cracked from the heist, every mint burning ROBINVAULT. This is the call to walk through the door.",
+  "lore.9.tag": "The Standoff",
+  "lore.9.sum": "The heist goes live for everyone. Vault Standoff opens to the public: a $10 buy-in, pay with anything, and the last robber standing takes the RVLT pot. Here is what it is and how to play.",
+  "pull.title": "Unsealed the artwork",
+  "pull.revealing": "Revealing…",
+  "pull.artAfterReveal": "Minted. Art shows after the reveal.",
+  "pull.revealsAtLaunch": "Reveals at launch",
+  "stat.totalRuns": "Total runs",
+  "stat.players": "Players",
+  "stat.coreCracks": "Core cracks",
+  "stat.rvltBurned": "ROBINVAULT burned",
+  "stat.ethRobbed": "ETH robbed",
+  "stat.vaultStatus": "Vault status",
+  "stat.immortalized": "Immortalized",
+  "stat.marketCap": "Market cap",
+  "stat.price": "Price",
+  "stat.vol24h": "24h volume",
+  "stat.volAllTime": "All-time volume",
+  "stat.liquidity": "Liquidity",
+  "stat.dailyBurn": "Daily burn",
+  "stat.weeklyBurn": "Weekly burn",
+  "stat.totalBurned": "Total burned",
+  "stat.ofSupply": "Of supply",
+  "stat.totalSupply": "Total supply",
+  "stat.circulating": "Circulating",
+  "stat.collection": "Collection",
+  "stat.ones": "1/1s",
+  "wb.banner": "📱 Minting on mobile? Tap here first.",
+  "wb.heading": "Open in your wallet's browser",
+  "wb.body": "To mint or play on mobile you must open vaultrobbers.com inside your wallet app's built-in browser. Mobile Safari, Chrome, Brave and Firefox cannot sign. Open MetaMask, Phantom, Rabby, Rainbow or Coinbase, go to the Browser tab, and visit vaultrobbers.com.",
+  "wb.copyLink": "Copy link",
+  "wb.copied": "Copied",
+  "wb.dismiss": "Dismiss",
+  "status.connectedWallet": "Connected {wallet} · {addr}",
+  "status.connectedPickMint": "Connected {wallet} {addr}. Pick your mint wallet…",
+  "status.connectedShort": "Connected {addr}",
+  "status.addedWallet": "Added {wallet} {addr}",
+  "status.connectFailed": "connect failed",
+  "status.disconnected": "Wallet disconnected.",
+  "status.walletCapped": "This wallet has minted its {cap} Vault Robbers.",
+  "status.holdMints": "You hold {balance} · {remaining} of {cap} mints left",
+  "status.gettingQuote": "Preparing your mint…",
+  "status.confirmPayment": "Confirm the payment in your wallet…",
+  "status.confirmPhantom": "Confirm the payment in Phantom…",
+  "status.confirmMintPayment": "Confirm payment for the mint…",
+  "status.confirmPremium": "Paying premium…",
+  "status.bringingPremium": "Bringing funds to Robinhood…",
+  "status.toppingGas": "Topping up Robinhood gas…",
+  "status.bridging": "Bridging to Robinhood…",
+  "status.approving": "Approving ROBINVAULT…",
+  "status.minting": "Minting…",
+  "status.minted": "Done. tx {tx}",
+  "status.viewTx": "View transaction",
+  "warn.stillLoading": "Still loading, one moment.",
+  "warn.mintClosed": "Mint is closed.",
+  "warn.mintOpensAtLaunch": "Mint opens at launch, hang tight.",
+  "warn.alreadyMinted": "This wallet has already minted its Vault Robbers.",
+  "warn.pickAsset": "Pick an asset to pay with.",
+  "err.libLoading": "Wallet library still loading, try again in a moment.",
+  "err.libLoadingShort": "Wallet library still loading, try again.",
+  "err.walletUnavailable": "That wallet is not available. Pick another.",
+  "err.needEvmMint": "Minting the NFT on Robinhood needs an EVM wallet. Install MetaMask, Rabby, Rainbow, Phantom, or Robinhood.",
+  "err.needSolana": "Paying from Solana needs a Solana wallet. Install Phantom, Solflare, or Backpack, then reconnect.",
+  "err.addSolanaFailed": "Could not add a Solana wallet",
+  "err.connectEvmMint": "Connect an EVM wallet to mint the NFT on Robinhood.",
+  "err.capLeft": "This wallet has {remaining} of {cap} mints left. Lower the quantity.",
+  "err.capUnverified": "Could not verify this wallet's mint allocation. Try again in a moment.",
+  "err.phantomNotConnected": "Phantom (Solana) is not connected.",
+  "err.rvltNotArrived": "ROBINVAULT did not arrive yet. Try again in a moment.",
+  "err.solPaymentFailed": "Solana payment failed on-chain.",
+  "err.noRoute": "no route",
+  "err.premiumRoute": "premium route unavailable, try again",
+  "err.mintFailed": "mint failed",
+  "standoff.mintCutoff": "The mint is closed. The vault is open."
+};
+  var LANGS=[
+    {code:'zh-CN',name:'简体中文'},{code:'zh-TW',name:'繁體中文'},{code:'ja',name:'日本語'},
+    {code:'ko',name:'한국어'},{code:'vi',name:'Tiếng Việt'},{code:'th',name:'ไทย'},
+    {code:'id',name:'Bahasa Indonesia'},{code:'ms',name:'Bahasa Melayu'},{code:'tl',name:'Tagalog'},
+    {code:'km',name:'ភាសាខ្មែរ'},{code:'my',name:'မြန်မာ'},{code:'hi',name:'हिन्दी'},
+    {code:'bn',name:'বাংলা'},{code:'ne',name:'नेपाली'},{code:'ta',name:'தமிழ்'},
+    {code:'ur',name:'اردو',rtl:true},{code:'ar',name:'العربية',rtl:true},{code:'fa',name:'فارسی',rtl:true},
+    {code:'es',name:'Español'},{code:'pt-BR',name:'Português (BR)'},{code:'fr',name:'Français'},
+    {code:'de',name:'Deutsch'},{code:'it',name:'Italiano'},{code:'nl',name:'Nederlands'},
+    {code:'pl',name:'Polski'},{code:'ru',name:'Русский'},{code:'uk',name:'Українська'},
+    {code:'tr',name:'Türkçe'},{code:'en',name:'English'}
+  ];
+  var CODES={}; LANGS.forEach(function(l){ CODES[l.code]=l; });
+  var FLAGS={en:'🇬🇧',es:'🇪🇸',fr:'🇫🇷',de:'🇩🇪',it:'🇮🇹',nl:'🇳🇱',pl:'🇵🇱','pt-BR':'🇧🇷',ru:'🇷🇺',uk:'🇺🇦',tr:'🇹🇷',ar:'🇸🇦',fa:'🇮🇷',ur:'🇵🇰',hi:'🇮🇳',bn:'🇧🇩',ne:'🇳🇵',ta:'🇮🇳',th:'🇹🇭',km:'🇰🇭',my:'🇲🇲',vi:'🇻🇳',id:'🇮🇩',ms:'🇲🇾',tl:'🇵🇭','zh-CN':'🇨🇳','zh-TW':'🇹🇼',ja:'🇯🇵',ko:'🇰🇷'};
+  var localeMap={en:'en-US',es:'es-ES','pt-BR':'pt-BR',fr:'fr-FR',de:'de-DE',it:'it-IT',nl:'nl-NL',pl:'pl-PL',ru:'ru-RU',uk:'uk-UA',tr:'tr-TR',ar:'ar',fa:'fa-IR',ur:'ur-PK',hi:'hi-IN',bn:'bn-BD',ne:'ne-NP',ta:'ta-IN','zh-CN':'zh-CN','zh-TW':'zh-TW',ja:'ja-JP',ko:'ko-KR',vi:'vi-VN',th:'th-TH',id:'id-ID',ms:'ms-MY',tl:'fil-PH',km:'km-KH',my:'my-MM'};
+  var BASE='en', LS='vr_lang';
+  var cats={en:EN};
+  var cur='en';
+  function supported(c){ return !!CODES[c]; }
+  function isRtl(c){ return !!(CODES[c]&&CODES[c].rtl); }
+  function localeTag(){ return localeMap[cur]||cur||'en-US'; }
+  function fmtNumber(n){ try{ return new Intl.NumberFormat(localeTag()).format(n); }catch(e){ return String(n); } }
+  function fmtCurrency(a,ccy){ try{ return new Intl.NumberFormat(localeTag(),{style:'currency',currency:ccy||'USD',maximumFractionDigits:0}).format(a); }catch(e){ return '$'+a; } }
+  function interp(str,vars){ if(vars==null||String(str).indexOf('{')===-1) return str; return String(str).replace(/\{(\w+)\}/g,function(m,k){ if(vars[k]==null) return m; var v=vars[k]; return (typeof v==='number')?fmtNumber(v):String(v); }); }
+  function t(key,vars){ var c=cats[cur]; var s=(c&&c[key]!=null)?c[key]:(EN[key]!=null?EN[key]:key); return interp(s,vars); }
+  function plural(n,oneKey,manyKey,extra){ extra=extra||{}; extra.n=n; return t(n===1?oneKey:manyKey,extra); }
+  function load(code){ if(cats[code]) return Promise.resolve(cats[code]); return fetch('i18n/catalog.'+code+'.json').then(function(r){ return r.ok?r.json():{}; }).then(function(j){ cats[code]=j||{}; return cats[code]; }).catch(function(){ cats[code]={}; return cats[code]; }); }
+  // data-i18n sweep (explicitly keyed elements)
+  function sweep(root){ root=root||document;
+    root.querySelectorAll('[data-i18n]').forEach(function(el){ el.textContent=t(el.getAttribute('data-i18n')); });
+    root.querySelectorAll('[data-i18n-ph]').forEach(function(el){ el.setAttribute('placeholder',t(el.getAttribute('data-i18n-ph'))); });
+    root.querySelectorAll('[data-i18n-title]').forEach(function(el){ el.setAttribute('title',t(el.getAttribute('data-i18n-title'))); }); }
+
+  /* ---- DOM translation layer: translate RENDERED English to the active language ---- */
+  var _exactMap=null, _templates=null, _revFor=null, _observer=null, _sched=false;
+  function compileTemplate(enStr){ var slots=[], re='^', rest=enStr, m, tokenRe=/\{(\w+)\}/;
+    while((m=tokenRe.exec(rest))!==null){ re+=rest.slice(0,m.index).replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); slots.push(m[1]); re+='([\\s\\S]*?)'; rest=rest.slice(m.index+m[0].length); }
+    re+=rest.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'$'; return { re:new RegExp(re), slots:slots }; }
+  function buildReverseIndex(code){ _exactMap={}; _templates=[]; var en=cats[BASE]||{}, tgt=cats[code]||{};
+    for(var key in en){ if(!en.hasOwnProperty(key)) continue; var enStr=en[key]; if(typeof enStr!=='string'||!enStr) continue;
+      var out=(tgt[key]!=null)?tgt[key]:enStr;
+      if(enStr.indexOf('{')===-1){ if(_exactMap[enStr]==null) _exactMap[enStr]=out; }
+      else { var c=compileTemplate(enStr); _templates.push({ re:c.re, slots:c.slots, tpl:out, len:enStr.length }); } }
+    _templates.sort(function(a,b){ return b.len-a.len; }); _revFor=code; }
+  function translateText(str){ if(cur===BASE) return str; if(typeof str!=='string') return str;
+    if(_revFor!==cur) buildReverseIndex(cur);
+    if(_exactMap[str]!=null) return _exactMap[str];
+    var trimmed=str.replace(/^\s+|\s+$/g,'');
+    if(trimmed!==str && _exactMap[trimmed]!=null) return str.replace(trimmed,_exactMap[trimmed]);
+    for(var i=0;i<_templates.length;i++){ var tp=_templates[i], mm=tp.re.exec(str); if(!mm) continue;
+      var vars={}; for(var j=0;j<tp.slots.length;j++){ var sn=tp.slots[j], cap=mm[j+1]; if(sn!=='name'&&sn!=='addr'&&cap!=null&&_exactMap[cap]!=null) cap=_exactMap[cap]; vars[sn]=cap; }
+      return tp.tpl.replace(/\{(\w+)\}/g,function(w,k){ return (vars[k]!=null)?vars[k]:w; }); }
+    return str; }
+  var SKIP_SEL='input, textarea, select, script, style, code, .vsi18n, [data-no-i18n]';
+  function inSkip(node){ var el=(node.nodeType===3)?node.parentNode:node; if(!el||!el.closest) return false; try{ return !!el.closest(SKIP_SEL); }catch(e){ return false; } }
+  var ATTRS=['placeholder','title','aria-label'];
+  function translateTextNode(tn){ if(!tn||tn.nodeType!==3) return; var v=tn.nodeValue; if(!v||!/\S/.test(v)) return; if(inSkip(tn)) return;
+    if(tn.__en===undefined) tn.__en=v;                 // snapshot original English for restore
+    var out=translateText(tn.__en!==undefined?tn.__en:v); if(out!==tn.nodeValue) tn.nodeValue=out; }
+  function translateAttrs(el){ if(!el||el.nodeType!==1||inSkip(el)) return; for(var i=0;i<ATTRS.length;i++){ var a=ATTRS[i]; if(el.hasAttribute&&el.hasAttribute(a)){ var v=el.getAttribute(a); if(el['__en_'+a]===undefined) el['__en_'+a]=v; var out=translateText(el['__en_'+a]); if(out!==v) el.setAttribute(a,out); } } }
+  function translateSubtree(root){ if(cur===BASE||!root) return; try{
+    if(root.nodeType===3){ translateTextNode(root); return; }
+    if(root.nodeType!==1||inSkip(root)) return; translateAttrs(root);
+    var w=document.createTreeWalker(root,NodeFilter.SHOW_ELEMENT|NodeFilter.SHOW_TEXT,null,false), n;
+    while((n=w.nextNode())){ if(n.nodeType===3) translateTextNode(n); else translateAttrs(n); } }catch(e){} }
+  function translateDocument(){ if(cur===BASE) return; translateSubtree(document.body); }
+  function restoreEnglish(root){ root=root||document.body; try{
+    var w=document.createTreeWalker(root,NodeFilter.SHOW_ELEMENT|NodeFilter.SHOW_TEXT,null,false), n;
+    while((n=w.nextNode())){ if(n.nodeType===3){ if(n.__en!==undefined && n.nodeValue!==n.__en) n.nodeValue=n.__en; }
+      else { for(var i=0;i<ATTRS.length;i++){ var a=ATTRS[i]; if(n['__en_'+a]!==undefined && n.getAttribute(a)!==n['__en_'+a]) n.setAttribute(a,n['__en_'+a]); } } } }catch(e){} }
+  function startObserver(){ if(_observer||typeof MutationObserver==='undefined') return;
+    _observer=new MutationObserver(function(muts){ if(cur===BASE) return;
+      for(var i=0;i<muts.length;i++){ var mu=muts[i];
+        if(mu.type==='childList'&&mu.addedNodes&&mu.addedNodes.length){ for(var j=0;j<mu.addedNodes.length;j++) translateSubtree(mu.addedNodes[j]); }
+        else if(mu.type==='characterData'){ translateTextNode(mu.target); }
+        else if(mu.type==='attributes'){ translateAttrs(mu.target); } } });
+    try{ _observer.observe(document.body,{ childList:true, subtree:true, characterData:true, attributes:true, attributeFilter:ATTRS }); }catch(e){} }
+
+  function applyDoc(){ try{ document.documentElement.setAttribute('lang',cur); document.documentElement.setAttribute('dir',isRtl(cur)?'rtl':'ltr'); }catch(e){} try{ window.dispatchEvent(new CustomEvent('vs-lang-change',{detail:{lang:cur}})); }catch(e){} }
+  var switchers=[];
+  function injectCss(){ if(document.getElementById('vsi18n-css')) return; var st=document.createElement('style'); st.id='vsi18n-css'; st.textContent='.vsi18n{position:relative;display:inline-flex;align-items:center;margin-right:8px}.vsi18n .vsi18n-shell{display:inline-flex;align-items:center;gap:6px;border:2.5px solid var(--ink,#17130d);border-radius:var(--r-md,11px);box-sizing:border-box;box-shadow:var(--sh-2,3px 3px 0 #17130d);background:var(--tee,#fbfaf6);color:var(--ink,#17130d);font-family:var(--font-ui,Inter,system-ui,sans-serif);font-size:15px;padding:0 8px;height:38px;cursor:pointer;transition:transform .14s,box-shadow .14s}.vsi18n .vsi18n-shell:hover{transform:translate(-1px,-1px);box-shadow:var(--sh-3,4px 4px 0 #17130d)}.vsi18n .vsi18n-glyph{font-size:16px;line-height:1}.vsi18n .vsi18n-code{font-family:var(--font-head,Londrina Solid,system-ui,sans-serif);letter-spacing:.4px;text-transform:uppercase;font-size:14px;max-width:84px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.vsi18n .vsi18n-caret{font-size:10px;opacity:.55}.vsi18n select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;font-size:16px}@media(max-width:560px){.vsi18n .vsi18n-shell{height:36px;font-size:14px;padding:0 7px}.vsi18n .vsi18n-code{max-width:40px}}[dir=rtl] .vsi18n .vsi18n-shell{flex-direction:row-reverse}'; document.head.appendChild(st); }
+  function activeMeta(){ return CODES[cur]||CODES[BASE]; }
+  function paintSwitchers(){ var meta=activeMeta(); switchers.forEach(function(root){ var code=root.querySelector('.vsi18n-code'); var sel=root.querySelector('select'); var gl=root.querySelector('.vsi18n-glyph'); if(gl&&FLAGS[cur]) gl.textContent=FLAGS[cur]; if(code) code.textContent=meta.name||meta.code; if(sel&&sel.value!==cur) sel.value=cur; }); }
+  function setLang(code){ if(!supported(code)) code=BASE; return load(code).then(function(){ cur=code; try{ localStorage.setItem(LS,code); }catch(e){}
+    if(code===BASE){ restoreEnglish(); } else { buildReverseIndex(code); }
+    try{ sweep(document); }catch(e){}                 // keyed elements via t()
+    applyDoc();                                        // sets lang/dir + fires vs-lang-change (re-renders dynamic views)
+    if(code!==BASE){ try{ translateDocument(); }catch(e){} }  // catch everything else (static + stale dynamic)
+    startObserver(); paintSwitchers(); return code; }); }
+  function renderLanguageSwitcher(mountEl){ injectCss(); var host=(typeof mountEl==='string')?document.querySelector(mountEl):mountEl; if(!host) return null; var root=host.querySelector(':scope > .vsi18n')||null; if(!root){ root=document.createElement('div'); root.className='vsi18n'; var opts=LANGS.map(function(l){ return '<option value="'+l.code+'">'+((FLAGS[l.code]||'')+' '+l.name)+'</option>'; }).join(''); root.innerHTML='<span class="vsi18n-shell" aria-hidden="true"><span class="vsi18n-glyph">🌐</span><span class="vsi18n-code">English</span><span class="vsi18n-caret">▾</span></span><select aria-label="Language">'+opts+'</select>'; host.insertBefore(root,host.firstChild); var sel=root.querySelector('select'); sel.addEventListener('change',function(){ setLang(sel.value); }); switchers.push(root); } paintSwitchers(); return root; }
+  function detect(){ try{ var s=localStorage.getItem(LS); if(s&&supported(s)) return s; }catch(e){} try{ var list=(navigator.languages&&navigator.languages.length)?navigator.languages:[navigator.language||BASE]; for(var i=0;i<list.length;i++){ var raw=String(list[i]||''); if(supported(raw)) return raw; var low=raw.toLowerCase(); if(low==='zh'||low==='zh-cn'||low==='zh-hans'||low==='zh-sg') return 'zh-CN'; if(low==='zh-tw'||low==='zh-hant'||low==='zh-hk'||low==='zh-mo') return 'zh-TW'; if(low==='pt'||low==='pt-br') return 'pt-BR'; var p=low.split('-')[0]; if(supported(p)) return p; } }catch(e){} return BASE; }
+  // Boot: render English natively (synchronous); start the observer; auto-switch to the visitor's language if different.
+  var _rr; var ready=new Promise(function(res){ _rr=res; });
+  cur='en'; _rr('en');
+  (function(){ try{ startObserver(); var want=detect(); if(want&&want!=='en'){ setTimeout(function(){ setLang(want); },0); } }catch(e){} })();
+  return { t:t, plural:plural, sweep:sweep, ready:ready, renderLanguageSwitcher:renderLanguageSwitcher,
+    setLang:setLang, getLang:function(){ return cur; }, load:load, translateText:translateText, tr:function(s){ try{ return translateText(s); }catch(e){ return s; } },
+    fmtNumber:fmtNumber, fmtCurrency:fmtCurrency, isRtl:function(){ return isRtl(cur); }, languages:LANGS.slice() };
+})();
+var t=VSI18N.t, plural=VSI18N.plural;
+
+const $=s=>document.querySelector(s);
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===t));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('on',p.id==='p-'+t.dataset.t));
+  if(t.dataset.t==='story') renderLore();
+  if(t.dataset.t==='crew') loadCrew();
+  if(t.dataset.t==='ones') loadOnes();
+  if(t.dataset.t==='tok'){ loadToken(); loadBurns(); loadTok(); }
+});
+
+// ── The ten 1/1s are kept a MYSTERY pre-reveal. We show that ten exist (the
+// finish line to chase) but never the art or identities, and no real 1/1 art is served
+// to this site, so the files cannot be sniffed. Sealed tiles only until the reveal.
+function oesc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+// The ten 1/1s reveal PER-MINT, exactly like the Crew: a 1/1 shows its art only once the collection is revealed
+// AND the specific token it was shuffled into has actually been minted. Otherwise it stays a sealed ghost.
+let _onesPoll=null;
+async function loadOnes(){
+  const grid=document.getElementById('ones-grid'); if(!grid) return;
+  let d; try{ d=await fetch('api/oneofones?t='+Date.now()).then(r=>r.json()); }catch(e){ return; }
+  if(!_onesPoll) _onesPoll=setInterval(function(){ var g=document.getElementById('ones-grid'); if(g&&g.offsetParent!==null) loadOnes(); }, 45000);
+  // Mint is permanently closed at 315: a 1/1 whose shuffled token id landed above the final count can NEVER be
+  // minted, so cut it off (retired) instead of showing it as a sealed tile still waiting in the vault. When the
+  // mint is closed we show only the 1/1s that made it into circulation, plus a note for the retired ones.
+  const all=(d.ones||[]);
+  const show = d.mintClosed ? all.filter(o=>o.minted) : all;
+  const retired = d.mintClosed ? all.filter(o=>!o.minted).length : 0;
+  grid.innerHTML=show.map(o=>{
+    if(o.revealed && o.minted){
+      const img=o.image?oesc(o.image):robberGhost(o.tokenId||o.art);
+      return '<a class="onecard" style="display:block;text-decoration:none;color:inherit" href="'+osAsset(o.tokenId)+'" target="_blank" rel="noopener" title="View #'+o.tokenId+' on OpenSea"><img class="art" loading="lazy" src="'+img+'" alt="'+oesc(o.name||'1/1')+'" onerror="this.onerror=null;this.src=\''+robberGhost(o.tokenId||o.art)+'\'">'
+        +'<div class="body"><div class="nm">'+oesc(o.name||('#'+o.tokenId))+'</div>'
+        +'<span class="badge one">1/1</span><span class="badge">'+t('ones.pulled',{id:o.tokenId})+'</span></div></a>';
+    }
+    return '<div class="onecard sealed"><img class="art" src="'+robberGhost(900+o.art)+'" alt="Sealed 1/1">'
+      +'<div class="body"><div class="nm">1/1</div>'
+      +'<span class="badge one">1/1</span><span class="badge">'+(o.revealed?t('ones.inVault'):t('ones.sealed'))+'</span></div></div>';
+  }).join('') + (retired>0 ? '<p class="muted" style="grid-column:1/-1;text-align:center;padding:10px 4px 2px;font-size:12px">'+t('ones.retiredNote',{n:retired})+'</p>' : '');
+}
+
+// ── Crew / reveal gallery. Reads the minted robbers from the server (on-chain tokenURI). Shows a branded,
+// deterministic "sealed" ghost per token pre-reveal; auto-swaps to real art + traits once the contract reveals.
+let CREW=null, crewPage=0, crewSort='recent'; const CREW_PAGE=50;
+function cesc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function robberGhost(id){
+  const hues=['#2ea65a','#c2432f','#2f8f4e','#f5a623','#8b5cf6','#e0699f','#3f9fb0'];
+  const col=hues[id%hues.length];
+  const s='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+    +'<rect width="100" height="100" fill="#eedaba"/>'
+    +'<path d="M22 48 a28 28 0 0 1 56 0 v33 l-9 -7 -9 7 -10 -7 -10 7 -9 -7 z" fill="'+col+'" stroke="#17130d" stroke-width="3.5" stroke-linejoin="round"/>'
+    +'<rect x="25" y="41" width="50" height="15" rx="4" fill="#17130d"/>'
+    +'<circle cx="40" cy="48.5" r="4.7" fill="#fbfaf6"/><circle cx="60" cy="48.5" r="4.7" fill="#fbfaf6"/>'
+    +'<circle cx="40" cy="48.5" r="2" fill="#17130d"/><circle cx="60" cy="48.5" r="2" fill="#17130d"/>'
+    +'<text x="50" y="92" text-anchor="middle" font-family="monospace" font-size="9" fill="#17130d" opacity="0.5">SEALED</text></svg>';
+  return 'data:image/svg+xml;utf8,'+encodeURIComponent(s);
+}
+// Each robber card deep-links to its own token page on OpenSea (Robinhood chain). Falls back to the known contract if CFG hasn't loaded.
+function osAsset(id){ return 'https://opensea.io/assets/robinhood/'+((CFG&&CFG.contract)||'0xABC6c4F5d1F31326b419c2645C981743a845313a')+'/'+id; }
+function robberCard(r){
+  const revealed=r.status&&r.status.toLowerCase()!=='unrevealed';
+  const ghost=robberGhost(r.id);
+  const img=(revealed&&r.image)?cesc(r.image):ghost;
+  const trait=(revealed&&r.traits&&r.traits.length)?'<span class="trait">'+cesc(r.traits[0].value)+'</span>':'';
+  return '<a class="robber" style="display:block;text-decoration:none;color:inherit" href="'+osAsset(r.id)+'" target="_blank" rel="noopener" title="View #'+r.id+' on OpenSea"><img class="art" loading="lazy" src="'+img+'" alt="Vault Robber #'+r.id+'" onerror="this.onerror=null;this.src=\''+ghost+'\'">'
+    +'<div class="cap"><span class="id">#'+r.id+'</span><span class="st">'+(revealed?t('common.revealed'):t('common.sealed'))+'</span>'+trait+'</div></a>';
+}
+let _crewPoll=null, _crewFirst=true;
+async function loadCrew(){
+  // Re-fetch every call (tab open + poll) so new mints + the reveal propagate live. Keep the last good data on error.
+  let d=null;
+  try{ d=await fetch('api/robbers?t='+Date.now()).then(r=>r.json()); }catch(e){ if(!CREW) $('#crew-sub').textContent=t('crew.loadError'); return; }
+  if(!d||d.error){ if(!CREW) $('#crew-sub').textContent=t('crew.loadError'); return; }
+  CREW=d; const c=CREW;
+  $('#crew-title').textContent=c.revealed?t('crew.titleRevealed'):t('crew.title');
+  $('#crew-sub').textContent=c.revealed
+    ? t('crew.subRevealed',{count:c.count,max:c.maxSupply})
+    : t('crew.subSealed',{count:c.count,max:c.maxSupply});
+  if(_crewFirst){ crewPage=0; _crewFirst=false; }
+  ensureCrewSort();
+  renderCrewGrid();
+  // Auto-update sequentially: while the Crew grid is on-screen, re-poll so ghosts swap to real art as tokens reveal.
+  if(!_crewPoll) _crewPoll=setInterval(function(){ var g=$('#crew-grid'); if(g&&g.offsetParent!==null) loadCrew(); }, 45000);
+}
+// Sort toggle above the Crew grid: "Recent" (newest mints first, default) vs "#1 first" (chronological). Injected once.
+function ensureCrewSort(){
+  if(document.getElementById('crew-sort')) return;
+  var g=document.getElementById('crew-grid'); if(!g||!g.parentNode) return;
+  var base='padding:6px 14px;border:2.5px solid var(--ink);border-radius:10px;font-family:var(--font-ui);font-size:13px;cursor:pointer;box-shadow:2px 2px 0 var(--ink)';
+  var bar=document.createElement('div'); bar.id='crew-sort'; bar.style.cssText='display:flex;gap:8px;justify-content:center;margin:2px 0 12px';
+  function paint(sel){ bar.querySelectorAll('.csort').forEach(function(x){ x.style.cssText=base+';background:'+(x.dataset.s===sel?'var(--gold,#e8b94e)':'var(--paper)')+';color:var(--ink)'; }); }
+  bar.innerHTML='<button type="button" class="csort" data-s="recent">Recent</button><button type="button" class="csort" data-s="old">#1 first</button>';
+  g.parentNode.insertBefore(bar,g);
+  bar.querySelectorAll('.csort').forEach(function(b){ b.onclick=function(){ crewSort=(b.dataset.s==='old')?'old':'recent'; paint(crewSort); crewPage=0; renderCrewGrid(); }; });
+  paint(crewSort);
+}
+// Paged gallery: show CREW_PAGE (50) at a time and REPLACE the grid on Next/Prev (no infinite scroll).
+function renderCrewGrid(){
+  const base=(CREW&&CREW.robbers)||[];
+  const all = crewSort==='old' ? base : base.slice().reverse();   // default: most recent mint first
+  const pages=Math.max(1, Math.ceil(all.length/CREW_PAGE));
+  if(crewPage>=pages) crewPage=pages-1; if(crewPage<0) crewPage=0;
+  const start=crewPage*CREW_PAGE;
+  $('#crew-grid').innerHTML=all.slice(start, start+CREW_PAGE).map(robberCard).join('');
+  const nav=$('#crew-nav'); if(nav) nav.style.display=all.length>CREW_PAGE?'flex':'none';
+  const pi=$('#crew-pageinfo'); if(pi) pi.textContent=t('crew.pageInfo',{page:crewPage+1,pages:pages});
+  const pv=$('#crew-prev'); if(pv) pv.style.display=crewPage>0?'':'none';
+  const nx=$('#crew-next'); if(nx) nx.style.display=crewPage<pages-1?'':'none';
+}
+$('#crew-prev').onclick=function(){ crewPage--; renderCrewGrid(); var g=$('#crew-grid'); if(g&&g.scrollIntoView) g.scrollIntoView({behavior:'smooth',block:'start'}); };
+$('#crew-next').onclick=function(){ crewPage++; renderCrewGrid(); var g=$('#crew-grid'); if(g&&g.scrollIntoView) g.scrollIntoView({behavior:'smooth',block:'start'}); };
+function jumpCrew(e){ if(e)e.preventDefault(); const t=document.querySelector('[data-t=crew]'); if(t) t.click(); window.scrollTo({top:0,behavior:'smooth'}); }
+var _scl=$('#seecrew'); if(_scl) _scl.onclick=jumpCrew;
+document.querySelectorAll('.crewjump').forEach(a=>a.onclick=jumpCrew);
+function jumpV3(e){ if(e)e.preventDefault(); const t=document.querySelector('[data-t=v3]'); if(t) t.click(); window.scrollTo({top:0,behavior:'smooth'}); }
+document.querySelectorAll('.v3jump').forEach(a=>a.onclick=jumpV3);
+function jumpOnes(e){ if(e)e.preventDefault(); const t=document.querySelector('[data-t=ones]'); if(t) t.click(); window.scrollTo({top:0,behavior:'smooth'}); }
+var _cl=$('#chaselink'); if(_cl) _cl.onclick=jumpOnes;
+// Story tab: the RobinVault lore threads, in narrative order, rendered as live X embeds.
+// LORE: [tagKey, tweetId, summaryKey]. The display tag + summary localize via t(); the tweet id is immutable.
+const LORE=[
+  ['lore.0.tag','2092646669808713937','lore.0.sum'],
+  ['lore.1.tag','2094054574969782505','lore.1.sum'],
+  ['lore.2.tag','2094964331796721849','lore.2.sum'],
+  ['lore.3.tag','2096238034740277303','lore.3.sum'],
+  ['lore.4.tag','2096611052045885554','lore.4.sum'],
+  ['lore.5.tag','2098035448602075621','lore.5.sum'],
+  ['lore.6.tag','2099504760227508243','lore.6.sum'],
+  ['lore.7.tag','2100641797374631991','lore.7.sum'],
+  ['lore.8.tag','2112240399297483169','lore.8.sum'],
+  ['lore.9.tag','2116542044932096439','lore.9.sum'],
+];
+let _tw=false;
+function loadTwitter(){
+  const box=$('#lore');
+  if(window.twttr&&window.twttr.widgets){ try{ window.twttr.widgets.load(box); }catch(e){} return; }
+  if(_tw)return; _tw=true;
+  const s=document.createElement('script'); s.src='https://platform.twitter.com/widgets.js'; s.async=true; s.setAttribute('charset','utf-8');
+  s.onload=()=>{ try{ window.twttr.widgets.load($('#lore')); }catch(e){} };
+  document.head.appendChild(s);
+}
+function renderLore(){
+  const box=$('#lore'); if(!box||box.dataset.done) return; box.dataset.done='1';
+  box.innerHTML=LORE.map(([tagKey,id,sumKey])=>'<div class="card loreitem"><div class="loretag">'+t(tagKey)+'</div>'+
+    '<p class="losum">'+t(sumKey)+'</p>'+
+    '<div class="tw"><blockquote class="twitter-tweet" data-theme="light" data-dnt="true" data-conversation="none"><a href="https://twitter.com/Jakegallen/status/'+id+'"></a></blockquote></div>'+
+    '<a class="lorelink" href="https://x.com/Jakegallen/status/'+id+'" target="_blank" rel="noopener">'+t('story.readThread')+'</a></div>').join('');
+  loadTwitter();
+}
+let qty=1, CFG=null, Q=null, account=null;
+const usd=n=>'$'+(n||0).toLocaleString(undefined,{maximumFractionDigits:2});
+const num=n=>(n||0).toLocaleString(undefined,{maximumFractionDigits:0});
+const short=a=>a?a.slice(0,6)+'…'+a.slice(-4):'';
+const setStatus=(m,cls)=>{const s=$('#status');s.className=cls||'muted';s.textContent=m;};
+
+async function loadConfig(){
+  try{ CFG=await fetch('api/config').then(r=>r.json());
+    var total=CFG.totalMinted, max=CFG.maxSupply||1000;
+    $('#m-supply').textContent=t('mint.supply',{total:total,max:max});
+    var fill=$('#m-fill'); if(fill) fill.style.width=Math.max(2,Math.min(100,(total/max)*100))+'%';
+    // All-in tier price: on-chain tier doubled (the mint pulls the tier in RVLT and the 100% premium matches it),
+    // so the ladder reads 25,000 / 50,000 / 75,000 / 100,000. Show the current tier by mint progress (250 per tier).
+    var ti=Math.min(3,Math.floor((CFG.totalMinted||0)/250));
+    $('#m-tier').textContent=t('mint.tierRvlt',{amount:num((CFG.tiersRvlt[ti]||CFG.tiersRvlt[0])*2)});
+    setMintButton();
+  }catch(e){}
+}
+// Vault Standoff opening countdown on the Mint card: counts down to Halloween (00:00 ET = 04:00 UTC), and flips to
+// a "sold out / supply sealed" state the moment the mint sells out (reads the live CFG mint count from loadConfig).
+var VS_OPEN_MS = Date.parse('2026-10-30T00:00:00Z');   // LAUNCHED early 2026-10-30: the standoff is live, so the V3 entry shows the play link (no countdown)
+// The Vault Standoff (V3) is LOCKED until it opens: open === mint sold out OR the Halloween cutoff. Until then the
+// entry button is non-clickable and shows a live countdown; the instant it opens it becomes the real play/v3/ link.
+// This drives BOTH surfaces: the Mint-tab teaser card (#vsCd/#vsMsg) and the V3 tab gated entry (#v3Entry).
+function v3ApplyOpen(){
+  var box=document.getElementById('v3Entry'); if(!box || box.getAttribute('data-open')==='1') return;
+  box.setAttribute('data-open','1');
+  box.innerHTML='<a class="btn play" href="v3/">'+t('v3.enterLive')+'</a><div class="muted" style="font-size:12px;text-align:center;margin-top:10px">'+t('v3.liveNow')+'</div>';
+}
+function vsTick(){
+  var soldOut = !!(CFG && CFG.maxSupply && CFG.totalMinted!=null && CFG.totalMinted >= CFG.maxSupply);
+  var ms=Math.max(0, VS_OPEN_MS - Date.now());
+  var open = soldOut || ms<=0;
+  var tsec=Math.floor(ms/1000), d=Math.floor(tsec/86400), h=Math.floor(tsec%86400/3600), m=Math.floor(tsec%3600/60), s=tsec%60;
+  var z=function(n){ return (n<10?'0':'')+n; };
+  var cdText = open ? (soldOut?t('v3.soldOut'):t('v3.opening')) : (d+'d : '+z(h)+'h : '+z(m)+'m : '+z(s)+'s');
+  var teaserMsg = soldOut ? t('standoff.soldOut')
+                 : (open ? t('standoff.halloweenHere')
+                 : t('standoff.opensTeaser'));
+  // Mint-tab teaser card (static tease + jump link; the live countdown clock lives once, on the V3 tab).
+  var msg=document.getElementById('vsMsg'); if(msg) msg.textContent=teaserMsg;
+  // V3 tab gated entry: countdown on the locked button, or swap to the live link when open.
+  if(open){ v3ApplyOpen(); }
+  else {
+    var v=document.getElementById('v3Cd'); if(v) v.textContent=cdText;
+    var vm=document.getElementById('v3Msg'); if(vm) vm.textContent=t('v3.opensMsg');
+  }
+}
+setInterval(vsTick, 1000); vsTick();
+// Button carries the state (the Status row was removed): capped > not-open > Mint.
+function setMintButton(){
+  const btn=$('#mintbtn'); if(!btn) return;
+  if(CAPPED){ btn.disabled=true; btn.classList.add('capped'); btn.textContent=t('mint.pulledYour3'); return; }
+  btn.classList.remove('capped');
+  if(!(CFG&&CFG.mintActive&&CFG.enabled)){ btn.disabled=true; btn.textContent=t('mint.openingSoon'); return; }
+  btn.disabled=false; btn.textContent=t('mint.mint');
+}
+async function loadQuote(){
+  try{ Q=await fetch('api/quote?qty='+qty).then(r=>r.json());
+    var el=$('#q-usd'); if(el) el.textContent=Q.priceKnown?usd(Q.usdTotal):t('mint.priceUnavailable');
+  }catch(e){}
+}
+$('#inc').onclick=()=>{qty=Math.min(3,qty+1);$('#qn').textContent=qty;loadQuote();};
+$('#dec').onclick=()=>{qty=Math.max(1,qty-1);$('#qn').textContent=qty;loadQuote();};
+
+// Wallet layer: the shared Emblem connector (EIP-6963 for EVM: MetaMask/Rabby/Rainbow/Robinhood/Phantom/Coinbase,
+// plus Solana wallets) backs a small picker. Two roles:
+//   WALLET #1 = the PAY wallet. When picked we pull EVERY chain it supports. A multi-chain wallet (Phantom,
+//     MetaMask) exposes both an EVM and a Solana provider under the same id, so we connect BOTH legs and set
+//     both account (EVM) and solAccount (Solana) from the one wallet. /api/balances then returns its EVM
+//     chains AND Solana together.
+//   WALLET #2 = the MINT wallet (mintAccount). The NFT mints on Robinhood Chain, so the mint wallet is EVM.
+//     Phantom fully supports Robinhood Chain, so any EVM wallet can be the mint wallet. When the pay wallet is
+//     itself EVM-capable we reuse its account as mintAccount (no second pick). Only a pure-Solana pay wallet
+//     needs a second EVM wallet chosen for the mint.
+// The connector loads as a deferred ES module, so resolve the singleton at call time (not at parse time).
+function emW(){ return window.EmblemWallet || null; }
+let EIP=null;                 // the chosen EVM EIP-1193 provider (the mint wallet's provider)
+let solAccount=null;          // connected Solana address (a multi-chain pay wallet's Solana leg, if any)
+let mintAccount=null;         // the EVM Robinhood mint wallet (receives the NFT + does the mint); defaults to account
+function prov(){ return EIP || window.ethereum; }
+// ── Mobile wallet-browser reroute ──────────────────────────────────────────
+// On mobile, a dapp can only sign when it runs INSIDE a wallet app's built-in browser (that's the only
+// place an injected provider exists). A plain mobile browser (Safari/Chrome/Brave/Firefox) has no provider,
+// so connect/mint cannot work. We detect that and show a note to reopen the site in the wallet's browser.
+// NO WalletConnect, NO deep links by design.
+function isMobileDevice(){ return /Android|iPhone|iPad|iPod|Mobile|Silk|Opera Mini|IEMobile/i.test(navigator.userAgent||''); }
+// Broad detection: window.ethereum is the catch-all for virtually every EVM in-app browser (Coinbase Wallet, MetaMask,
+// Trust, Brave, Rainbow, Rabby, etc. all set it). The named handles below cover wallets that DON'T always set
+// window.ethereum (OKX non-default, many Solana wallets). Solana wallets are included because the pay-with-anything
+// flow accepts a Solana origin and bridges to the EVM mint. Add new popular wallets here if a user reports a block.
+function hasInjectedWallet(){ try{ var w=window; return !!(
+  w.ethereum || w.okxwallet || w.okexchain || w.trustwallet || w.trustWallet || w.bitkeep || w.bitget || w.bybitWallet
+  || w.rainbow || w.enkrypt || w.tokenpocket || w.coinbaseWalletExtension || w.coinbaseWalletRequestProvider || w.exodus || w.$onekey || w.rabby
+  || w.solana || (w.phantom&&(w.phantom.ethereum||w.phantom.solana)) || w.backpack || w.solflare || w.glow || w.glowSolana || w.jupiter || w.coinbaseSolana
+); }catch(e){ return false; } }
+function showWalletBrowserReroute(){
+  let ov=document.getElementById('wbReroute');
+  if(!ov){
+    ov=document.createElement('div'); ov.id='wbReroute'; ov.className='wbwrap';
+    ov.innerHTML='<div class="wbcard">'
+      +'<div class="wbmask"><svg viewBox="0 0 120 140" xmlns="http://www.w3.org/2000/svg"><path d="M60 8 C95 8 108 36 108 70 L108 132 L12 132 L12 70 C12 36 25 8 60 8 Z" fill="#17130d"/><ellipse cx="60" cy="64" rx="34" ry="38" fill="#fbfaf6" stroke="#17130d" stroke-width="3"/><rect x="24" y="52" width="72" height="26" rx="9" fill="#2ea65a" stroke="#17130d" stroke-width="3"/><ellipse cx="46" cy="65" rx="8" ry="9" fill="#fbfaf6" stroke="#17130d" stroke-width="2.5"/><ellipse cx="74" cy="65" rx="8" ry="9" fill="#fbfaf6" stroke="#17130d" stroke-width="2.5"/><circle cx="46" cy="65" r="3" fill="#17130d"/><circle cx="74" cy="65" r="3" fill="#17130d"/><path d="M58 85 l2 -6 l2 6 z" fill="#17130d"/></svg></div>'
+      +'<div class="wbh">'+t('wb.heading')+'</div>'
+      +'<p class="wbp">'+t('wb.body')+'</p>'
+      +'<button type="button" class="wbcopy" id="wbCopy">'+t('wb.copyLink')+'</button>'
+      +'<div class="wbcopied" id="wbCopied">'+t('wb.copied')+'</div>'
+      +'<a href="#" class="wbdismiss" id="wbDismiss">'+t('wb.dismiss')+'</a>'
+      +'</div>';
+    document.body.appendChild(ov);
+    ov.querySelector('#wbDismiss').onclick=function(e){ if(e)e.preventDefault(); ov.style.display='none'; };
+    ov.querySelector('#wbCopy').onclick=async function(){
+      const done=()=>{ const c=ov.querySelector('#wbCopied'); if(c){ c.style.display='block'; setTimeout(()=>{ c.style.display='none'; },1800); } };
+      try{ await navigator.clipboard.writeText(location.href); done(); }
+      catch(e){
+        try{ const ta=document.createElement('textarea'); ta.value=location.href; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); done(); }catch(_){}
+      }
+    };
+  }
+  ov.style.display='flex';
+}
+// Proactive, always-visible banner for mobile users NOT inside a wallet app's browser (a plain mobile browser has no
+// injected provider and cannot sign). Shows on load + re-checks shortly after in case the wallet injects late; removes
+// itself the moment an injected wallet IS detected (e.g. OKX/MetaMask in-app browser).
+function showMobileWalletBanner(){
+  try{
+    if(!(isMobileDevice() && !hasInjectedWallet())){ var ex=document.getElementById('mwBanner'); if(ex) ex.remove(); return; }
+    if(document.getElementById('mwBanner')) return;
+    var b=document.createElement('div'); b.id='mwBanner';
+    b.style.cssText='position:sticky;top:0;z-index:9999;background:#fff4d6;color:#17130d;border-bottom:3px solid #17130d;padding:10px 14px;font-family:inherit;font-size:14px;line-height:1.35;text-align:center';
+    b.innerHTML='<b>Open in your wallet app to mint.</b> A normal mobile browser can’t sign transactions. In MetaMask, Phantom, OKX, Rabby or Coinbase, open the in-app Browser and go to vaultrobbers.com. <a href="#" id="mwMore" style="color:#2e6cf6;white-space:nowrap">Details</a>';
+    document.body.insertBefore(b, document.body.firstChild);
+    var m=b.querySelector('#mwMore'); if(m) m.onclick=function(e){ if(e)e.preventDefault(); showWalletBrowserReroute(); };
+  }catch(_){}
+}
+try{ showMobileWalletBanner(); setTimeout(showMobileWalletBanner, 1500); }catch(_){}
+const EVM_LABELS={metamask:'MetaMask',rabby:'Rabby',rainbow:'Rainbow',robinhood:'Robinhood',coinbase:'Coinbase',okx:'OKX',trust:'Trust',brave:'Brave',zerion:'Zerion',frame:'Frame',bitget:'Bitget',enkrypt:'Enkrypt',taho:'Taho',phantom:'Phantom'};
+const SOL_LABELS={phantom:'Phantom',solflare:'Solflare',backpack:'Backpack',okx:'OKX'};
+function walletDot(hue){ return '<span class="pickdot" style="background:'+hue+'"></span>'; }
+
+// ── Wallet logos ──────────────────────────────────────────────────────────
+// EVM wallets announce their own icon via EIP-6963 (a data URI), real logos, no external fetch.
+const EVM_RDNS={metamask:['io.metamask','io.metamask.flask','io.metamask.mmi'],rabby:['io.rabby'],phantom:['app.phantom'],coinbase:['com.coinbase.wallet'],okx:['com.okex.wallet'],trust:['com.trustwallet.app'],rainbow:['me.rainbow'],zerion:['io.zerion.wallet'],brave:['com.brave.wallet'],frame:['sh.frame'],bitget:['com.bitget.web3'],enkrypt:['com.enkrypt'],taho:['com.taho','com.tahowallet'],robinhood:['com.robinhood.wallet']};
+const WALLET_ICONS={}; // rdns(lower) -> data URI
+try{ window.addEventListener('eip6963:announceProvider',e=>{ try{ const d=e&&e.detail; if(d&&d.info&&d.info.rdns&&d.info.icon) WALLET_ICONS[String(d.info.rdns).toLowerCase()]=d.info.icon; }catch(_){} }); window.dispatchEvent(new Event('eip6963:requestProvider')); }catch(_){}
+function evmIcon(id){ const keys=EVM_RDNS[id]||[]; for(const k of keys){ if(WALLET_ICONS[k]) return WALLET_ICONS[k]; } return null; }
+// Solana wallets don't do EIP-6963: compact inline brand marks.
+const SOL_SVG={
+  phantom:'<svg viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#ab9ff2"/><path d="M19 12.4c0 3.6-3 6.1-6.2 6.1-2.1 0-3.4-1-4.1-1.9-.6.9-1.5 1.5-2.6 1.5-.7 0-1.1-.5-1.1-1.1 0-2.9 2.3-6.8 6.6-6.8h3.9c.3 0 .5-.2.5-.5C16.5 8 14.4 6 11.9 6 9 6 6.6 8.1 6.2 10.9" fill="none" stroke="#fff" stroke-width="1.4"/><circle cx="12.6" cy="12.6" r="1.1" fill="#fff"/><circle cx="16" cy="12.6" r="1.1" fill="#fff"/></svg>',
+  solflare:'<svg viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#fc7227"/><circle cx="12" cy="12" r="3.3" fill="#ffd36b"/><g stroke="#fff" stroke-width="1.5" stroke-linecap="round"><path d="M12 3.5v3M12 17.5v3M3.5 12h3M17.5 12h3M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2"/></g></svg>',
+  backpack:'<svg viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#e33e3f"/><path d="M8 10c0-2.2 1.8-4 4-4s4 1.8 4 4v8H8z" fill="#fff"/><rect x="10.5" y="11.5" width="3" height="3.5" rx="1" fill="#e33e3f"/></svg>',
+  okx:'<svg viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#111"/><g fill="#fff"><rect x="5" y="5" width="4" height="4"/><rect x="15" y="5" width="4" height="4"/><rect x="10" y="10" width="4" height="4"/><rect x="5" y="15" width="4" height="4"/><rect x="15" y="15" width="4" height="4"/></g></svg>'
+};
+const WALLET_BRAND={metamask:'#e8831d',rabby:'#7084ff',coinbase:'#0052ff',okx:'#111',trust:'#3375bb',rainbow:'#174299',zerion:'#2962ef',brave:'#fb542b',frame:'#1b1f2a',bitget:'#00f0ff',enkrypt:'#0096ff',taho:'#d9b500',robinhood:'#00c805',phantom:'#ab9ff2',solflare:'#fc7227',backpack:'#e33e3f'};
+function walletIcon(kind,id){
+  if(kind==='evm'){ const ic=evmIcon(id); if(ic) return '<span class="wico"><img src="'+ic+'" alt=""></span>'; }
+  if(kind==='sol'&&SOL_SVG[id]) return '<span class="wico">'+SOL_SVG[id]+'</span>';
+  const lbl=(kind==='sol'?SOL_LABELS[id]:EVM_LABELS[id])||id; const bg=WALLET_BRAND[id]||'#2ea65a';
+  return '<span class="wico mono" style="background:'+bg+'">'+(lbl[0]||'?').toUpperCase()+'</span>';
+}
+
+// ── Coin logos (inline, by token symbol) ──
+const COIN_SVG={
+  ETH:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#627eea"/><path d="M12 4.5v5.6l4.7 2.1z" fill="#fff" opacity=".65"/><path d="M12 4.5 7.3 12.2 12 10.1z" fill="#fff"/><path d="M12 15.3v4.2l4.7-6.5z" fill="#fff" opacity=".65"/><path d="M12 19.5v-4.2L7.3 13z" fill="#fff"/><path d="M12 14.4l4.7-2.2L12 10.1z" fill="#fff" opacity=".4"/><path d="M7.3 12.2 12 14.4V10.1z" fill="#fff" opacity=".8"/></svg>',
+  USDC:'<svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#2775ca"/><path fill="#fff" d="M20.5 18.5c0-2.4-1.4-3.2-4.3-3.5-2-.3-2.4-.8-2.4-1.7s.7-1.6 2-1.6c1.2 0 1.9.4 2.2 1.4a.5.5 0 0 0 .5.3h1a.4.4 0 0 0 .4-.5 3.3 3.3 0 0 0-3-2.6V8.5a.5.5 0 0 0-.5-.5h-.9a.5.5 0 0 0-.5.5v1.5c-2 .3-3.2 1.6-3.2 3.3 0 2.3 1.4 3.1 4.3 3.4 1.9.3 2.4.7 2.4 1.8s-.9 1.8-2.2 1.8c-1.7 0-2.3-.7-2.5-1.7a.5.5 0 0 0-.5-.4h-1a.4.4 0 0 0-.4.5 3.4 3.4 0 0 0 3.1 2.8v1.6a.5.5 0 0 0 .5.5h.9a.5.5 0 0 0 .5-.5v-1.6c2.1-.3 3.3-1.7 3.3-3.6z"/><path fill="#fff" d="M13 25.5a10 10 0 0 1 0-19 .6.6 0 0 0 .4-.6v-.8c0-.3-.2-.5-.5-.4a11.5 11.5 0 0 0 0 22 .4.4 0 0 0 .5-.4v-.8a.6.6 0 0 0-.4-.6zm6-20.4a.4.4 0 0 0-.5.4v.8a.6.6 0 0 0 .4.6 10 10 0 0 1 0 19 .6.6 0 0 0-.4.6v.8c0 .3.2.5.5.4a11.5 11.5 0 0 0 0-22z"/></svg>',
+  SOL:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#111"/><g><linearGradient id="sg" x1="4" y1="18" x2="20" y2="6" gradientUnits="userSpaceOnUse"><stop stop-color="#9945ff"/><stop offset="1" stop-color="#14f195"/></linearGradient></g><g fill="url(#sg)"><path d="M7 15.5h9.5l-1.8 1.8H5.2z"/><path d="M7 6.7h9.5L14.7 8.5H5.2z"/><path d="M9 11.1h9.5l1.8 1.8H7.2z" transform="translate(-2,0)"/></g></svg>',
+  POL:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#8247e5"/><path d="M15.2 10.1c-.3-.2-.7-.2-1 0l-2 1.2-1.4.8-2 1.2c-.3.2-.7.2-1 0l-1.6-.9c-.3-.2-.5-.5-.5-.9v-1.8c0-.4.2-.7.5-.9l1.6-.9c.3-.2.7-.2 1 0l1.6.9c.3.2.5.5.5.9v1.2l1.4-.8V8.8c0-.4-.2-.7-.5-.9l-2.9-1.7c-.3-.2-.7-.2-1 0L6.5 7.9c-.3.2-.5.5-.5.9v3.4c0 .4.2.7.5.9l3 1.7c.3.2.7.2 1 0l2-1.2 1.4-.8 2-1.2c.3-.2.7-.2 1 0l1.6.9c.3.2.5.5.5.9v1.8c0 .4-.2.7-.5.9l-1.6.9c-.3.2-.7.2-1 0l-1.6-.9c-.3-.2-.5-.5-.5-.9v-1.2l-1.4.8v1.2c0 .4.2.7.5.9l3 1.7c.3.2.7.2 1 0l3-1.7c.3-.2.5-.5.5-.9v-3.4c0-.4-.2-.7-.5-.9z" fill="#fff"/></svg>',
+  RVLT:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#2ea65a"/><circle cx="12" cy="12" r="11" fill="none" stroke="#17130d" stroke-width="1.5"/><path d="M6.5 11c0-2.8 2.5-4.5 5.5-4.5S17.5 8.2 17.5 11v1H6.5z" fill="#fff"/><circle cx="9.6" cy="10.8" r="1.3" fill="#17130d"/><circle cx="14.4" cy="10.8" r="1.3" fill="#17130d"/><path d="M8 14.5c1 1.4 2.4 2 4 2s3-.6 4-2" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/></svg>'
+};
+COIN_SVG.WETH=COIN_SVG.ETH;
+COIN_SVG.BNB='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#f3ba2f"/><path fill="#fff" d="M12 5.4l2.3 2.3-3.6 3.6L8.4 9 12 5.4zM7.1 10.3l1.7 1.7-1.7 1.7-1.7-1.7 1.7-1.7zm9.8 0l1.7 1.7-1.7 1.7-1.7-1.7 1.7-1.7zM12 12.4l2.3 2.3L12 17l-2.3-2.3L12 12.4z"/></svg>';
+// Stable + BNB marks for the new pay currencies (USDT/DAI/USDG/BNB). Simple coloured discs with a symbol glyph so
+// the dropdown rows get a recognizable icon instead of falling back to the ETH mark.
+COIN_SVG.USDT='<svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#26a17b"/><path fill="#fff" d="M17.9 14.2v-1.9h4.4V9.4H9.7v2.9H14v1.9c-3.6.2-6.3.9-6.3 1.8s2.7 1.6 6.3 1.8v6.1h3.9v-6.1c3.6-.2 6.3-.9 6.3-1.8s-2.7-1.6-6.3-1.8zm0 3c-.1 0-.9.1-2 .1-1 0-1.7 0-2-.1-3.1-.1-5.4-.7-5.4-1.3s2.3-1.1 5.4-1.3v2c.3 0 1 .1 2 .1 1.1 0 1.8 0 2-.1v-2c3.1.2 5.4.7 5.4 1.3s-2.3 1.2-5.4 1.3z"/></svg>';
+COIN_SVG.DAI='<svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#f5ac37"/><path fill="#fff" d="M9 11h7.1c3.4 0 5.9 1.9 6.7 4.3H24v1.6h-1c.1.4.1.7.1 1.1 0 .3 0 .7-.1 1h1v1.6h-1.2C22 23 19.5 25 16.1 25H9v-5h-1.8v-1.6H9V17H7.2v-1.6H9zm1.7 1.6V15h5.6c-.5-1.2-1.7-2.4-3.9-2.4zm0 7.8v-2.4h5.6c-.4 1.2-1.6 2.4-3.9 2.4zm0-4v1h8.4c0-.3.1-.6.1-1s0-.6-.1-1h-8.4z"/></svg>';
+COIN_SVG.USDG='<svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#1a7f5a"/><path fill="#fff" d="M16 8a8 8 0 1 0 0 16 8 8 0 0 0 7.4-5h-7.4v-2.2H24c0-.3.1-.5.1-.8 0-4.4-3.7-8-8.1-8zm0 2.2c1.9 0 3.6.8 4.8 2.1H16z"/></svg>';
+COIN_SVG.BNB='<svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#f3ba2f"/><path fill="#fff" d="M12.1 14.3 16 10.4l3.9 3.9 2.3-2.3L16 5.8 9.8 12zM6.8 16l2.3-2.3L11.4 16l-2.3 2.3zm5.3 1.7L16 21.6l3.9-3.9 2.3 2.3L16 26.2 9.8 20zm8.5-1.7 2.3-2.3L25.2 16l-2.3 2.3zM18.3 16 16 13.7 13.7 16 16 18.3z"/></svg>';
+function coinIcon(sym){ const s=COIN_SVG[(sym||'').toUpperCase()]; return '<span class="coinico">'+(s||COIN_SVG.ETH)+'</span>'; }
+
+async function ensureChain(){
+  const hex='0x'+CFG.chainId.toString(16); const P=prov();
+  try{ await P.request({method:'wallet_switchEthereumChain',params:[{chainId:hex}]}); }
+  catch(e){ if(e.code===4902){ await P.request({method:'wallet_addEthereumChain',params:[{
+      chainId:hex, chainName:'Robinhood Chain', nativeCurrency:{name:'ETH',symbol:'ETH',decimals:18},
+      rpcUrls:[CFG.rpc], blockExplorerUrls:[CFG.explorer]}]}); } else throw e; }
+}
+
+// ── Wallet picker modal ──
+function openPicker(){
+  const list=$('#picklist'); const empty=$('#pickempty'); if(!list) return;
+  const w=emW();
+  // The picker lists PAY wallets (wallet #1). Pull what each wallet supports so a multi-chain wallet shows once.
+  let evmIds=[]; try{ evmIds=(w&&w.discoverEvm)?w.discoverEvm():[]; }catch(e){}
+  let solIds=[]; try{ solIds=(w&&w.discoverSolana)?w.discoverSolana():[]; }catch(e){}
+  const solSet=new Set(solIds);
+  const rows=[]; const seen=new Set();
+  // EVM wallets first. If the SAME id also exposes Solana (Phantom, etc.) it is multi-chain: pick it once and we
+  // connect both legs. data-kind carries evm/sol/both so pickWallet knows how to connect.
+  evmIds.forEach(id=>{ if(seen.has(id)) return; seen.add(id);
+    const multi=solSet.has(id);
+    rows.push('<div class="pickrow" data-kind="'+(multi?'both':'evm')+'" data-id="'+id+'">'+walletIcon('evm',id)+'<span class="pname">'+(EVM_LABELS[id]||id)+'</span><span class="pchain">'+(multi?t('picker.evmSolana'):t('picker.evm'))+'</span></div>'); });
+  // Solana-only wallets (no EVM leg) still list as a pure pay wallet; they need a second EVM wallet to mint.
+  solIds.forEach(id=>{ if(seen.has(id)) return; seen.add(id);
+    rows.push('<div class="pickrow" data-kind="sol" data-id="'+id+'">'+walletIcon('sol',id)+'<span class="pname">'+(SOL_LABELS[id]||id)+'</span><span class="pchain">'+t('picker.solana')+'</span></div>'); });
+  const disc=(account||solAccount)?('<div class="pickrow" id="pickDisc" style="border-top:2px dashed rgba(23,19,13,.2);color:#c6472e"><span class="pname">⎋ '+((account&&solAccount)?t('picker.disconnectWallets'):t('picker.disconnectWallet'))+'</span><span class="pchain">'+((account?short(account):'')+(account&&solAccount?' · ':'')+(solAccount?short(solAccount):''))+'</span></div>'):'';
+  list.innerHTML=rows.join('')+disc;
+  empty.style.display=(rows.length||disc)?'none':'block';
+  list.querySelectorAll('.pickrow').forEach(r=>r.onclick=()=>{ if(r.id==='pickDisc'){ closePicker(); disconnect(); return; } closePicker(); pickWallet(r.dataset.kind, r.dataset.id); });
+  $('#pickwrap').style.display='flex';
+}
+let _pickerReject=null;   // set while a wallet-pick Promise is open; dismiss rejects it so the mint flow never hangs
+function closePicker(){ const w=$('#pickwrap'); if(w) w.style.display='none'; }
+function dismissPicker(){ closePicker(); if(_pickerReject){ const r=_pickerReject; _pickerReject=null; try{ r(new Error(t('err.pickCancelled')||'Wallet selection cancelled')); }catch(_){} } }
+$('#pickx').onclick=dismissPicker;
+$('#pickwrap').onclick=function(e){ if(e&&e.target&&e.target.id==='pickwrap') dismissPicker(); };
+$('#pickwrap').onclick=e=>{ if(e.target===$('#pickwrap')) closePicker(); };
+
+async function pickWallet(kind, id){
+  try{
+    const w=emW(); if(!w) throw new Error(t('err.libLoading'));
+    if(kind==='both'){
+      // Multi-chain pay wallet (Phantom, MetaMask, …): connect BOTH legs from the one wallet so we show every
+      // chain it can pay from. The EVM leg becomes the pay account AND the default mint wallet; the Solana leg
+      // adds its SOL/USDC assets. Connect the EVM leg first (so account is set even if the Solana leg is declined).
+      await connectEvmLeg(id);
+      try{ solAccount=await w.connectSolana(id); }catch(e){}   // Solana leg is best-effort; pay/mint still work on EVM alone
+      setStatus(t('status.connectedWallet',{wallet:(EVM_LABELS[id]||id),addr:short(account)})+(solAccount?' + '+short(solAccount):''),'ok');
+    } else if(kind==='sol'){
+      // Pure-Solana pay wallet (no EVM leg). The NFT mints on Robinhood, so ask for a second EVM mint wallet.
+      const s=await w.connectSolana(id); solAccount=s;
+      setStatus(t('status.connectedPickMint',{wallet:(SOL_LABELS[id]||'Solana'),addr:short(s)}),'ok');
+      await ensureEvmMintWallet();
+    } else {
+      await connectEvmId(id);
+    }
+    paintConn();
+    refreshWallet();
+  }catch(e){ setStatus(e.message||t('status.connectFailed'),'err'); }
+}
+
+// Connect an EVM wallet's leg WITHOUT forcing the Robinhood chain switch (so a declined switch at connect time
+// can't block a multi-chain pay connect). Sets the pay account, the provider, and the default mint wallet.
+// ensureChain() runs later in every mint path, so the Robinhood switch still happens before any mint tx.
+async function connectEvmLeg(id){
+  const w=emW(); const p=(w&&w.findInjectedEvm)?w.findInjectedEvm(id):null;
+  if(!p) throw new Error(t('err.walletUnavailable'));
+  const acc=await p.request({method:'eth_requestAccounts'});
+  EIP=p; account=acc[0]; mintAccount=account;   // pay wallet is EVM-capable: reuse it as the mint wallet by default
+  return account;
+}
+
+async function connectEvmId(id){
+  await connectEvmLeg(id);
+  await ensureChain();
+  setStatus(t('status.connectedShort',{addr:short(account)}),'ok');
+}
+
+// Resolve the EVM Robinhood MINT wallet (wallet #2), storing it in mintAccount. If the pay wallet is already
+// EVM-capable (has an account) we REUSE it as the mint wallet, no second pick. Only a pure-Solana pay wallet
+// falls through to pick a second EVM wallet. Phantom fully supports Robinhood, so it is a valid mint wallet.
+async function ensureEvmMintWallet(){
+  if(account && EIP){ mintAccount=account; return mintAccount; }   // reuse the EVM pay wallet as the mint wallet
+  const w=emW();
+  let evmIds=[]; try{ evmIds=(w&&w.discoverEvm)?w.discoverEvm():[]; }catch(e){}
+  if(!evmIds.length){ throw new Error(t('err.needEvmMint')); }
+  if(evmIds.length===1){ await connectEvmId(evmIds[0]); mintAccount=account; return mintAccount; }
+  // multiple EVM wallets: show a focused picker for the mint wallet
+  const list=$('#picklist'); list.innerHTML=evmIds.map(id=>'<div class="pickrow" data-kind="evm" data-id="'+id+'">'+walletIcon('evm',id)+'<span class="pname">'+(EVM_LABELS[id]||id)+'</span><span class="pchain">'+t('picker.mintWallet')+'</span></div>').join('');
+  $('#pickempty').style.display='none';
+  return new Promise((resolve,reject)=>{
+    _pickerReject=reject;
+    list.querySelectorAll('.pickrow').forEach(r=>r.onclick=async()=>{ _pickerReject=null; closePicker(); try{ await connectEvmId(r.dataset.id); mintAccount=account; paintConn(); resolve(mintAccount); }catch(e){ reject(e); } });
+    $('#pickwrap').style.display='flex';
+  });
+}
+
+// Paying from Solana with an EVM-only wallet connected (e.g. Rabby, which has NO Solana): add a Solana wallet on the
+// fly. Phantom users already have solAccount (or their injected provider exposes Solana), so this is a no-op for them.
+// A single detected Solana provider auto-connects; multiple -> a focused picker. No second wallet needed if one exists.
+async function ensureSolanaWallet(){
+  if(solAccount) return solAccount;
+  const w=emW(); if(!w||!w.connectSolana) throw new Error(t('err.libLoadingShort'));
+  let solIds=[]; try{ solIds=(w.discoverSolana)?w.discoverSolana():[]; }catch(e){}
+  if(!solIds.length) throw new Error(t('err.needSolana'));
+  if(solIds.length===1){ solAccount=await w.connectSolana(solIds[0]); setStatus(t('status.addedWallet',{wallet:(SOL_LABELS[solIds[0]]||'Solana'),addr:short(solAccount)}),'ok'); paintConn(); return solAccount; }
+  const list=$('#picklist'); list.innerHTML=solIds.map(id=>'<div class="pickrow" data-kind="sol" data-id="'+id+'">'+walletIcon('sol',id)+'<span class="pname">'+(SOL_LABELS[id]||id)+'</span><span class="pchain">'+t('picker.payWallet')+'</span></div>').join('');
+  $('#pickempty').style.display='none';
+  return new Promise((resolve,reject)=>{
+    _pickerReject=reject;
+    list.querySelectorAll('.pickrow').forEach(r=>r.onclick=async()=>{ _pickerReject=null; closePicker(); try{ solAccount=await w.connectSolana(r.dataset.id); paintConn(); resolve(solAccount); }catch(e){ reject(e); } });
+    $('#pickwrap').style.display='flex';
+  });
+}
+function paintConn(){
+  const c=$('#conn'); if(!c) return;
+  if(account||solAccount||mintAccount){ try{ localStorage.removeItem('vr_disc'); }catch(_){} }   // a live connection clears the disconnect flag
+  // Pay wallet first (account = its EVM leg, solAccount = its Solana leg). Only show the mint wallet separately
+  // when it is a DIFFERENT wallet than the pay wallet (pure-Solana pay wallet + a second EVM mint wallet).
+  const payTxt = (account && solAccount) ? short(account)+' · '+short(solAccount)
+               : account ? short(account)
+               : solAccount ? short(solAccount)
+               : '';
+  const mintDiffers = mintAccount && (!account || mintAccount.toLowerCase()!==account.toLowerCase());
+  if(payTxt) c.textContent = payTxt + (mintDiffers ? ' · '+t('conn.mintPrefix',{addr:short(mintAccount)}) : '');
+  else if(mintAccount) c.textContent = short(mintAccount);
+  else c.textContent=t('header.connect');
+  $('#mintbtn').textContent=t('mint.mint');
+}
+// Disconnect: clear the dapp's view of every wallet + reset the pay UI, and set a flag so the silent auto-reconnect
+// won't immediately re-add them on the next load. (EVM/Solana wallets can't be revoked programmatically, so this is
+// a dapp-side disconnect; the user can fully revoke in their wallet's own "connected sites" if they want.)
+function disconnect(){
+  try{ localStorage.setItem('vr_disc','1'); }catch(_){}
+  account=null; solAccount=null; mintAccount=null; EIP=null; PAY_ASSETS={};
+  const sel=$('#payChain'); if(sel){ sel.innerHTML='<option value="">'+t('mint.connectToSeeAssets')+'</option>'; sel.disabled=true; sel.value=''; }
+  const menu=$('#payMenu'); if(menu) menu.innerHTML='';
+  const pb=$('#payBtn'); if(pb) pb.disabled=true;
+  const ico=$('#payBtnIco'); if(ico) ico.innerHTML='';
+  const lbl=$('#payBtnLbl'); if(lbl) lbl.textContent=t('mint.connectToSeeAssets');
+  paintConn(); setStatus(t('status.disconnected'),'ok');
+}
+function connect(){ if(isMobileDevice() && !hasInjectedWallet()){ showWalletBrowserReroute(); return; } openPicker(); }
+$('#conn').onclick=connect;
+// Persistent mobile banner: only when on a plain mobile browser (no injected wallet). Never shown inside a wallet browser.
+(function initWbBanner(){
+  function wire(){ const b=document.getElementById('wbBanner'); if(!b) return;
+    if(isMobileDevice() && !hasInjectedWallet()){ b.style.display='block'; b.onclick=showWalletBrowserReroute; } }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wire); else wire();
+})();
+
+// Once connected: (1) show only the assets the PAY wallet can actually pay with (live Relay-routable balances across
+// every EVM chain AND Solana for a multi-chain pay wallet, plus held ROBINVAULT on Robinhood), and (2) reflect the
+// MINT wallet's allocation, a wallet at its cap can't mint, shown on the button. PAY_ASSETS maps each option to its
+// Relay inputs. /api/balances is queried with both legs (evm=account, sol=solAccount) so both show together.
+let CAPPED=false, PAY_ASSETS={}, PAY_PRICES={}, _solConnectMode=false;
+function assetKey(a){ return a.chainId+':'+a.currency; }
+function payBal(v){ return v>=1?Number(v).toLocaleString(undefined,{maximumFractionDigits:2}):Number(v).toPrecision(2); }
+// Everything on the mint page is quoted in USD, so the Pay-from amounts show the USD value of each balance.
+function payVal(a){ if(!a) return '$0'; if(a.usd!=null) return usd(a.usd); const px=PAY_PRICES[a.symbol]; if(px>0) return usd(a.balance*px); return payBal(a.balance); }
+// ── Themed Pay-from dropdown (mirrors the hidden <select> so the mint flow still reads #payChain.value) ──
+function buildPayMenu(assets){
+  const menu=$('#payMenu'); if(!menu) return;
+  let html=assets.map(a=>{ const k=assetKey(a); return '<div class="paydd-opt" data-k="'+k+'">'+coinIcon(a.symbol)+'<span class="po-lbl">'+a.label+'</span><span class="po-bal">'+payVal(a)+'</span></div>'; }).join('');
+  // Solana is a FIRST-CLASS pay origin. When no Solana wallet is connected, show a prominent "Solana (SOL / USDC)"
+  // row that prompts a Phantom/Solflare connect — not a small footnote. The mint still settles on Robinhood via the
+  // EVM wallet; the Solana wallet only signs the Relay SOL/USDC -> RVLT leg.
+  if(!solAccount){ html = '<div class="paydd-opt paydd-sol" data-k="__addsol">'+coinIcon('SOL')+'<span class="po-lbl">'+t('mint.payFromSolana')+'</span><span class="po-bal">'+t('mint.connectSolana')+'</span></div>' + html; }
+  menu.innerHTML=html;
+  menu.querySelectorAll('.paydd-opt').forEach(o=>o.onclick=async()=>{
+    if(o.dataset.k==='__addsol'){ closePayMenu(); try{ await ensureSolanaWallet(); await refreshWallet(); openPayMenu(); }catch(e){ setStatus((e&&e.message)||t('err.addSolanaFailed'),'warn'); } return; }
+    $('#payChain').value=o.dataset.k; setPayDisplay(o.dataset.k); closePayMenu();
+  });
+}
+function setPayDisplay(k){
+  _solConnectMode=false; { const pb=$('#payBtn'); if(pb) pb.classList.remove('solcta'); }   // a real asset is selected — normal selector, not the Solana CTA
+  const a=PAY_ASSETS[k]; $('#payBtn').disabled=false;
+  $('#payBtnIco').innerHTML=a?coinIcon(a.symbol):''; $('#payBtnLbl').textContent=a?(a.label+' · '+payVal(a)):t('mint.selectAsset');
+  const menu=$('#payMenu'); if(menu) menu.querySelectorAll('.paydd-opt').forEach(o=>o.classList.toggle('sel',o.dataset.k===k));
+}
+function openPayMenu(){ const dd=$('#payDD'); if(!dd||$('#payBtn').disabled) return; $('#payMenu').style.display='block'; dd.classList.add('open'); }
+function closePayMenu(){ const dd=$('#payDD'); if(!dd) return; $('#payMenu').style.display='none'; dd.classList.remove('open'); }
+(function(){
+  const btn=$('#payBtn'); if(btn) btn.onclick=e=>{ e.stopPropagation();
+    // In the no-EVM-balance state the pay button IS the "Sign in with Solana" CTA — one tap connects the Solana wallet.
+    if(_solConnectMode){ closePayMenu(); ensureSolanaWallet().then(()=>refreshWallet()).catch(err=>setStatus((err&&err.message)||t('err.addSolanaFailed'),'warn')); return; }
+    const open=$('#payDD').classList.contains('open'); open?closePayMenu():openPayMenu(); };
+  document.addEventListener('click',e=>{ const dd=$('#payDD'); if(dd&&!dd.contains(e.target)) closePayMenu(); });
+})();
+// Flywheel diagram modal
+(function(){
+  const m=$('#fwModal'), open=$('#fwOpen'), x=$('#fwClose'); if(!m) return;
+  const show=()=>m.classList.add('on'); const hide=()=>m.classList.remove('on');
+  if(open) open.onclick=show; if(x) x.onclick=hide;
+  m.addEventListener('click',e=>{ if(e.target===m) hide(); });
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape') hide(); });
+})();
+async function refreshWallet(){
+  if(!account && !solAccount) return;
+  // A wallet IS connected now, so clear the pre-connect "Connect a wallet…" placeholder immediately. It would
+  // otherwise linger (stale) across the async balances fetch, or forever if that fetch throws.
+  { const lbl=$('#payBtnLbl'); if(lbl){ const cur=lbl.textContent||''; if(/Connect a wallet/i.test(cur) || cur===t('mint.connectToSeeAssets')) lbl.textContent=t('mint.loadingAssets'); } }
+  // Pay from: real balances only, across every connected wallet.
+  try{
+    const qs=[]; if(account) qs.push('evm='+encodeURIComponent(account)); if(solAccount) qs.push('sol='+encodeURIComponent(solAccount));
+    const b=await fetch('api/balances?'+qs.join('&')).then(r=>r.json());
+    PAY_PRICES=b.prices||{};
+    const sel=$('#payChain'); PAY_ASSETS={};
+    if(sel){
+      const assets=(b.assets||[]);
+      if(assets.length){
+        // Default to a Robinhood-chain asset (native ETH / USDG, cheapest same-chain buy) when present, else first asset.
+        const robi=assets.findIndex(a=>a.chainId===4663);
+        sel.innerHTML=assets.map(a=>{ const k=assetKey(a); PAY_ASSETS[k]=a; const bal=payBal(a.balance); return '<option value="'+k+'">'+a.label+' · '+bal+'</option>'; }).join('');
+        sel.disabled=false;
+        const startK=assetKey(assets[robi>=0?robi:0]);
+        sel.value=startK;
+        buildPayMenu(assets); setPayDisplay(startK);
+      } else {
+        sel.innerHTML='<option value="">'+t('mint.noBalance')+'</option>'; sel.disabled=true;
+        if(!solAccount){
+          // No payable EVM balance and no Solana wallet yet. Turn the pay button into a prominent one-tap
+          // "Sign in with Solana" CTA (not a disabled dead-end) so the user can pay with SOL/USDC. The menu still
+          // carries the Connect-Solana row as a fallback.
+          buildPayMenu([]);
+          _solConnectMode=true;
+          $('#payBtn').disabled=false; $('#payBtn').classList.add('solcta');
+          $('#payBtnIco').innerHTML=coinIcon('SOL'); $('#payBtnLbl').textContent=t('mint.signInSolana');
+          // EVM wallet connected but empty -> point them straight at Solana; otherwise the generic fund-it hint.
+          setStatus(account ? t('mint.noEvmSignSolana') : t('mint.noBalanceHint'),'warn');
+        } else {
+          _solConnectMode=false; $('#payBtn').classList.remove('solcta');
+          $('#payMenu').innerHTML=''; $('#payBtn').disabled=true;
+          $('#payBtnIco').innerHTML=''; $('#payBtnLbl').textContent=t('mint.noBalance');
+          setStatus(t('mint.noBalanceHint'),'warn');
+        }
+      }
+    }
+  }catch(e){
+    // Fetch failed: never leave the stale placeholder. Say so plainly and keep the picker disabled.
+    const lbl=$('#payBtnLbl'); if(lbl) lbl.textContent=t('mint.loadAssetsRetry');
+    const btn=$('#payBtn'); if(btn) btn.disabled=true;
+  }
+  // Mint allocation applies to the EVM MINT wallet. Use mintAccount (falls back to the EVM pay account, which is
+  // the same wallet when the pay wallet is EVM-capable). A pure-Solana pay wallet with no mint wallet yet is skipped.
+  const mw=mintAccount||account;
+  if(mw){
+    try{
+      const m=await fetch('api/minted?address='+mw).then(r=>r.json());
+      CAPPED = (m.remaining!=null && m.remaining<=0);
+      setMintButton();
+      if(CAPPED) setStatus(t('status.walletCapped',{cap:(m.cap||3)}),'ok');
+      else if(m.minted>0) setStatus(t('status.holdMints',{balance:m.balance,remaining:m.remaining,cap:m.cap}),'ok');
+    }catch(e){}
+  }
+}
+
+const RVLT_ABI=['function allowance(address,address) view returns (uint256)','function approve(address,uint256) returns (bool)','function balanceOf(address) view returns (uint256)','function transfer(address,uint256) returns (bool)'];
+const ROBBERS_MINT_ABI=['function mint(uint256 qty,uint256 deadline,bytes signature)'];
+
+// The on-Robinhood finish: voucher, exact-cost approve, mint. The ROBINVAULT the contract pulls goes to
+// its on-chain sink (the RVLT deployer/treasury). The premium is a SEPARATE ETH leg handled by callers.
+async function mintOnRobinhood(signer, addr, mintCostWei, premiumTxHash){
+  const v=await (await fetch('api/voucher',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({minter:addr,qty,premiumTxHash})})).json();
+  if(v.error) throw new Error('voucher: '+v.error);
+  const rvlt=new ethers.Contract(CFG.rvlt,RVLT_ABI,signer);
+  const bal=await rvlt.balanceOf(addr);
+  if(bal<mintCostWei) throw new Error(t('err.rvltNotArrived'));
+  const cur=await rvlt.allowance(addr,CFG.contract);
+  // ONE-TIME BOUNDED APPROVE (never unlimited). Instead of re-approving the exact per-mint cost on every mint, approve
+  // once a ceiling that covers this wallet's FULL remaining cap — up to 3 (maxPerWallet) mints at the worst-case
+  // top-tier price (CFG.tiersRvlt[3]). A single approval then backs a qty 2-3 mint AND any repeat mint, so the wallet
+  // never re-approves. This is a FIXED, bounded number (<= 3 x top tier = 300,000 RVLT), NOT type(uint256).max, so the
+  // mint contract can only ever pull a strictly capped amount. Spender = mint contract (CFG.contract); token = CFG.rvlt.
+  // If the existing allowance already covers this mint, skip approve entirely (zero prompts on the common repeat path).
+  if(cur<mintCostWei){
+    const topTier=(CFG&&CFG.tiersRvlt&&CFG.tiersRvlt[3])||0;
+    const cap=(CFG&&CFG.maxPerWallet)||3;
+    // Bounded ceiling in wei: top-tier per-unit x cap. Clamp up to the actual mint cost (so an unusual quote can't
+    // under-approve), but it is ALWAYS a finite, small number — the full-collection top-tier cost for one wallet.
+    let ceilWei=0n;
+    try{ ceilWei=ethers.parseUnits(String(topTier),18)*BigInt(cap); }catch(_){ ceilWei=0n; }
+    if(ceilWei<mintCostWei) ceilWei=mintCostWei;
+    setStatus(t('status.approving',{amount:num(Number(ethers.formatUnits(ceilWei,18)))}));
+    await (await rvlt.approve(CFG.contract,ceilWei)).wait();
+  }
+  setStatus(t('status.minting'));
+  const robbers=new ethers.Contract(CFG.contract,ROBBERS_MINT_ABI,signer);
+  const rc=await (await robbers.mint(qty,v.deadline,v.signature)).wait();
+  setStatus(t('status.minted',{tx:short(rc.hash)}),'ok');
+  $('#mintbtn').innerHTML=t('mint.mintedCheck');
+  const link=document.createElement('a'); link.href=CFG.explorer+'/tx/'+rc.hash; link.target='_blank'; link.rel='noopener'; link.className='muted'; link.style.display='block'; link.style.marginTop='6px'; link.textContent=t('status.viewTx'); $('#status').after(link);
+  try{ await renderPull(rc, addr); }catch(_){}
+  loadConfig();
+}
+
+// Post-mint: show the exact token(s) you just pulled. Pre-reveal = sealed ghost; once the collection is
+// revealed, this shows the real art + a "1/1" badge if you hit one. Reads token ids from the Minted events.
+async function renderPull(rc, addr, _try){
+  _try = _try||0;
+  const iface=new ethers.Interface(['event Minted(address indexed to,uint256 indexed id,uint256 price)']);
+  const ids=[];
+  for(const lg of (rc.logs||[])){ try{ const p=iface.parseLog(lg); if(p&&p.name==='Minted'&&p.args.to.toLowerCase()===addr.toLowerCase()) ids.push(p.args.id.toString()); }catch(_){} }
+  if(!ids.length) return;
+  // Auto-kick an OpenSea metadata refresh for the just-minted tokens so the real art replaces OpenSea's cached
+  // "Sealed" placeholder on its own (OpenSea caches tokenURI at first index and will otherwise show sealed forever).
+  // Fire on the first render, and again a few polls in, in case the first refresh raced the reveal server.
+  if(_try===0 || _try===4){ try{ fetch('api/opensea-refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids})}); }catch(_){} }
+  ensurePullRevealStyle();
+  let host=$('#pull'); if(!host){ host=document.createElement('div'); host.id='pull'; $('#status').after(host); }
+  host.innerHTML='<div class="sect" style="margin:16px 0 8px">'+t('pull.title')+'</div><div class="onesgrid" id="pullgrid"><p class="muted" style="grid-column:1/-1">'+t('pull.revealing')+'</p></div>';
+  let data; try{ data=await fetch('api/tokenart?ids='+ids.join(',')).then(r=>r.json()); }catch(e){ $('#pullgrid').innerHTML='<p class="muted" style="grid-column:1/-1">'+t('pull.artAfterReveal')+'</p>'; return; }
+  const g=$('#pullgrid'); if(!g) return;
+  g.innerHTML=(data.robbers||[]).map(r=>{
+    const revealed=r.status&&r.status.toLowerCase()!=='unrevealed';
+    const is11=(r.traits||[]).some(t=>String(t.value).toLowerCase()==='1/1');
+    const img=(revealed&&r.image)?cesc(r.image):robberGhost(Number(r.id));
+    // Each card starts face-down (vault door); it flips open on a short stagger for a celebratory reveal moment.
+    const os=osAsset(r.id);   // use the config contract address (correct per network), not a hardcoded mainnet address
+    return '<a class="pulllink" href="'+os+'" target="_blank" rel="noopener" title="View #'+r.id+' on OpenSea"><div class="onecard pullcard"'+(is11?' data-rare="1"':'')+'><div class="pullflip"><div class="pullback"><div class="pullspark"></div>🔓</div>'
+      +'<div class="pullface"><img class="art" loading="lazy" src="'+img+'" alt="Vault Robber #'+r.id+'"><div class="body"><div class="nm">#'+r.id+'</div>'+(is11?'<span class="badge one">1/1</span>':'')+(revealed?'':'<span class="badge">'+t('pull.revealsAtLaunch')+'</span>')+'</div></div>'
+      +'</div></div></a>';
+  }).join('');
+  // Auto-refresh: the reveal is near-instant, but if the art hasn't propagated the instant we mint, re-poll a few
+  // times so the card flips from sealed to real on its own (no manual reload). Resets once everything is revealed.
+  const anySealed=(data.robbers||[]).some(r=>!(r.status&&r.status.toLowerCase()!=='unrevealed'));
+  if(anySealed && _try < 20){ setTimeout(()=>renderPull(rc, addr, _try+1), 4500); }
+  // Stagger the flips so the pull reveals one robber at a time (subtle, performant: transform/opacity only).
+  const motionOk = !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const cards=g.querySelectorAll('.pullcard');
+  cards.forEach((c,i)=>{ if(!motionOk){ c.classList.add('revealed'); return; } setTimeout(()=>{ c.classList.add('revealed'); if(c.dataset.rare) c.classList.add('rarepop'); }, 220 + i*520); });
+}
+// One-time scoped style for the post-mint reveal moment. Green theme, reuses the paper/ink palette.
+function ensurePullRevealStyle(){
+  if(document.getElementById('pullRevealStyle')) return;
+  const s=document.createElement('style'); s.id='pullRevealStyle';
+  s.textContent=[
+    '.pullcard{perspective:720px;background:transparent;border:0;box-shadow:none;overflow:visible}',
+    '.pullflip{position:relative;transform-style:preserve-3d;transition:transform .62s cubic-bezier(.2,.8,.25,1);transform:rotateY(180deg)}',
+    '.pullcard.revealed .pullflip{transform:rotateY(0deg)}',
+    '.pullback,.pullface{backface-visibility:hidden;border:2.5px solid var(--ink);border-radius:14px;box-shadow:4px 4px 0 var(--ink);overflow:hidden}',
+    '.pullface{background:var(--paper)}',
+    '.pullback{position:absolute;inset:0;transform:rotateY(180deg);display:flex;align-items:center;justify-content:center;font-size:40px;background:var(--ink);color:var(--gold)}',
+    '.pullspark{position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 50% 50%,rgba(46,166,90,.55),rgba(46,166,90,0) 60%);opacity:0;animation:pullspark 1.1s ease-out}',
+    '.pullcard.revealed{animation:pullrise .5s ease both}',
+    '@keyframes pullrise{0%{transform:translateY(8px);opacity:.4}100%{transform:translateY(0);opacity:1}}',
+    '@keyframes pullspark{0%{opacity:.9;transform:scale(.6)}100%{opacity:0;transform:scale(1.4)}}',
+    '.pullcard.rarepop .pullface{animation:rarepop 1s ease-in-out}',
+    '@keyframes rarepop{0%,100%{box-shadow:4px 4px 0 var(--ink)}50%{box-shadow:4px 4px 0 var(--ink),0 0 20px rgba(46,166,90,.85)}}'
+  ].join('');
+  document.head.appendChild(s);
+}
+
+// Execute the Relay step txs on the origin chain (buyer signs each), then poll until the RVLT is delivered on Robinhood.
+async function executeRelay(quote, signer){
+  for(const step of (quote.steps||[])){
+    for(const item of (step.items||[])){
+      if(item.status==='complete') continue;
+      const d=item.data||{};
+      setStatus(t('status.confirmPayment'));
+      const tx=await signer.sendTransaction({to:d.to,data:d.data,value:d.value?BigInt(d.value):0n,...(d.chainId?{chainId:Number(d.chainId)}:{})});
+      await tx.wait();
+      const rid=item.check&&item.check.endpoint?(new URL(item.check.endpoint,'https://api.relay.link').searchParams.get('requestId')):null;
+      if(rid){ setStatus(t('status.bridging')); for(let i=0;i<60;i++){ await new Promise(r=>setTimeout(r,4000)); try{ const s=await (await fetch('api/relay/status?requestId='+encodeURIComponent(rid))).json(); if(s.status==='success'||s.status==='complete') break; if(s.status==='failure') throw new Error('bridge failed'); }catch(e){ if(String(e.message).includes('bridge failed')) throw e; } } }
+    }
+  }
+}
+
+// ── Solana leg: Relay returns SVM steps as raw instructions ({keys,programId,data-hex}) + address-lookup-table
+// addresses, NOT a ready base64 tx. We build a v0 VersionedTransaction from them (recent blockhash + fetched ALTs via
+// the server's keyless sol-rpc proxy), have Phantom sign+send, then poll the Relay bridge status until the RVLT lands
+// on Robinhood. Mirrors the connector's Solana signing but for Relay's instruction format.
+const SOL_RPC_URL='https://api.mainnet-beta.solana.com'; // only used to pass into the connector's confirm helper
+async function solRpc(method, params){
+  const r=await fetch('api/sol-rpc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({method,params})}).then(x=>x.json());
+  if(r.error) throw new Error(r.error); return r.result;
+}
+function hexToBytes(h){ h=String(h||'').replace(/^0x/,''); const o=new Uint8Array(h.length/2); for(let i=0;i<o.length;i++) o[i]=parseInt(h.substr(i*2,2),16); return o; }
+async function executeRelaySolana(quote){
+  const w=emW(); if(!w) throw new Error(t('err.libLoadingShort'));
+  const web3=await w.loadSolWeb3();
+  const prov=w.solProvider(); if(!prov) throw new Error(t('err.phantomNotConnected'));
+  const payer=new web3.PublicKey(solAccount);
+  let rid=quote.requestId||null;
+  for(const step of (quote.steps||[])){
+    for(const item of (step.items||[])){
+      if(item.status==='complete') continue;
+      if(!rid && item.check && item.check.endpoint){ try{ rid=new URLSearchParams(item.check.endpoint.split('?')[1]||'').get('requestId'); }catch(e){} }
+      const d=item.data||{};
+      const rawIxs=d.instructions||[]; if(!rawIxs.length) continue;
+      const ixs=rawIxs.map(ix=>new web3.TransactionInstruction({
+        programId:new web3.PublicKey(ix.programId),
+        keys:(ix.keys||[]).map(k=>({pubkey:new web3.PublicKey(k.pubkey),isSigner:!!k.isSigner,isWritable:!!k.isWritable})),
+        data:hexToBytes(ix.data),
+      }));
+      // Resolve the address lookup tables Relay references.
+      const altAddrs=d.addressLookupTableAddresses||[];
+      let luts=[];
+      if(altAddrs.length){
+        const infos=await solRpc('getMultipleAccounts',[altAddrs,{encoding:'base64'}]);
+        luts=(infos&&infos.value||[]).map((acc,i)=>{ if(!acc||!acc.data) return null; const bytes=Uint8Array.from(atob(acc.data[0]),c=>c.charCodeAt(0)); const state=web3.AddressLookupTableAccount.deserialize(bytes); return new web3.AddressLookupTableAccount({key:new web3.PublicKey(altAddrs[i]),state}); }).filter(Boolean);
+      }
+      const bh=await solRpc('getLatestBlockhash',[{commitment:'confirmed'}]);
+      const msg=new web3.TransactionMessage({ payerKey:payer, recentBlockhash:bh.value.blockhash, instructions:ixs }).compileToV0Message(luts);
+      const vtx=new web3.VersionedTransaction(msg);
+      setStatus(t('status.confirmPhantom'));
+      let sig;
+      if(prov.signAndSendTransaction){ const res=await prov.signAndSendTransaction(vtx); sig=(res&&res.signature)||res; }
+      else { const signed=await prov.signTransaction(vtx); const conn=new web3.Connection(SOL_RPC_URL,'confirmed'); sig=await conn.sendRawTransaction(signed.serialize(),{maxRetries:3}); }
+      // confirm the Solana tx landed
+      for(let i=0;i<24;i++){ await new Promise(r=>setTimeout(r,1500)); let st=null; try{ const s=await solRpc('getSignatureStatuses',[[String(sig)]]); st=s&&s.value&&s.value[0]; }catch(e){} if(!st) continue; if(st.err) throw new Error(t('err.solPaymentFailed')); if(st.confirmationStatus==='confirmed'||st.confirmationStatus==='finalized') break; }
+    }
+  }
+  // poll the Relay bridge until the destination (Robinhood) leg settles
+  if(rid){ setStatus(t('status.bridging')); for(let i=0;i<60;i++){ await new Promise(r=>setTimeout(r,4000)); try{ const s=await (await fetch('api/relay/status?requestId='+encodeURIComponent(rid))).json(); const st3=String(s.status||''); if(/success|complete|filled|refund/i.test(st3)) break; if(/failure|failed|error/i.test(st3)) throw new Error('bridge failed'); }catch(e){ if(String(e.message).includes('bridge failed')) throw e; } } }
+}
+
+// Pre-payment cap guard: verify the EVM MINT wallet still has allocation BEFORE any (irreversible) cross-chain
+// payment is signed. The server voucher is the HARD gate, but it only runs AFTER the pay leg — so without this a
+// capped wallet, or a Solana-first flow that only resolves its EVM mint wallet mid-stream, could pay first and then
+// be refused at the voucher, stranding the bridged funds. Fails CLOSED: if we cannot verify, we do NOT take payment.
+async function assertMintEligible(mintAddr){
+  if(!mintAddr) throw new Error(t('err.connectEvmMint'));
+  let ms=null;
+  for(let i=0;i<2 && !ms;i++){ try{ ms=await fetch('api/minted?address='+mintAddr).then(r=>r.json()); }catch(_){ ms=null; } }
+  if(!ms || ms.error || ms.remaining==null) throw new Error(t('err.capUnverified'));
+  if(ms.remaining < qty){
+    CAPPED = ms.remaining<=0; try{ setMintButton(); }catch(_){}
+    throw new Error(ms.remaining<=0 ? t('status.walletCapped',{cap:ms.cap||3}) : t('err.capLeft',{remaining:ms.remaining,cap:ms.cap||3}));
+  }
+}
+
+// Resume-safe leg skipping (audit P1-B): on a RETRY after a partial relay failure, do NOT re-bridge a leg whose funds
+// already landed on the mint wallet (otherwise the user re-buys RVLT). Reads the mint wallet's RVLT + native balance on
+// Robinhood; fails open (0 on RPC error) so the normal first-attempt flow is unchanged.
+async function _rhMintBal(a){ try{ const rp=new ethers.JsonRpcProvider(CFG.rpc, CFG.chainId, {staticNetwork:true}); const rc=new ethers.Contract(CFG.rvlt,['function balanceOf(address) view returns(uint256)'],rp); const r=await Promise.all([rc.balanceOf(a), rp.getBalance(a)]); return {rvlt:BigInt(r[0]), native:BigInt(r[1])}; }catch(_){ return {rvlt:0n, native:0n}; } }
+const _GAS_FLOOR_WEI=400000000000000n;   // ~0.0004 ETH: enough native to sign approve + mint
+// Pay from a Solana asset: route SOL / Solana-USDC -> exact ROBINVAULT + premium onto the EVM MINT wallet (mintAccount)
+// on Robinhood, then do the SAME Robinhood finish (premium -> voucher -> approve -> mint) as every other path. The pay
+// source is the Solana leg; the mint always lands on mintAccount on Robinhood.
+async function relaySolPayAndMint(fromCurrency){
+  await ensureSolanaWallet();   // EVM-only wallet connected (Rabby)? add a Solana wallet now. Phantom users: no-op.
+  const addr=await ensureEvmMintWallet(); // mintAccount: the EVM Robinhood mint wallet (receives RVLT+premium, does the mint)
+  if(!addr) throw new Error(t('err.connectEvmMint'));
+  await assertMintEligible(addr);   // CAP CHECK BEFORE any Solana payment — never let a capped wallet pay then get refused
+  setStatus(t('status.gettingQuote'));
+  const mq=await (await fetch('api/relay/mint-quote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user:solAccount,recipient:addr,qty,fromChainId:792703809,fromCurrency})})).json();
+  if(mq.error||!mq.rvltQuote||mq.rvltQuote.error) throw new Error(mq.error||(mq.rvltQuote&&mq.rvltQuote.message)||t('err.noRoute'));
+  const premWei=BigInt(mq.premiumEthWei||'0');
+  // Leg B always carries the gas slice (+ premium if any), so a Solana-origin buyer who holds zero Robinhood ETH can
+  // still sign the mint. Fail fast if that route is missing.
+  if(!mq.premiumQuote || mq.premiumQuote.error) throw new Error(t('err.premiumRoute'));
+  // Legs are RESUME-SAFE: skip a bridge whose funds already landed (a retry never re-buys RVLT or re-sends gas).
+  const _b=await _rhMintBal(addr), _need=BigInt(mq.mintCostWei);
+  // Leg A: bring the exact ROBINVAULT for the mint onto Robinhood (Phantom signs the Solana tx).
+  if(_b.rvlt < _need){ setStatus(t('status.confirmMintPayment')); await executeRelaySolana(mq.rvltQuote); }
+  else setStatus('RVLT already delivered, finishing…');
+  // Leg B: bring the gas slice (+ premium) to the EVM wallet on Robinhood so it can sign the approve + mint.
+  if(_b.native < (premWei + _GAS_FLOOR_WEI)){ setStatus(t('status.bringingPremium')); await executeRelaySolana(mq.premiumQuote); }
+  // Robinhood finish with the EVM wallet: pay the premium to the treasury (verifiable, only when there IS a premium), THEN mint.
+  await ensureChain(); const signer=await (new ethers.BrowserProvider(prov())).getSigner();
+  const premiumTxHash=await payPremium(signer, mq.treasury, premWei, addr, qty);
+  await mintOnRobinhood(signer, addr, BigInt(mq.mintCostWei), premiumTxHash);
+}
+
+// Resume cache: a premium payment that already LANDED on-chain for this exact {minter,qty} should NEVER be re-sent if a
+// LATER leg (voucher/approve/mint) is rejected and the user clicks Mint again. verifyPremium is single-use per tx hash,
+// but a hash stays valid for its 30-min window, so re-using it on retry costs the user nothing and skips a signature.
+// Keyed by minter+qty (lowercased). Not persisted across reloads — on reload the user starts a fresh (safe) attempt.
+const _premiumPaid=Object.create(null);
+function premiumKey(addr,n){ return String(addr||'').toLowerCase()+':'+Number(n); }
+// Pay the treasury premium as a direct native-ETH transfer on Robinhood. Returns the tx hash, which /api/voucher
+// verifies on-chain before it will sign the mint. The premium is REQUIRED: a rejected/failed transfer aborts the mint.
+// RESUME: if this wallet already paid the premium for this qty earlier in the SAME page session (e.g. the mint step was
+// rejected and retried), reuse that confirmed hash instead of paying again — no double premium, one fewer signature.
+async function payPremium(signer, treasury, premiumWei, minterAddr, q){
+  if(!(premiumWei>0n) || !treasury) return null; // premium disabled server-side
+  // FREE-MINT comp: if this wallet has a server-side credit covering the qty, skip the premium entirely (the
+  // server's /api/voucher waives it). Returns null so the mint proceeds with no premium tx. The server re-checks + decrements.
+  try{ if(minterAddr){ const need=(q!=null?q:qty); const fc=await fetch('api/free-credit?address='+minterAddr).then(r=>r.json()).catch(()=>null); if(fc && Number(fc.remaining||0) >= need){ setStatus('Free mint, premium waived'); return null; } } }catch(_){}
+  const key=(minterAddr!=null)?premiumKey(minterAddr,(q!=null?q:qty)):null;
+  if(key && _premiumPaid[key]) return _premiumPaid[key];
+  setStatus(t('status.confirmPremium'));
+  const tx=await signer.sendTransaction({to:treasury,value:premiumWei});
+  await tx.wait();
+  if(key) _premiumPaid[key]=tx.hash;
+  return tx.hash;
+}
+
+async function relayPayAndMint(fromChainId, fromCurrency){
+  const provider=new ethers.BrowserProvider(prov());
+  let signer=await provider.getSigner(); const addr=await signer.getAddress();
+  await assertMintEligible(addr);   // CAP CHECK BEFORE any cross-chain payment — never let a capped wallet pay then get refused
+  fromCurrency=fromCurrency||'0x0000000000000000000000000000000000000000';
+  setStatus(t('status.gettingQuote'));
+  const mq=await (await fetch('api/relay/mint-quote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user:addr,recipient:addr,qty,fromChainId,fromCurrency})})).json();
+  if(mq.error||!mq.rvltQuote||mq.rvltQuote.error) throw new Error(mq.error||(mq.rvltQuote&&mq.rvltQuote.message)||t('err.noRoute'));
+  const premWei=BigInt(mq.premiumEthWei||'0');
+  // Leg B now ALWAYS carries a native-ETH gas slice (plus the premium if any), so the server always returns a
+  // premiumQuote on a cross-chain origin. Fail fast if that route is missing — without it the buyer has no gas to sign.
+  if(!mq.premiumQuote || mq.premiumQuote.error) throw new Error(t('err.premiumRoute'));
+  // switch to origin chain to pay
+  await prov().request({method:'wallet_switchEthereumChain',params:[{chainId:'0x'+Number(fromChainId).toString(16)}]});
+  signer=await (new ethers.BrowserProvider(prov())).getSigner();
+  // Legs are RESUME-SAFE: skip a bridge whose funds already landed (a retry never re-buys RVLT or re-sends gas).
+  const _b=await _rhMintBal(addr), _need=BigInt(mq.mintCostWei);
+  // Leg A: bring the exact ROBINVAULT for the mint onto Robinhood.
+  if(_b.rvlt < _need){ setStatus(t('status.confirmMintPayment')); await executeRelay(mq.rvltQuote, signer); }
+  else setStatus('RVLT already delivered, finishing…');
+  // Leg B: bring the gas slice (+ premium) to the buyer on Robinhood so they can sign the approve + mint.
+  if(_b.native < (premWei + _GAS_FLOOR_WEI)){ setStatus(t('status.bringingPremium')); await executeRelay(mq.premiumQuote, signer); }
+  // Back to Robinhood: pay the premium to the treasury (verifiable, only when there IS a premium), THEN mint.
+  await ensureChain(); signer=await (new ethers.BrowserProvider(prov())).getSigner();
+  const premiumTxHash=await payPremium(signer, mq.treasury, premWei, addr, qty);
+  await mintOnRobinhood(signer, addr, BigInt(mq.mintCostWei), premiumTxHash);
+}
+
+async function doMintDispatch(){
+  if(isMobileDevice() && !hasInjectedWallet()){ showWalletBrowserReroute(); return; }
+  if(!CFG||!Q){ setStatus(t('warn.stillLoading'),'warn'); return; }
+  if(!account && !solAccount && !mintAccount){ return connect(); }
+  if(!CFG.mintActive){ setStatus(t('warn.mintClosed'),'warn'); return; }
+  if(!CFG.enabled){ setStatus(t('warn.mintOpensAtLaunch'),'warn'); return; }
+  if(CAPPED){ setStatus(t('warn.alreadyMinted'),'warn'); return; }
+  const asset=PAY_ASSETS[$('#payChain').value];
+  if(!asset){ setStatus(t('warn.pickAsset'),'warn'); return; }
+  try{
+    $('#mintbtn').disabled=true; $('#mintbtn').classList.add('working'); { const ml=$('#mintload'); if(ml) ml.style.display='flex'; }
+    if(asset.chainId===792703809){            // pay from a Solana asset: Relay routes SOL/USDC -> RVLT on Robinhood
+      // GATE (Jake 2026-10-21): a Solana-origin mint delivers the NFT + RVLT to an EVM wallet on Robinhood, so REQUIRE
+      // BOTH a Solana pay wallet AND an EVM (Robinhood) receiving wallet connected BEFORE any payment moves. Both calls
+      // are idempotent; ensureEvmMintWallet throws a clear "connect an EVM wallet" error (no funds move) if none exists.
+      setStatus('Connecting your Solana and EVM (Robinhood) wallets…');
+      await ensureSolanaWallet();
+      var _mintW=await ensureEvmMintWallet();
+      if(!_mintW) throw new Error(t('err.connectEvmMint'));
+      await relaySolPayAndMint(asset.currency);
+    } else {                                   // pay from an external EVM chain (Base/Ethereum/BNB) via Relay -> RVLT on Robinhood
+      await relayPayAndMint(asset.chainId, asset.currency);
+    }
+  }catch(e){ setStatus((e.shortMessage||e.message||t('err.mintFailed')),'err'); }
+  finally{ $('#mintbtn').disabled=false; $('#mintbtn').classList.remove('working'); const ml=$('#mintload'); if(ml) ml.style.display='none'; }
+}
+$('#mintbtn').onclick=doMintDispatch;
+
+function stub(el,pairs){ const n=$(el); if(n) n.innerHTML=pairs.map(([k,v])=>'<div class="box"><div class="k">'+k+'</div><div class="v">'+v+'</div></div>').join(''); }
+const compact=n=>n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e3?(n/1e3).toFixed(1)+'k':String(Math.round(n||0));
+const money=n=>!n?'n/a':n>=1e6?'$'+(n/1e6).toFixed(2)+'M':n>=1e3?'$'+(n/1e3).toFixed(1)+'k':'$'+n.toFixed(2);
+// V1 and V2 show the SAME six statistics so they read side by side
+function immStats(){ return [[t('stat.totalRuns'),'…'],[t('stat.players'),'…'],[t('stat.coreCracks'),'…'],[t('stat.rvltBurned'),'…'],[t('stat.ethRobbed'),'…'],[t('stat.vaultStatus'),t('stat.immortalized')]]; }
+stub('#v1stats',immStats()); stub('#v2stats',immStats());
+// IMMORTALIZED buy & burn (game retired 2026-11): the game no longer burns, so the total burned is FROZEN at its
+// final value and the daily/weekly rows are dropped. Price/market cap/volume stay live (the token still trades).
+// volUsd: all-time trading volume, HARD-FROZEN. GeckoTerminal only indexes a low-volume mirror pool (it reported a
+// bogus ~$31.7k), so the honest figure is backed out of creator fees: ~45 ETH earned at a 0.7% creator fee = ~6,429 ETH
+// of volume, ~$13.2M at ETH ~$2,050. The token peaked near $4M market cap. Frozen; the token's active trading is over.
+var FROZEN_BURN={ rvlt:468247593, pct:46.8, disp:'468.2M', usd:22171, volUsd:13200000 };
+function rvltStatsPlaceholder(){ return [[t('stat.marketCap'),'…'],[t('stat.price'),'…'],[t('stat.vol24h'),'…'],[t('stat.volAllTime'),money(FROZEN_BURN.volUsd)],[t('stat.liquidity'),'…'],[t('stat.totalBurned'),FROZEN_BURN.disp+' ROBINVAULT']]; }
+stub('#rvltstats',rvltStatsPlaceholder());
+async function loadLegacy(){
+  try{ const s=await fetch('api/legacy-stats').then(r=>r.json());
+    const row=v=>[[t('stat.totalRuns'),num(v.runs)],[t('stat.players'),num(v.players)],[t('stat.coreCracks'),num(v.coreCracks!=null?v.coreCracks:v.robs)],[t('stat.rvltBurned'),compact(v.rvltBurned)],[t('stat.ethRobbed'),(v.ethRobbed||0).toFixed(2)],[t('stat.vaultStatus'),t('stat.immortalized')]];
+    stub('#v1stats',row(s.v1)); stub('#v2stats',row(s.v2));
+  }catch(e){}
+}
+let _tok=null, _brn=null;
+function renderTok(){
+  if(!_tok) return; const tk=_tok, b=_brn||{};
+  const price=!tk.price?'n/a':(tk.price<0.01?'$'+Number(tk.price).toPrecision(2):'$'+Number(tk.price).toFixed(4));
+  const burn=v=>(v==null?'…':compact(v)+' ROBINVAULT');
+  stub('#rvltstats',[
+    [t('stat.marketCap'), money(tk.marketCap)],
+    [t('stat.price'), price],
+    [t('stat.vol24h'), money(tk.volume24h)],
+    [t('stat.volAllTime'), money(FROZEN_BURN.volUsd)],
+    [t('stat.liquidity'), money(tk.liquidity)],
+    [t('stat.totalBurned'), FROZEN_BURN.disp+' ROBINVAULT'],
+  ]);
+  const note=$('#rvltnote'); if(note) note.textContent=(tk.burnedPct?t('rvlt.noteBurnedPct',{pct:tk.burnedPct.toFixed(0)}):'')+t('rvlt.note',{circulating:compact(tk.circulating)});
+  const lk=$('#rvltlink'); if(lk&&tk.explorer) lk.href=tk.explorer+'/token/'+tk.token;
+  loadTok();
+}
+function loadTok(){
+  if(!_tok) return; const tk=_tok, b=_brn||{};
+  stub('#tokstats',[
+    [t('stat.totalBurned'), FROZEN_BURN.disp+' RVLT'],
+    [t('stat.ofSupply'), FROZEN_BURN.pct+'%'],
+  ]);
+  stub('#colstats',[
+    [t('stat.totalSupply'), compact(tk.totalSupply)],
+    [t('stat.circulating'), compact(tk.circulating)],
+    [t('stat.collection'), '1,000'],
+    [t('stat.ones'), '10'],
+  ]);
+  const note=$('#toknote'); if(note) note.textContent=t('tok.note');
+  const ds=$('#dossBurned'); if(ds) ds.textContent=FROZEN_BURN.disp+' RVLT ('+FROZEN_BURN.pct+'%)';
+}
+var _tokTries=0;
+async function loadToken(){ try{ _tok=await fetch('api/token').then(r=>r.json()); renderTok(); if((!_tok||!_tok.price)&&_tokTries++<6) setTimeout(loadToken,6000); }catch(e){ if(_tokTries++<6) setTimeout(loadToken,6000); } }
+var _brnTries=0;
+async function loadBurns(){ try{ _brn=await fetch('api/burns').then(r=>r.json()); renderTok(); if(_brn&&_brn.stale&&_brnTries++<6){ setTimeout(loadBurns,6000); } }catch(e){ if(_brnTries++<6) setTimeout(loadBurns,6000); } }
+// Buy & burn trackers: RobinVault (game/token) vs Vault Robbers (NFT mint + royalties), valued in USD.
+var _bbTries=0;
+function loadBuyburn(){
+  // IMMORTALIZED: buy & burn is frozen at its final retired-state values. The game no longer burns, so there is no
+  // live fetch; the RobinVault tracker shows the final cumulative burn and the NFT-royalty tracker stays at zero.
+  const el=$('#bbRvlt'), se=$('#bbRvltSub'); if(el) el.textContent=usd(FROZEN_BURN.usd); if(se) se.textContent=t('tok.rvltBurnedAmt',{amount:FROZEN_BURN.disp});
+  const nftUsd=$('#bbNft'), nftSub=$('#bbNftSub'); if(nftUsd) nftUsd.textContent='$0'; if(nftSub) nftSub.textContent=t('tok.bbNftSub');
+}
+loadConfig(); loadQuote(); loadLegacy(); loadToken(); loadBurns(); loadBuyburn(); loadOnes();
+// keep the USD total live: refresh the quote periodically and whenever the tab regains focus
+setInterval(()=>{ if(!document.hidden) loadQuote(); }, 45000);
+document.addEventListener('visibilitychange',()=>{ document.body.classList.toggle('vs-hidden', document.hidden); if(!document.hidden) loadQuote(); });
+document.body.classList.toggle('vs-hidden', document.hidden);
+
+// ── Vault-door unlock animation on page load ────────────────────────────
+(function vdoorBoot(){
+  const wrap = document.getElementById('vdoorWrap'); if(!wrap) return;
+  const motionOk = !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  if(!motionOk) return;
+  setTimeout(()=>{
+    wrap.classList.add('unlocked');
+    setTimeout(()=>{ wrap.classList.remove('unlocked'); }, 1400);
+  }, 600);
+})();
+
+// ── Living numbers: smooth tween for the minted supply display ─────────
+(function initLivingNumbers(){
+  let displayed = null;
+  const el = document.getElementById('m-supply'); if(!el) return;
+  // Patch loadConfig so we intercept the value it sets and tween instead
+  const origSetText = function(raw){
+    // raw is like "42 / 1,000 minted"
+    const match = raw.match(/^(\d+)/);
+    if(!match){ el.textContent = raw; return; }
+    const target = parseInt(match[1], 10);
+    if(displayed === null || displayed === target){ displayed = target; el.textContent = raw; return; }
+    // Tween from displayed to target
+    const motionOk = !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    if(!motionOk){ displayed = target; el.textContent = raw; return; }
+    const start = displayed, diff = target - start, dur = 480, t0 = performance.now();
+    const suffix = raw.replace(/^\d+/, '');
+    function frame(now){
+      const p = Math.min(1, (now - t0) / dur);
+      const ease = 1 - Math.pow(1 - p, 3);
+      const cur = Math.round(start + diff * ease);
+      el.textContent = cur + suffix;
+      if(p < 1) requestAnimationFrame(frame);
+      else { displayed = target; el.textContent = raw; }
+    }
+    requestAnimationFrame(frame);
+    // shimmer the element
+    el.classList.remove('num-flash');
+    void el.offsetWidth;
+    el.classList.add('num-flash');
+    setTimeout(()=>el.classList.remove('num-flash'), 600);
+  };
+  // Intercept by observing DOM mutations on the element
+  const obs = new MutationObserver(()=>{
+    const txt = el.textContent || '';
+    const match = txt.match(/^(\d+)/);
+    if(match){
+      const n = parseInt(match[1], 10);
+      if(displayed !== null && n !== displayed){
+        // already changed by someone: re-read and tween
+        // (only fires on external write, not our own write since we use textContent directly)
+      }
+      if(displayed === null) displayed = n;
+    }
+  });
+  obs.observe(el, { characterData: true, subtree: true, childList: true });
+  // Patch: wrap the original getElementById approach by overriding the supply text setter used in loadConfig
+  const origLoadConfig = window.loadConfig; // not defined globally, so we patch via the stat row write
+  // We patch by replacing the textContent assignment in the next microtask after loadConfig populates it
+  const supplyObs = new MutationObserver(mutations=>{
+    for(const m of mutations){
+      if(m.type === 'childList' || m.type === 'characterData'){
+        const raw = el.textContent || '';
+        if(!raw || raw === '...') continue;
+        const match = raw.match(/^(\d+)/); if(!match) continue;
+        const target = parseInt(match[1], 10);
+        if(displayed === null){ displayed = target; continue; }
+        if(target === displayed) continue;
+        origSetText(raw);
+        // prevent infinite loop: disconnect briefly
+        supplyObs.disconnect();
+        setTimeout(()=>supplyObs.observe(el,{characterData:true,subtree:true,childList:true}),700);
+      }
+    }
+  });
+  supplyObs.observe(el, { characterData: true, subtree: true, childList: true });
+  obs.disconnect();
+})();
+
+// ── Success bloom: apply to the mint card on a successful mint ──────────
+(function patchSetStatus(){
+  const orig = window.setStatus || (window.setStatus = (m,c)=>{const s=document.getElementById('status');if(s){s.className=c||'muted';s.textContent=m;}});
+  window.setStatus = function(m, cls){
+    orig(m, cls);
+    if(cls === 'ok' && (m.toLowerCase().includes('minted') || m.toLowerCase().includes('tx '))){
+      const card = document.querySelector('#p-mint .card');
+      if(card){ card.classList.remove('success-bloom'); void card.offsetWidth; card.classList.add('success-bloom'); }
+      // Trigger vault door unlock
+      const wrap = document.getElementById('vdoorWrap');
+      if(wrap){ wrap.classList.add('unlocked'); setTimeout(()=>wrap.classList.remove('unlocked'),1400); }
+    }
+  };
+})();
+// Silent re-attach of an already-authorized EVM wallet (no popup, no picker). Picks the first detected EVM wallet
+// that reports an authorized account and sets it as both the pay account and the default mint wallet. A reattached
+// multi-chain wallet's Solana leg is NOT silently re-added (Solana pay-in stays an explicit choice; the user can
+// re-add it from the Pay-from menu). Waits for the deferred connector module + injected providers (EIP-6963 is async).
+async function reattach(){
+  try{
+    try{ if(localStorage.getItem('vr_disc')==='1') return; }catch(_){}   // user disconnected: don't silently re-attach
+    const w=emW(); if(!w) return;
+    let ids=(w&&w.discoverEvm)?w.discoverEvm():[];
+    const order=['metamask','rabby','robinhood','rainbow','phantom']; ids.sort((a,b)=>(order.indexOf(a)+1||99)-(order.indexOf(b)+1||99));
+    for(const id of ids){
+      const p=w.findInjectedEvm(id); if(!p||!p.request) continue;
+      let accs=[]; try{ accs=await p.request({method:'eth_accounts'}); }catch(e){}
+      if(accs&&accs.length){ EIP=p; account=accs[0]; mintAccount=account; try{ await ensureChain(); }catch(e){} paintConn(); refreshWallet(); return; }
+    }
+  }catch(e){}
+}
+(function waitAndReattach(n){ if(emW()){ setTimeout(reattach, 350); return; } if(n>0) setTimeout(()=>waitAndReattach(n-1), 150); })(30);
+
+// ---- i18n: mount the language switcher in the header (just left of Connect), run the static sweep, repaint on change ----
+// HTML-bearing strings (bold / arrow spans) can't go through the textContent sweep, so they're painted here via innerHTML.
+function paintI18nHtml(){
+  try{ var mb=document.getElementById('mintBurnNote'); if(mb) mb.innerHTML=t('mint.burnNote'); }catch(e){}
+  try{ var fl=document.getElementById('tokFlow'); if(fl) fl.innerHTML=t('tok.flow'); }catch(e){}
+}
+// Mount the switcher directly before the #conn button so it reads as part of the header control cluster.
+function mountI18nSwitcher(){
+  try{
+    var hdr=document.querySelector('header'); var conn=document.getElementById('conn'); if(!hdr||!conn) return;
+    var sw=VSI18N.renderLanguageSwitcher(hdr);               // appends/refreshes a .vsi18n inside <header>
+    if(sw && conn.previousElementSibling!==sw){ hdr.insertBefore(sw, conn); }  // keep it immediately before Connect
+  }catch(e){}
+}
+VSI18N.ready.then(function(){
+  mountI18nSwitcher();
+  try{ VSI18N.sweep(document); }catch(e){}
+  paintI18nHtml();
+});
+window.addEventListener('vs-lang-change', function(){
+  // Re-render the dynamic views FIRST (they read t() fresh), THEN run the static data-i18n sweep last so any
+  // header/card text that the render helpers write is left in the active language.
+  try{ if(typeof renderTok==='function') renderTok(); }catch(e){}
+  try{ if(typeof loadBuyburn==='function') loadBuyburn(); }catch(e){}
+  try{ if(typeof loadLegacy==='function') loadLegacy(); }catch(e){}
+  try{ if(typeof vsTick==='function') vsTick(); }catch(e){}
+  try{ if(typeof paintConn==='function') paintConn(); }catch(e){}
+  try{ if(typeof setMintButton==='function') setMintButton(); }catch(e){}
+  try{ var g=document.getElementById('m-tier'); if(g && CFG) loadConfig(); }catch(e){}
+  // CREW / 1-1s / lore were rendered lazily; force a re-render so their dynamic strings localize too.
+  try{ if(CREW){ CREW=null; loadCrew(); } else { var ct=$('#crew-title'),cs=$('#crew-sub'); if(ct) ct.textContent=t('crew.title'); if(cs) cs.textContent=t('crew.loading'); } }catch(e){}
+  try{ loadOnes(); }catch(e){}
+  try{ var lb=document.getElementById('lore'); if(lb && lb.dataset.done){ lb.dataset.done=''; renderLore(); } }catch(e){}
+  mountI18nSwitcher();
+  try{ VSI18N.sweep(document); }catch(e){}
+  paintI18nHtml();
+});
+
+/* ── MY ROBBERS: post-mint airdrop claim. Reuses the mint page's EVM wallet (robbers + RVLT live on Robinhood 4663,
+   the same chain the mint runs on). Read via /api/myrobbers/*; claim steps are signed by the owner's own wallet.
+   Inert (stash 0) until the Vault Standoff escrow is armed. */
+(function(){
+  var _mrBusy=false, _mrPoll=null;
+  // Prefer mintAccount (the EVM wallet the NFTs actually mint to) over the pay wallet `account`, matching the
+  // cap/status line's mw=mintAccount||account. A Solana/cross-chain pay flow can leave `account` as a different
+  // (0-robber) wallet than mintAccount, which previously made "My Robbers" wrongly show empty.
+  function mrAddr(){ try{ return (typeof mintAccount!=='undefined'&&mintAccount)||(typeof account!=='undefined'&&account)||''; }catch(e){ return ''; } }
+  function mrMoney(n){ n=Number(n||0); return (n>=1000?Math.round(n).toLocaleString():n.toFixed(n<1?2:0))+' RVLT'; }
+  function mrShort(a){ a=String(a||''); return a.slice(0,6)+'…'+a.slice(-4); }
+  function mrSay(msg,kind){ try{ if(typeof setStatus==='function'){ setStatus(msg,kind); return; } }catch(e){} }
+  async function renderMyRobbers(){
+    var body=document.getElementById('myRobBody'); if(!body) return;
+    var addr=mrAddr();
+    if(!addr){ body.innerHTML='<p class="muted" style="margin:0">Connect your wallet up top to see your robbers.</p>'; return; }
+    // Show a verifying spinner on the first paint (the owned() read is an on-chain lookup that takes a beat), but
+    // never wipe an already-rendered grid on the background poll (avoids a flicker every 45s).
+    if(!body.querySelector('.mrgrid')){ body.innerHTML='<div class="mrloading"><span class="mrspin"></span>Verifying your robbers…</div>'; }
+    try{
+      var d=await fetch('api/myrobbers/owned?address='+addr).then(function(r){return r.json();});
+      if(!d.robbers||!d.robbers.length){ body.innerHTML='<p class="muted" style="margin:0">No Vault Robbers in this wallet yet. Mint above to join the crew.</p>'; return; }
+      // Pull each robber's artwork (real art once revealed, sealed ghost before) from the same resolver the pull/crew use.
+      var art={}; try{ var ta=await fetch('api/tokenart?ids='+d.robbers.map(function(r){return r.tokenId;}).join(',')).then(function(r){return r.json();}); (ta.robbers||[]).forEach(function(x){ art[x.id]=x; }); }catch(e){}
+      var note=d.armed?'':'<div class="mrnote">Airdrops start once the mint closes and the first heist settles. Your robbers are listed now.</div>';
+      var exp=((typeof CFG!=='undefined'&&CFG&&CFG.explorer)||'https://robin.etherscan.io').replace(/\/+$/,'');
+      body.innerHTML='<div class="mrgrid">'+d.robbers.map(function(r){ var loaded=Number(r.stash)>0; var a=art[r.tokenId]||{}; var revd=a.status&&String(a.status).toLowerCase()!=='unrevealed'; var img=(revd&&a.image)?cesc(a.image):robberGhost(r.tokenId); return '<div class="mrcard"><img class="mrart" loading="lazy" src="'+img+'" alt="Robber #'+r.tokenId+'"><div class="mrid">Robber #'+r.tokenId+'</div><div class="mrstash'+(loaded?'':' z')+'">'+mrMoney(r.stash)+'</div><div class="mrtbal">Robber’s vault address</div><a class="mrtba" href="'+exp+'/address/'+r.tba+'" target="_blank" rel="noopener" title="'+r.tba+'">'+mrShort(r.tba)+' ↗</a><button class="btn mrclaim" type="button" data-id="'+r.tokenId+'"'+(loaded?'':' disabled')+'>'+(loaded?'Claim':'Empty')+'</button></div>'; }).join('')+'</div>'+note;
+      Array.prototype.forEach.call(body.querySelectorAll('.mrclaim[data-id]'),function(btn){ btn.onclick=function(){ mrClaim(parseInt(btn.getAttribute('data-id'),10)); }; });
+    }catch(e){ body.innerHTML='<p class="muted" style="margin:0">Could not read your robbers right now.</p>'; }
+  }
+  async function mrClaim(tokenId){
+    if(_mrBusy) return; _mrBusy=true;
+    try{
+      var addr=mrAddr(); if(!addr){ try{ await connect(); }catch(e){} addr=mrAddr(); }
+      if(!addr) throw new Error('Connect your wallet');
+      var plan=await fetch('api/myrobbers/claim-plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tokenId:tokenId,address:addr})}).then(function(r){return r.json();});
+      if(plan.error) throw new Error(plan.error);
+      if(!plan.steps||!plan.steps.length){ mrSay('Nothing to claim on #'+tokenId,'warn'); _mrBusy=false; return; }
+      try{ if(typeof ensureChain==='function') await ensureChain(); }catch(e){}
+      var eip=(typeof prov==='function'&&prov())||window.ethereum; var bp=new ethers.BrowserProvider(eip); var signer=await bp.getSigner();
+      for(var i=0;i<plan.steps.length;i++){ var s=plan.steps[i]; mrSay(s.label+'…'); var tx=await signer.sendTransaction({to:s.to,data:s.data,value:0n}); await tx.wait(); }
+      mrSay('Claimed to your wallet','ok');
+      renderMyRobbers();
+    }catch(e){ mrSay(String(e&&e.message||'Claim failed').slice(0,90),'err'); }
+    _mrBusy=false;
+  }
+  function mrInit(){ renderMyRobbers();
+    // Wallet may connect a beat after load — re-render a few times early so robbers appear without waiting for the poll.
+    [2500,6000,12000].forEach(function(ms){ setTimeout(function(){ if(mrAddr()) renderMyRobbers(); }, ms); });
+    if(!_mrPoll) _mrPoll=setInterval(function(){ var c=document.getElementById('myRobbersCard'); if(c&&c.offsetParent!==null) renderMyRobbers(); },45000); }
+  if(document.readyState!=='loading') mrInit(); else document.addEventListener('DOMContentLoaded',mrInit);
+})();
+</script>
+</body>
+</html>
