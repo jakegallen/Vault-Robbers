@@ -38,20 +38,20 @@ window.__VR_REDIRECT_ON=(typeof window.__VR_REDIRECT_ON==='boolean')?window.__VR
 })();
 </script>
 <title>Vault Robbers</title>
-<meta name="description" content="Masked robbers born from the vault. Mint the crew.">
+<meta name="description" content="Masked robbers born from the vault. Free to play, forever.">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Vault Robbers">
 <meta property="og:title" content="Vault Robbers">
-<meta property="og:description" content="Masked robbers born from the vault. Mint the crew.">
+<meta property="og:description" content="Masked robbers born from the vault. Free to play, forever.">
 <meta property="og:url" content="https://vaultrobbers.com/">
 <meta property="og:image" content="https://vaultrobbers.com/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Vault Robbers">
-<meta name="twitter:description" content="Masked robbers born from the vault. Mint the crew.">
+<meta name="twitter:description" content="Masked robbers born from the vault. Free to play, forever.">
 <meta name="twitter:image" content="https://vaultrobbers.com/og.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -415,9 +415,9 @@ window.__VR_REDIRECT_ON=(typeof window.__VR_REDIRECT_ON==='boolean')?window.__VR
 <div class="wrap">
   <header>
     <div class="brand"><div class="brandmark"><svg viewBox="0 0 120 140" xmlns="http://www.w3.org/2000/svg"><path d="M60 8 C95 8 108 36 108 70 L108 132 L12 132 L12 70 C12 36 25 8 60 8 Z" fill="#17130d"/><ellipse cx="60" cy="64" rx="34" ry="38" fill="#fbfaf6" stroke="#17130d" stroke-width="3"/><rect x="24" y="52" width="72" height="26" rx="9" fill="#2ea65a" stroke="#17130d" stroke-width="3"/><ellipse cx="46" cy="65" rx="8" ry="9" fill="#fbfaf6" stroke="#17130d" stroke-width="2.5"/><ellipse cx="74" cy="65" rx="8" ry="9" fill="#fbfaf6" stroke="#17130d" stroke-width="2.5"/><circle cx="46" cy="65" r="3" fill="#17130d"/><circle cx="74" cy="65" r="3" fill="#17130d"/><path d="M58 85 l2 -6 l2 6 z" fill="#17130d"/><g stroke="#17130d" stroke-width="2"><line x1="50" y1="95" x2="70" y2="95"/><line x1="56" y1="93" x2="56" y2="99"/><line x1="64" y1="93" x2="64" y2="99"/></g></svg></div><h1>VAULT<br>ROBBERS</h1></div>
-    <div class="conn" id="conn" data-i18n="header.connect">Connect</div>
+    <div class="conn" id="conn" data-i18n="header.connect" style="display:none">Connect</div>
   </header>
-  <div class="tagline" data-i18n="app.tagline">Masked robbers, born from the vault. Mint the crew, chase the pot, watch it burn.</div>
+  <div class="tagline" data-i18n="app.tagline">Masked robbers, born from the vault. The crew is sealed, the games are free. Play on.</div>
 
   <!-- Vault-door hero removed from the home page (too large); the buy-burn flywheel on the tokenomics page is the keeper -->
   <div class="vdoor-wrap" id="vdoorWrap" aria-hidden="true" style="display:none">
@@ -576,9 +576,9 @@ window.__VR_REDIRECT_ON=(typeof window.__VR_REDIRECT_ON==='boolean')?window.__VR
     </div>
     <div class="card" id="myRobbersCard">
       <div class="sect" style="margin:0">My Robbers</div>
-      <p class="muted" style="margin:2px 0 10px">Every Vault Standoff heist airdrops the full 6% rake to one random robber. Your ROBINVAULT lands in that robber, claim it here after the mint closes.</p>
+      <p class="muted" style="margin:2px 0 10px">The 1,000-piece crew lives on. 315 robbers made it out before the mint closed. Browse or collect them on OpenSea.</p>
       <div style="margin:0 0 12px"><a class="btn sec" href="https://opensea.io/collection/vault-robbers" target="_blank" rel="noopener">Get Vault Robbers on OpenSea →</a></div>
-      <div id="myRobBody"><p class="muted" style="margin:0">Connect your wallet up top to see your robbers.</p></div>
+      <div id="myRobBody"><p class="muted" style="margin:0">The mint is closed and the vault is sealed. The robbers live on OpenSea.</p></div>
       <style>
       #myRobbersCard .mrgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:4px}
       #myRobbersCard .mrcard{border:2px solid rgba(23,19,13,.15);border-radius:12px;padding:11px;background:rgba(255,255,255,.35)}
@@ -746,7 +746,7 @@ var VSI18N=(function(){
     "note": "Source catalog for vaultrobbers-mint/public/index.html. Keys grouped by UI area. Placeholders use {name} syntax. English is the base/fallback; it must render pixel-identical to the hard-coded source. Crypto proper nouns (ROBINVAULT, Vault Robbers, Vault Standoff, OpenSea, Robinhood Chain, NFT) are left untranslated across catalogs.",
     "placeholders": "{total}/{max}=supply counts, {amount}=RVLT amount, {addr}=short address, {wallet}=wallet name, {tx}=tx hash, {id}=token id, {count}/{pct}/{circulating}=numbers, {page}/{pages}=pagination, {cap}/{remaining}/{balance}=mint allocation"
   },
-  "app.tagline": "Masked robbers, born from the vault. Mint the crew, chase the pot, watch it burn.",
+  "app.tagline": "Masked robbers, born from the vault. The crew is sealed, the games are free. Play on.",
   "header.connect": "Connect",
   "conn.mintPrefix": "mint {addr}",
   "common.close": "Close",
@@ -2195,7 +2195,7 @@ window.addEventListener('vs-lang-change', function(){
   async function renderMyRobbers(){
     var body=document.getElementById('myRobBody'); if(!body) return;
     var addr=mrAddr();
-    if(!addr){ body.innerHTML='<p class="muted" style="margin:0">Connect your wallet up top to see your robbers.</p>'; return; }
+    if(!addr){ body.innerHTML='<p class="muted" style="margin:0">The mint is closed and the vault is sealed. The robbers live on OpenSea.</p>'; return; }
     // Show a verifying spinner on the first paint (the owned() read is an on-chain lookup that takes a beat), but
     // never wipe an already-rendered grid on the background poll (avoids a flicker every 45s).
     if(!body.querySelector('.mrgrid')){ body.innerHTML='<div class="mrloading"><span class="mrspin"></span>Verifying your robbers…</div>'; }

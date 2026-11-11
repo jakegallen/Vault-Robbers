@@ -5,7 +5,7 @@
     "note": "Source catalog for vaultrobbers-mint/public/index.html. Keys grouped by UI area. Placeholders use {name} syntax. English is the base/fallback; it must render pixel-identical to the hard-coded source. Crypto proper nouns (ROBINVAULT, Vault Robbers, Vault Standoff, OpenSea, Robinhood Chain, NFT) are left untranslated across catalogs.",
     "placeholders": "{total}/{max}=supply counts, {amount}=RVLT amount, {addr}=short address, {wallet}=wallet name, {tx}=tx hash, {id}=token id, {count}/{pct}/{circulating}=numbers, {page}/{pages}=pagination, {cap}/{remaining}/{balance}=mint allocation"
   },
-  "app.tagline": "Masked robbers, born from the vault. Mint the crew, chase the pot, watch it burn.",
+  "app.tagline": "Masked robbers, born from the vault. The crew is sealed, the games are free. Play on.",
   "header.connect": "Connect",
   "conn.mintPrefix": "mint {addr}",
   "common.close": "Close",
